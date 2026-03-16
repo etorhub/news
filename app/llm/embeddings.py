@@ -4,6 +4,8 @@ import os
 from abc import ABC, abstractmethod
 from typing import Any
 
+from app.config import load_config
+
 
 class EmbeddingProviderError(Exception):
     """Raised when an embedding API call fails."""
@@ -49,8 +51,6 @@ class OllamaEmbeddingProvider(EmbeddingProvider):
 
 def get_embedding_provider(config: dict[str, Any] | None = None) -> EmbeddingProvider:
     """Return the configured embedding provider (Ollama)."""
-    from app.config import load_config
-
     cfg = config or load_config()
     embeddings_cfg = cfg.get("embeddings", {})
     model = embeddings_cfg.get("model") or "nomic-embed-text"

@@ -68,7 +68,7 @@ See `docs/TECH_STACK.md` for full details, project structure, dependencies, Dock
 - **LLM:** Ollama (local, no API key) via provider interface — text generation and embeddings
 - **Embeddings:** Ollama (nomic-embed-text) for article clustering
 - **Frontend:** Plain HTML + CSS + HTMX
-- **Scheduling:** APScheduler (fetch + rewrite on a schedule, content ready when user opens app)
+- **Scheduling:** APScheduler runs a five-stage pipeline in the worker: fetch feeds → enrich (extract full text) → embed → cluster → rewrite. Content is ready when the user opens the app.
 - **Packaging:** Docker + docker-compose (db, web, worker, ollama). Web uses slim image; worker uses ollama client; ollama runs models in dedicated container.
 - **Dev tooling:** Ruff (lint/format), Mypy (type check), Pytest, Lefthook (git hooks), Commitizen (conventional commits)
 
@@ -81,7 +81,7 @@ These are hard rules, not preferences:
 - **Flask routes return HTML only.** Never return JSON to the frontend. Every endpoint renders and returns a Jinja2 template partial. This is HATEOAS — the server owns all state and rendering.
 - **HTMX is the only frontend dependency.** No JavaScript frameworks. No build step. No npm. HTMX is loaded via a single CDN script tag. The only permitted JavaScript is a small inline `<script>` block in `base.html` for the Web Speech API (TTS feature detection and playback). No external JS files, no JS libraries beyond HTMX.
 - **LLM calls are always abstracted.** Never call Ollama directly from a route. Always go through the provider interface in `app/llm/provider.py`.
-- **Fetching and rewriting run on a schedule.** APScheduler fetches feeds on configured intervals and rewrites articles for active users daily. When a user opens the app, content is already ready. No on-demand LLM calls during page load.
+- **The pipeline runs on a schedule.** APScheduler in the worker runs: fetch feeds → enrich (Trafilatura extraction) → embed (Ollama) → cluster (cosine similarity) → rewrite (LLM). When a user opens the app, content is already ready. No on-demand LLM calls during page load. On-demand rewrites (after setup/settings save) are queued in `rewrite_requests` and processed by the worker.
 - **Config is never hardcoded.** YAML files define the catalog of available sources/topics and app-level settings. User preferences (location, selected sources, selected topics, filter toggle, rewrite tone, language) live in PostgreSQL, set via the web UI.
 - **Multi-user from the start.** The schema, auth, and caching all support multiple independent user accounts.
 

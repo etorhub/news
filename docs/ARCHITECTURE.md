@@ -8,9 +8,9 @@ Technical reference for the Accessible News Aggregator. Update this document whe
 
 A Flask web application that fetches news from RSS feeds and open publisher APIs on a schedule, rewrites each article via Ollama (local LLM) to match a reader's accessibility profile, and presents the result in a clean, accessible reader interface.
 
-The system has no client-side rendering. Flask renders all HTML server-side via Jinja2. HTMX makes targeted requests to Flask routes and swaps HTML fragments into the page. PostgreSQL stores user accounts, fetched articles, rewritten content, and all configuration.
+The system has no client-side rendering. Flask renders all HTML server-side via Jinja2. HTMX makes targeted requests to Flask routes and swaps HTML fragments into the page. PostgreSQL stores user accounts, fetched articles, clusters, rewritten content, and all configuration.
 
-Fetching and rewriting happen on a background schedule (APScheduler). When a user opens the app, content is already ready.
+A five-stage pipeline runs on a background schedule (APScheduler): fetch feeds → enrich (extract full text) → embed → cluster → rewrite. When a user opens the app, content is already ready.
 
 ---
 
@@ -54,8 +54,8 @@ User opens app for the first time after completing setup
 
 ```
 User taps "Read more"
-    → hx-get="/articles/{id}/expand"
-    → Flask queries PostgreSQL: get cached full rewrite for this article + profile_hash
+    → hx-get="/clusters/<cluster_id>/expand"
+    → Flask queries PostgreSQL: get cached cluster rewrite for this cluster + profile_hash
     → Returns partials/article_expanded.html with cached content
     → HTMX swaps the partial into #article-{id}
 ```
@@ -66,14 +66,13 @@ User taps "Read more"
 
 ### `app/feed/`
 
-Responsible for fetching and normalising content from RSS feeds and APIs.
+Responsible for fetching and normalising content from RSS feeds.
 
 For automated source discovery (location-based discovery, feed detection, quality scoring), see `docs/news_source_discovery_agent.md`. The Cursor rule `.cursor/rules/news-source-discovery.mdc` applies when working in this area.
 
-- `fetcher.py` — fetches RSS feeds via `feedparser`, returns normalised `RawArticle` objects
-- `normaliser.py` — converts raw feed entries to a common schema regardless of source
-- `sources.py` — loads and validates `config/sources.yaml`
-- `scheduler.py` — APScheduler job definitions for feed polling (tiered by frequency)
+- `fetcher.py` — fetches RSS feeds via HTTP, returns `FetchResult` with content and conditional headers
+- `parser.py` — parses feed XML via `feedparser`, returns `RawArticle` objects
+- `orchestrator.py` — fetches all due feeds, parses, deduplicates, inserts articles; circuit breaker for failing feeds
 
 A `RawArticle` has: `id`, `title`, `url`, `source`, `published_at`, `raw_text` (RSS description/lede), `full_text` (populated when the source provides full article content).
 
@@ -83,7 +82,28 @@ The LLM abstraction layer. Nothing outside this directory calls Ollama directly.
 
 - `provider.py` — `LLMProvider` abstract base class and `OllamaProvider` implementation
 - `embeddings.py` — `EmbeddingProvider` for article clustering; Ollama (nomic-embed-text)
-- `prompts/` — prompt template files (`.txt`)
+- `prompts/` — prompt template files (`.txt`); `rewrite_cluster.txt` merges multiple articles into one accessible article
+
+### `app/clustering/`
+
+Article clustering by embedding similarity. Groups articles about the same event into clusters.
+
+- `service.py` — embeds articles, clusters by cosine similarity (Union-Find), creates cluster records
+
+### `app/extraction/`
+
+Full-text extraction from article URLs.
+
+- `extractor.py` — batch enrichment for articles with `extraction_status = 'pending'`
+- `trafilatura.py` — fetches URL and extracts main body via Trafilatura
+
+### `app/discovery/`
+
+News source discovery: feed detection, validation, quality scoring.
+
+- `feed_detection.py` — validates feed URLs, returns completeness and item count
+- `validation.py` — DNS checks, HTTPS validation
+- `scoring.py` — quality score from feed completeness, type, frequency, HTTPS
 
 ### `app/services/`
 
@@ -98,10 +118,10 @@ Business logic. Routes call services; services do the work.
 
 All PostgreSQL access. No other module writes to the database directly.
 
-- `articles.py` — read/write for articles
+- `articles.py` — read/write for articles (including embeddings, extraction status)
 - `clusters.py` — clusters, cluster_articles, cluster_rewrites
-- `rewrites.py` — read/write for rewrite cache (legacy per-article)
 - `sources.py` — news_sources, source_feeds, source_discovery_log
+- `rewrite_requests.py` — on-demand rewrite queue (setup/settings save)
 - `users.py` — read/write for users and profiles
 - `admin.py` — admin dashboard queries (job runs, overview stats, feed health, incidents)
 - `connection.py` — connection pool management
@@ -118,7 +138,7 @@ Flask blueprints. Routes are thin wrappers: parse request, call service, return 
 
 ### `app/templates/`
 
-Jinja2 templates. Pages extend `base.html`. HTMX responses use partials.
+Jinja2 templates. Pages extend `base.html`. HTMX responses use partials. Templates live at project root `templates/`, not under `app/`.
 
 ```
 templates/
@@ -131,11 +151,11 @@ templates/
 ├── admin/
 │   ├── dashboard.html      # Admin dashboard (pipelines, jobs, users, incidents)
 │   └── partials/
-│       └── jobs.html       # Job runs table (HTMX partial, auto-refresh)
+│       └── jobs.html      # Job runs table (HTMX partial, auto-refresh)
 └── partials/
-    ├── article_card.html   # Summary card (one article in list)
+    ├── article_card.html   # Summary card (one cluster in list)
     ├── article_expanded.html  # Full simplified article
-    ├── article_list.html   # The full list of today's articles
+    ├── feed_content.html   # Feed list, loading state, or empty state
     ├── setup_sources.html  # Source selection section for setup
     └── setup_topics.html   # Topic selection section for setup
 ```
@@ -190,22 +210,51 @@ CREATE TABLE articles (
     published_at TIMESTAMPTZ,
     raw_text TEXT,
     full_text TEXT,
-    fetched_at TIMESTAMPTZ DEFAULT NOW()
+    fetched_at TIMESTAMPTZ DEFAULT NOW(),
+    guid TEXT,
+    embedding JSONB,
+    extraction_status TEXT DEFAULT 'pending',
+    extraction_method TEXT,
+    extracted_at TIMESTAMPTZ
 );
 
-CREATE TABLE rewrites (
+CREATE TABLE clusters (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE TABLE cluster_articles (
+    cluster_id UUID REFERENCES clusters(id) ON DELETE CASCADE,
     article_id TEXT REFERENCES articles(id) ON DELETE CASCADE,
+    position INTEGER DEFAULT 0,
+    PRIMARY KEY (cluster_id, article_id)
+);
+
+CREATE TABLE cluster_rewrites (
+    cluster_id UUID REFERENCES clusters(id) ON DELETE CASCADE,
     profile_hash TEXT NOT NULL,
+    title TEXT,
     summary TEXT,
     full_text TEXT,
     rewrite_failed BOOLEAN DEFAULT FALSE,
+    error_message TEXT,
     created_at TIMESTAMPTZ DEFAULT NOW(),
-    PRIMARY KEY (article_id, profile_hash)
+    PRIMARY KEY (cluster_id, profile_hash)
+);
+
+CREATE TABLE rewrite_requests (
+    id SERIAL PRIMARY KEY,
+    user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
+    status TEXT NOT NULL DEFAULT 'pending',
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    started_at TIMESTAMPTZ,
+    completed_at TIMESTAMPTZ,
+    error_message TEXT
 );
 
 CREATE INDEX idx_articles_source ON articles(source_id);
 CREATE INDEX idx_articles_published ON articles(published_at DESC);
-CREATE INDEX idx_rewrites_hash ON rewrites(profile_hash);
+CREATE INDEX idx_cluster_rewrites_hash ON cluster_rewrites(profile_hash);
 
 -- Admin dashboard: job run history (see docs/ADMIN_DASHBOARD.md)
 CREATE TABLE job_runs (
@@ -220,6 +269,8 @@ CREATE TABLE job_runs (
 );
 CREATE INDEX idx_job_runs_job_name_started_at ON job_runs(job_name, started_at);
 ```
+
+The `news_sources`, `source_feeds`, and `source_discovery_log` tables are defined in migration 002. See `docs/news_source_discovery_agent.md` for the full discovery schema.
 
 ### Source tables
 
@@ -271,12 +322,41 @@ embeddings:
 
 schedule:
   fetch_interval_minutes: 60
-  rewrite_cron: "0 6 * * *"  # Daily at 6am
+  enrichment_cron: "5 * * * *"
+  cluster_cron: "15 * * * *"
+  rewrite_cron: "0 6 * * *"
   rewrite_batch_size: 10
+  rewrite_parallel_workers: 1
+  fetcher:
+    circuit_breaker_threshold: 5
+    request_timeout_seconds: 30
+    user_agent: "AccessibleNewsAggregator/0.1 (+https://github.com/accessible-news/aggregator)"
+
+extraction:
+  enabled: true
+  min_content_length: 200
+  batch_size: 30
+  rate_limit_per_domain: 2.0
+  timeout: 30
 
 processing:
   articles_per_day: 10
   summary_sentences: 3
+  rewrite_max_tokens: 2000
+  cluster_window_hours: 24
+  cluster_similarity_threshold: 0.82
+  embed_batch_size: 50
+
+relevance:
+  weights:
+    recency: 0.20
+    coverage: 0.35
+    topic_affinity: 0.20
+    source_affinity: 0.15
+    content_quality: 0.10
+  recency_half_life_hours: 8
+  coverage_cap: 4
+  min_sources: 2
 
 server:
   port: 5000
@@ -293,58 +373,55 @@ Defines the catalog of available sources and their metadata. Each source should 
 sources:
   - id: "3cat"
     name: "3Cat Notícies"
-    type: rss
-    url: "https://www.3cat.cat/rss/noticia/catala/rss.xml"
-    language: ca
+    domain: "www.3cat.cat"
+    homepage_url: "https://www.3cat.cat/"
+    country_code: "ES"
+    region: "Catalonia"
+    languages: ["ca"]
     topics: ["general"]
     full_text: true
+    feeds:
+      - url: "https://www.3cat.cat/rss/noticia/catala/rss.xml"
+        type: rss
+        label: main
 
   - id: "elcritic"
     name: "El Crític"
-    type: rss
-    url: "https://www.elcritic.cat/feed"
-    language: ca
+    domain: "www.elcritic.cat"
+    homepage_url: "https://www.elcritic.cat/"
+    country_code: "ES"
+    region: "Catalonia"
+    languages: ["ca"]
     topics: ["politics", "society"]
     full_text: true
-
-  - id: "vilaweb"
-    name: "Vilaweb"
-    type: rss
-    url: "https://www.vilaweb.cat/feed/"
-    language: ca
-    topics: ["general", "politics"]
-    full_text: true
+    feeds:
+      - url: "https://www.elcritic.cat/feed"
+        type: rss
+        label: main
 ```
 
 ---
 
 ## LLM Processing Detail
 
-### Prompt (reference)
+### Cluster rewrite prompt (reference)
+
+The system uses `rewrite_cluster.txt` to merge multiple articles about the same event into one accessible article. Variables: `{language}`, `{rewrite_tone}`, `{filter_negative}`, `{summary_sentences}`, `{articles_text}`.
+
+Output format (exact headers required):
 
 ```
-Rewrite the following news article for a reader with these instructions:
-- {rewrite_tone}
-- Language: {language}
-- Output format: {summary_sentences} sentence summary, then a blank line, then the full simplified article
+TITLE:
+One headline.
 
-Source article:
-{article_text}
+SUMMARY:
+{summary_sentences} plain sentences.
 
-Rules:
-- Preserve all factual content exactly as stated in the source
-- Do not add information, context, or opinion not present in the source
-- Do not shorten the article — simplify it
+FULL:
+Full article in simplified form.
 ```
 
-When `filter_negative` is enabled, the prompt appends:
-
-```
-- If an article describes violence, death, severe illness, or disaster in graphic detail, soften the tone or summarise it briefly without graphic content.
-- If an article is primarily distressing with no informational value, omit it from the output entirely.
-```
-
-The negative filter is applied at rewrite time via the LLM prompt — not by keyword list or pre-filtering. It is a soft filter; the LLM exercises judgement.
+When `filter_negative` is enabled, the prompt instructs the LLM to omit or soften distressing content. The negative filter is applied at rewrite time via the LLM prompt — not by keyword list or pre-filtering. It is a soft filter; the LLM exercises judgement.
 
 ### `rewrite_tone` valid values
 
@@ -365,16 +442,16 @@ Store and pass the full instruction string, not a code name. The LLM prompt uses
 
 The daily rewrite job (APScheduler):
 
-1. Collects all active users (defined above) and their profile hashes
-2. Collects today's articles (from scheduled fetch)
-3. For each unique profile hash, rewrites articles that don't have a cached result
-4. Stores results in the `rewrites` table
+1. Collects all distinct rewrite profiles (profile hashes from users with complete setup)
+2. For each profile hash, finds clusters needing rewrite (within the cluster window)
+3. For each cluster, merges articles via LLM and stores in `cluster_rewrites`
+4. On-demand rewrites (after setup/settings save) are queued in `rewrite_requests`; the worker polls and processes them
 
-Two users with the same profile hash share cached rewrites — the LLM is never called twice for the same content + profile combination.
+Two users with the same profile hash share cached rewrites — the LLM is never called twice for the same cluster + profile combination.
 
 ### Daily digest delivery
 
-The daily digest is an **in-app experience only**. There is no email or push notification in the MVP. When a user opens the app after the rewrite job has run, they see a badge or banner: "N new articles since your last visit." This is rendered server-side from the `rewrites` table — no service worker, no push API.
+The daily digest is an **in-app experience only**. There is no email or push notification in the MVP. When a user opens the app after the rewrite job has run, they see a badge or banner: "N new articles since your last visit." This is rendered server-side from the `cluster_rewrites` table — no service worker, no push API.
 
 The badge is shown to both the end user and the caregiver (same account). The caregiver can therefore check it from any device without special notification setup.
 

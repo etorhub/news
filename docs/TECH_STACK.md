@@ -24,13 +24,18 @@ Technology choices for the Accessible News Aggregator, with rationale.
 | --- | --- |
 | Flask | Web framework |
 | psycopg2-binary | PostgreSQL driver |
-| APScheduler | Background job scheduling (fetch + rewrite) |
+| APScheduler | Background job scheduling (fetch, enrich, cluster, rewrite) |
 | feedparser | RSS/Atom feed parsing |
 | httpx | HTTP client for feed fetching |
 | ollama | Ollama Python client (LLM chat + embeddings) |
+| trafilatura | Full-text extraction from article URLs |
 | python-dotenv | Load `.env` for secrets |
 | bcrypt | Password hashing |
 | alembic | Database migrations |
+| sqlalchemy | ORM (used by Alembic) |
+| gunicorn | WSGI server for production |
+| PyYAML | Config file loading |
+| humanize | Relative time formatting (e.g. "5 minutes ago") |
 | ruff | Linting and formatting |
 | mypy | Static type checking |
 | pytest | Testing |
@@ -45,16 +50,23 @@ Technology choices for the Accessible News Aggregator, with rationale.
 ├── app/
 │   ├── __init__.py          # Flask app factory
 │   ├── config.py            # Loads config/*.yaml
+│   ├── cli.py               # Flask CLI commands (seed-sources, make-admin, show-rewrite-failures)
+│   ├── scheduler.py         # APScheduler entry point (worker container only)
+│   ├── worker_cli.py        # Pipeline CLI (fetch-feeds, enrich-articles, cluster-articles, etc.)
 │   ├── routes/              # Flask blueprints — reader, auth, setup, settings, admin
 │   ├── services/            # Business logic — routes call services
-│   ├── templates/           # Jinja2 templates
-│   │   └── partials/        # HTMX fragment templates
 │   ├── llm/
 │   │   ├── provider.py      # Abstract LLM interface + OllamaProvider
 │   │   ├── embeddings.py    # Embedding provider (Ollama nomic-embed-text)
-│   │   └── prompts/         # Prompt templates (plain .txt files)
-│   ├── feed/                # RSS fetching and normalisation
+│   │   └── prompts/        # Prompt templates (plain .txt files)
+│   ├── feed/                # RSS fetching (fetcher, parser, orchestrator)
+│   ├── extraction/          # Full-text extraction (extractor, trafilatura)
+│   ├── clustering/          # Article clustering by embedding similarity
+│   ├── discovery/           # Feed detection, validation, quality scoring
 │   └── db/                  # PostgreSQL access layer (includes admin queries)
+├── templates/               # Jinja2 templates (at project root)
+│   ├── partials/            # HTMX fragment templates
+│   └── admin/
 ├── alembic/                 # Database migration scripts (Alembic)
 │   ├── env.py
 │   └── versions/            # Versioned migration files
@@ -227,9 +239,11 @@ APScheduler runs in the dedicated `worker` container only (`python -m app.schedu
 
 Background jobs in the worker:
 
-1. **Fetch jobs** — poll feeds per their configured interval. Articles are stored centrally in the `articles` table.
-2. **Rewrite jobs** — run at a configurable daily time (default: early morning). For each active user, rewrite new articles that haven't been cached yet for their profile.
-3. **Rewrite request poller** — every 60 seconds, claims pending rows from the `rewrite_requests` table. When a user saves setup/settings with regeneration-affecting changes, the web route inserts a row; the worker picks it up and runs `run_rewrite_for_user`. No LLM calls in the web process.
+1. **Fetch jobs** — poll feeds per their configured interval. Articles are stored in the `articles` table.
+2. **Enrichment jobs** — extract full article text from URLs (Trafilatura) for articles with `extraction_status = 'pending'`.
+3. **Cluster jobs** — embed articles (Ollama nomic-embed-text), cluster by cosine similarity, create cluster records.
+4. **Rewrite jobs** — run at a configurable daily time (default: early morning). For each distinct profile hash, rewrite clusters that don't have a cached result in `cluster_rewrites`.
+5. **Rewrite request poller** — every 60 seconds, claims pending rows from the `rewrite_requests` table. When a user saves setup/settings with regeneration-affecting changes, the web route inserts a row; the worker picks it up and runs `run_rewrite_for_user`. No LLM calls in the web process.
 
 When a user opens the app, content is already ready. No waiting.
 

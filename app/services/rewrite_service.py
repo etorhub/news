@@ -158,21 +158,70 @@ def rewrite_cluster(
         return False
 
 
-def _rewrite_one(
-    cluster_id: str,
-    articles: list[dict[str, Any]],
+def _gather_rewrite_work(
+    profile_hash: str,
+    since: datetime,
+    batch_size: int,
+) -> list[tuple[str, list[dict[str, Any]]]]:
+    """Return list of (cluster_id, articles) needing rewrite for this profile."""
+    clusters = db_clusters.get_clusters_needing_rewrite(
+        profile_hash=profile_hash,
+        since=since,
+        limit=batch_size,
+    )
+    work: list[tuple[str, list[dict[str, Any]]]] = []
+    for row in clusters:
+        cluster_id = row["cluster_id"]
+        articles = db_clusters.get_articles_in_cluster(cluster_id)
+        if articles:
+            work.append((cluster_id, articles))
+    return work
+
+
+def _execute_rewrites(
+    work: list[tuple[str, list[dict[str, Any]]]],
     profile: dict[str, Any],
     config: dict[str, Any],
-    provider: LLMProvider | None,
-) -> bool:
-    """Single-cluster rewrite for use in parallel executor."""
-    return rewrite_cluster(
-        cluster_id=cluster_id,
-        articles=articles,
-        profile=profile,
-        config=config,
-        provider=provider,
-    )
+    provider: LLMProvider,
+    parallel_workers: int,
+) -> tuple[int, int, int]:
+    """Run rewrites for work items. Returns (attempted, succeeded, failed)."""
+    attempted = 0
+    succeeded = 0
+    failed = 0
+    if parallel_workers > 1:
+        with ThreadPoolExecutor(max_workers=parallel_workers) as executor:
+            futures = {
+                executor.submit(
+                    rewrite_cluster,
+                    cluster_id,
+                    articles,
+                    profile,
+                    config,
+                    provider=provider,
+                ): cluster_id
+                for cluster_id, articles in work
+            }
+            for future in as_completed(futures):
+                attempted += 1
+                if future.result():
+                    succeeded += 1
+                else:
+                    failed += 1
+    else:
+        for cluster_id, articles in work:
+            attempted += 1
+            if rewrite_cluster(
+                cluster_id=cluster_id,
+                articles=articles,
+                profile=profile,
+                config=config,
+                provider=provider,
+            ):
+                succeeded += 1
+            else:
+                failed += 1
+    return (attempted, succeeded, failed)
 
 
 def run_rewrite_batch(config: dict[str, Any]) -> RewriteReport:
@@ -200,77 +249,30 @@ def run_rewrite_batch(config: dict[str, Any]) -> RewriteReport:
 
     for profile in profiles:
         profile_hash = profile_service.compute_profile_hash(profile)
-        clusters = db_clusters.get_clusters_needing_rewrite(
-            profile_hash=profile_hash,
-            since=since,
-            limit=batch_size,
-        )
+        work = _gather_rewrite_work(profile_hash, since, batch_size)
         logger.info(
             "run_rewrite_batch: profile_hash=%s clusters_needing_rewrite=%d",
             profile_hash[:12] if profile_hash else "none",
-            len(clusters),
+            len(work),
         )
-        work: list[tuple[str, list[dict[str, Any]]]] = []
-        for row in clusters:
-            cluster_id = row["cluster_id"]
-            articles = db_clusters.get_articles_in_cluster(cluster_id)
-            if articles:
-                work.append((cluster_id, articles))
-
         if not work:
             continue
 
-        # Share provider across calls. Eager-load in main thread to avoid
-        # deadlock when workers load concurrently (local LLM).
         if provider is None:
             logger.info("run_rewrite_batch: loading provider")
             provider = get_provider(config)
             logger.info("run_rewrite_batch: provider ready, processing %d clusters", len(work))
 
-        if parallel_workers > 1:
-            with ThreadPoolExecutor(max_workers=parallel_workers) as executor:
-                futures = {
-                    executor.submit(
-                        _rewrite_one,
-                        cluster_id,
-                        articles,
-                        profile,
-                        config,
-                        provider,
-                    ): cluster_id
-                    for cluster_id, articles in work
-                }
-                for future in as_completed(futures):
-                    clusters_attempted += 1
-                    if future.result():
-                        clusters_succeeded += 1
-                    else:
-                        clusters_failed += 1
-                logger.info(
-                    "run_rewrite_batch: profile done attempted=%d ok=%d failed=%d",
-                    len(work),
-                    clusters_succeeded,
-                    clusters_failed,
-                )
-        else:
-            for cluster_id, articles in work:
-                clusters_attempted += 1
-                if rewrite_cluster(
-                    cluster_id=cluster_id,
-                    articles=articles,
-                    profile=profile,
-                    config=config,
-                    provider=provider,
-                ):
-                    clusters_succeeded += 1
-                else:
-                    clusters_failed += 1
-            logger.info(
-                "run_rewrite_batch: profile done attempted=%d ok=%d failed=%d",
-                len(work),
-                clusters_succeeded,
-                clusters_failed,
-            )
+        a, s, f = _execute_rewrites(work, profile, config, provider, parallel_workers)
+        clusters_attempted += a
+        clusters_succeeded += s
+        clusters_failed += f
+        logger.info(
+            "run_rewrite_batch: profile done attempted=%d ok=%d failed=%d",
+            len(work),
+            s,
+            f,
+        )
 
     logger.info(
         "run_rewrite_batch: finished profiles=%d attempted=%d ok=%d failed=%d",
@@ -310,21 +312,7 @@ def run_rewrite_for_user(
     parallel_workers = schedule_cfg.get("rewrite_parallel_workers", 2)
 
     profile_hash = profile_service.compute_profile_hash(profile)
-    clusters = db_clusters.get_clusters_needing_rewrite(
-        profile_hash=profile_hash,
-        since=since,
-        limit=batch_size,
-    )
-    work: list[tuple[str, list[dict[str, Any]]]] = []
-    for row in clusters:
-        cluster_id = row["cluster_id"]
-        articles = db_clusters.get_articles_in_cluster(cluster_id)
-        if articles:
-            work.append((cluster_id, articles))
-
-    clusters_attempted = 0
-    clusters_succeeded = 0
-    clusters_failed = 0
+    work = _gather_rewrite_work(profile_hash, since, batch_size)
 
     if not work:
         logger.info("run_rewrite_for_user: no work for user_id=%d", user_id)
@@ -339,38 +327,9 @@ def run_rewrite_for_user(
     provider = get_provider(cfg)
     logger.info("run_rewrite_for_user: provider ready")
 
-    if parallel_workers > 1:
-        with ThreadPoolExecutor(max_workers=parallel_workers) as executor:
-            futures = {
-                executor.submit(
-                    _rewrite_one,
-                    cluster_id,
-                    articles,
-                    profile,
-                    cfg,
-                    provider,
-                ): cluster_id
-                for cluster_id, articles in work
-            }
-            for future in as_completed(futures):
-                clusters_attempted += 1
-                if future.result():
-                    clusters_succeeded += 1
-                else:
-                    clusters_failed += 1
-    else:
-        for cluster_id, articles in work:
-            clusters_attempted += 1
-            if rewrite_cluster(
-                cluster_id=cluster_id,
-                articles=articles,
-                profile=profile,
-                config=cfg,
-                provider=provider,
-            ):
-                clusters_succeeded += 1
-            else:
-                clusters_failed += 1
+    clusters_attempted, clusters_succeeded, clusters_failed = _execute_rewrites(
+        work, profile, cfg, provider, parallel_workers
+    )
 
     logger.info(
         "run_rewrite_for_user: finished user_id=%d attempted=%d ok=%d failed=%d",

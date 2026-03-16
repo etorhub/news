@@ -57,21 +57,21 @@ prompt = f"Rewrite this article in simple language: {article_text}"
 ```python
 from app.llm.prompts import load_prompt
 
-template = load_prompt("rewrite_article")
-prompt = template.format(article_text=article_text, **profile.to_dict())
+template = load_prompt("rewrite_cluster")
+prompt = template.format(articles_text=articles_text, language=..., rewrite_tone=..., filter_negative=..., summary_sentences=...)
 ```
 
 ## Prompt structure
 
-The canonical rewrite prompt accepts these variables from the user profile:
+The canonical cluster rewrite prompt (`rewrite_cluster.txt`) accepts these variables:
 
 - `rewrite_tone` — free text describing how to rewrite (e.g. "Short sentences. Simple vocabulary. No jargon.")
 - `language` — BCP 47 language tag (e.g. `ca`, `es`, `en`)
 - `summary_sentences` — integer, number of summary lines
-- `article_text` — the raw article content
+- `articles_text` — concatenated text of all articles in the cluster (merged from multiple sources)
 - `filter_negative` — when enabled, instruct the LLM to omit or soften distressing content
 
-Always instruct the model to preserve factual accuracy and never add information not present in the source.
+Output format: TITLE:, SUMMARY:, FULL: sections. Always instruct the model to preserve factual accuracy and never add information not present in the source.
 
 ## No LLM calls during request handling
 
@@ -79,9 +79,13 @@ All LLM calls happen on a schedule via APScheduler, not during HTTP request hand
 
 ## Caching
 
-LLM output for a given article + profile combination is cached in PostgreSQL. The cache key is `(article_id, profile_hash)`. The profile hash includes only rewrite-affecting fields: `language`, `rewrite_tone`, `filter_negative`. It does NOT include source selections, topics, or location.
+LLM output for a given cluster + profile combination is cached in PostgreSQL (`cluster_rewrites` table). The cache key is `(cluster_id, profile_hash)`. The profile hash includes only rewrite-affecting fields: `language`, `rewrite_tone`, `filter_negative`. It does NOT include source selections, topics, or location.
 
 Two users with identical rewrite settings share cached results.
+
+## Embeddings and clustering
+
+Article clustering uses the embedding provider (`app/llm/embeddings.py`). Ollama `nomic-embed-text` produces vectors; articles are clustered by cosine similarity. Never call the embedding API directly from routes — it runs only in the worker (clustering job).
 
 ## Error handling
 
