@@ -180,7 +180,7 @@ volumes:
 
 The app never calls an LLM SDK directly. All LLM access goes through `app/llm/provider.py`, which defines an abstract `LLMProvider` class. Concrete implementations exist for Anthropic, OpenAI, Gemini, and **local** (Hugging Face transformers + PyTorch). The active provider is selected from `config/app.yaml`.
 
-For `provider: local`, no API key is required. Models run in-process via `transformers` and PyTorch. Use `model` (Hugging Face model ID) or `model_path` (local directory for air-gapped use). Default model: `HuggingFaceH4/zephyr-3b-beta`.
+For `provider: local`, no API key is required. Models run in-process via `transformers` and PyTorch. Use `model` (Hugging Face model ID) or `model_path` (local directory for air-gapped use). Default model: `Qwen/Qwen2.5-1.5B-Instruct`.
 
 ## Embedding Provider
 

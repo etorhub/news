@@ -207,7 +207,11 @@ def rewrite_articles_cmd() -> None:
     from app.services.rewrite_service import run_rewrite_batch
 
     config = load_config()
-    report = run_rewrite_batch(config)
+    try:
+        report = run_rewrite_batch(config)
+    except Exception as e:
+        click.echo(f"Rewrite job failed: {e}", err=True)
+        raise SystemExit(1)
     click.echo(
         f"Rewrite: profiles={report.profiles_processed} "
         f"clusters_attempted={report.clusters_attempted} "
@@ -240,7 +244,11 @@ def run_pipeline_cmd() -> None:
     click.echo(f"  embedded={r3.articles_embedded} clustered={r3.articles_clustered} clusters={r3.clusters_created}")
 
     click.echo("Running rewrite...")
-    r4 = run_rewrite_batch(config)
+    try:
+        r4 = run_rewrite_batch(config)
+    except Exception as e:
+        click.echo(f"Rewrite failed: {e}", err=True)
+        raise SystemExit(1)
     click.echo(f"  profiles={r4.profiles_processed} clusters_attempted={r4.clusters_attempted} ok={r4.clusters_succeeded} failed={r4.clusters_failed}")
 
     click.echo("Pipeline complete.")

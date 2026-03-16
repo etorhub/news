@@ -1,10 +1,8 @@
 llm:
-  provider: anthropic        # anthropic | openai | gemini | local
-  model: claude-sonnet-4-20250514
-  # For provider: local (transformers + PyTorch, no API key):
-  #   model: HuggingFaceH4/zephyr-3b-beta
-  #   model_path: /path/to/local/model   # optional, for air-gapped
-  #   device: cpu   # or cuda
+  provider: local           # anthropic | openai | gemini | local
+  model: Qwen/Qwen2.5-1.5B-Instruct
+  # model_path: /path/to/local/model   # optional, for air-gapped
+  # device: cpu   # or cuda
 
 embeddings:
   provider: local   # sentence-transformers
@@ -35,6 +33,16 @@ processing:
   cluster_window_hours: 24
   cluster_similarity_threshold: 0.82
   embed_batch_size: 50
+
+relevance:
+  weights:
+    recency: 0.30
+    coverage: 0.25
+    topic_affinity: 0.20
+    source_affinity: 0.15
+    content_quality: 0.10
+  recency_half_life_hours: 8
+  coverage_cap: 4
 
 server:
   port: 5000

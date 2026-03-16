@@ -40,10 +40,10 @@ def test_get_provider_gemini() -> None:
 
 def test_get_provider_local() -> None:
     """get_provider returns LocalLLMProvider for local config."""
-    config = {"llm": {"provider": "local", "model": "HuggingFaceH4/zephyr-3b-beta"}}
+    config = {"llm": {"provider": "local", "model": "Qwen/Qwen2.5-1.5B-Instruct"}}
     provider = get_provider(config)
     assert isinstance(provider, LocalLLMProvider)
-    assert provider._model_name == "HuggingFaceH4/zephyr-3b-beta"
+    assert provider._model_name == "Qwen/Qwen2.5-1.5B-Instruct"
     assert provider._device == "cpu"
 
 
@@ -52,7 +52,7 @@ def test_get_provider_local_with_model_path() -> None:
     config = {
         "llm": {
             "provider": "local",
-            "model": "HuggingFaceH4/zephyr-3b-beta",
+            "model": "Qwen/Qwen2.5-1.5B-Instruct",
             "model_path": "/path/to/local/model",
         }
     }

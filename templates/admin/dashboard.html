@@ -19,7 +19,8 @@
 
 <section aria-labelledby="overview-heading">
   <h2 id="overview-heading">Overview</h2>
-  <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 1rem; margin-bottom: 2rem;">
+  <div
+    style="display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 1rem; margin-bottom: 2rem;">
     <div style="padding: 1rem; border: 2px solid var(--border);">
       <p style="margin: 0; font-size: 1.5rem;">{{ stats.total_users or 0 }}</p>
       <p style="margin: 0.25rem 0 0;">Users ({{ stats.active_users or 0 }} active)</p>
@@ -49,10 +50,7 @@
 
 <section aria-labelledby="jobs-heading">
   <h2 id="jobs-heading">Scheduled jobs</h2>
-  <div
-    hx-get="{{ url_for('admin.jobs_partial') }}"
-    hx-trigger="every 60s"
-    hx-swap="innerHTML">
+  <div hx-get="{{ url_for('admin.jobs_partial') }}" hx-trigger="every 60s" hx-swap="innerHTML">
     {% include "admin/partials/jobs.html" %}
   </div>
 </section>
@@ -73,15 +71,19 @@
       {% for f in feed_health %}
       <tr style="{% if not f.feed_active or f.consecutive_failures %}background: #fdd;{% endif %}">
         <td style="padding: 0.5rem; border: 1px solid var(--border);">{{ f.source_name or f.source_id }}</td>
-        <td style="padding: 0.5rem; border: 1px solid var(--border);"><small>{{ f.feed_url[:60] }}{% if f.feed_url|length > 60 %}…{% endif %}</small></td>
+        <td style="padding: 0.5rem; border: 1px solid var(--border);"><small>{{ f.feed_url[:60] }}{% if
+            f.feed_url|length > 60 %}…{% endif %}</small></td>
         <td style="padding: 0.5rem; border: 1px solid var(--border);">{{ 'Yes' if f.feed_active else 'No' }}</td>
         <td style="padding: 0.5rem; border: 1px solid var(--border);">{{ f.consecutive_failures or 0 }}</td>
         <td style="padding: 0.5rem; border: 1px solid var(--border);">
-          {% if f.last_fetched_at %}{{ f.last_fetched_at.strftime('%Y-%m-%d %H:%M') if f.last_fetched_at else '—' }}{% else %}—{% endif %}
+          {% if f.last_fetched_at %}{{ f.last_fetched_at.strftime('%Y-%m-%d %H:%M') if f.last_fetched_at else '—' }}{%
+          else %}—{% endif %}
         </td>
       </tr>
       {% else %}
-      <tr><td colspan="5" style="padding: 0.5rem;">No feeds</td></tr>
+      <tr>
+        <td colspan="5" style="padding: 0.5rem;">No feeds</td>
+      </tr>
       {% endfor %}
     </tbody>
   </table>
@@ -134,7 +136,8 @@
           {% if f.created_at %}{{ f.created_at.strftime('%Y-%m-%d %H:%M') }}{% else %}—{% endif %}
         </td>
         <td style="padding: 0.5rem; border: 1px solid var(--border);">
-          {% if f.error_message %}<small>{{ f.error_message[:120] }}{% if f.error_message|length > 120 %}…{% endif %}</small>{% else %}<em>—</em>{% endif %}
+          {% if f.error_message %}<small>{{ f.error_message[:120] }}{% if f.error_message|length > 120 %}…{% endif
+            %}</small>{% else %}<em>—</em>{% endif %}
         </td>
       </tr>
       {% endfor %}
@@ -169,7 +172,9 @@
         <td style="padding: 0.5rem; border: 1px solid var(--border);">{{ 'Yes' if u.is_admin else 'No' }}</td>
       </tr>
       {% else %}
-      <tr><td colspan="5" style="padding: 0.5rem;">No users</td></tr>
+      <tr>
+        <td colspan="5" style="padding: 0.5rem;">No users</td>
+      </tr>
       {% endfor %}
     </tbody>
   </table>

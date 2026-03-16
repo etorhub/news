@@ -65,14 +65,14 @@ See [docs/ADMIN_DASHBOARD.md](docs/ADMIN_DASHBOARD.md) for full documentation.
 
 The scheduler runs four jobs on a schedule: fetch feeds, enrich articles (extract full text), cluster articles (embed + group), and rewrite articles (LLM simplification). You can run any of them manually via Flask CLI:
 
-| Command | Description |
-| ------- | ----------- |
-| `flask seed-sources` | Load sources from config/sources.yaml into the database (run once before fetch) |
-| `flask fetch-feeds` | Fetch all due RSS feeds |
-| `flask enrich-articles` | Extract full article content for pending articles |
-| `flask cluster-articles` | Embed and cluster today's articles |
-| `flask rewrite-articles` | Rewrite articles for all user profiles |
-| `flask run-pipeline` | Run the full pipeline once (seed → fetch → enrich → cluster → rewrite) |
+| Command                  | Description                                                                     |
+| ------------------------ | ------------------------------------------------------------------------------- |
+| `flask seed-sources`     | Load sources from config/sources.yaml into the database (run once before fetch) |
+| `flask fetch-feeds`      | Fetch all due RSS feeds                                                         |
+| `flask enrich-articles`  | Extract full article content for pending articles                               |
+| `flask cluster-articles` | Embed and cluster today's articles                                              |
+| `flask rewrite-articles` | Rewrite articles for all user profiles                                          |
+| `flask run-pipeline`     | Run the full pipeline once (seed → fetch → enrich → cluster → rewrite)          |
 
 Pipeline order matters: seed sources first (once), then fetch, enrich, cluster, rewrite. Use `flask run-pipeline` to run the full pipeline (seed is included).
 
