@@ -45,8 +45,9 @@ def regeneration_needed(
 
 def compute_profile_hash(profile: dict[str, Any]) -> str:
     """Compute cache key for rewrites. Includes only rewrite-affecting fields."""
+    language = (profile.get("language") or "ca").strip() or "ca"
     fields = {
-        "language": profile.get("language", "ca"),
+        "language": language,
         "rewrite_tone": profile.get(
             "rewrite_tone", "Short sentences. Simple vocabulary. No jargon."
         ),

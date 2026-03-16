@@ -97,10 +97,11 @@ def rewrite_cluster(
     profile_hash = profile_service.compute_profile_hash(profile)
     processing = config.get("processing", {})
     summary_sentences = processing.get("summary_sentences", 3)
+    language = (profile.get("language") or "ca").strip() or "ca"
     prompt_template = load_prompt("rewrite_cluster")
     prompt = prompt_template.format(
         articles_text=articles_text,
-        language=profile.get("language", "ca"),
+        language=language,
         rewrite_tone=profile.get(
             "rewrite_tone",
             "Short sentences. Simple vocabulary. No jargon.",

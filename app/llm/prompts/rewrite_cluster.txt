@@ -1,7 +1,7 @@
 Merge and rewrite these news articles about the same event for accessibility. The reader has motor or cognitive difficulties and benefits from simple language, short sentences, and clear structure.
 
 ## Instructions
-- Output in {language} (BCP 47 language tag).
+- Output exclusively in {language}. The entire article (title, summary, and full text) must be written in {language}. Do not mix languages.
 - Tone and style: {rewrite_tone}
 - Preserve factual accuracy. Never add information not present in the sources.
 - Filter negative news: {filter_negative}. When true, omit or soften distressing content.
