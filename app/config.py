@@ -40,6 +40,22 @@ def load_config(config_path: str | Path | None = None) -> dict[str, Any]:
     return _deep_merge(DEFAULTS.copy(), data)
 
 
+def load_sources(sources_path: str | Path | None = None) -> list[dict[str, Any]]:
+    """Load news sources from YAML file."""
+    if sources_path is None:
+        base = Path(__file__).resolve().parent.parent
+        sources_path = base / "config" / "sources.yaml"
+    path = Path(sources_path)
+    if not path.exists():
+        return []
+    with path.open() as f:
+        data = yaml.safe_load(f)
+    if not isinstance(data, dict) or "sources" not in data:
+        return []
+    sources = data["sources"]
+    return sources if isinstance(sources, list) else []
+
+
 def _deep_merge(base: dict[str, Any], override: dict[str, Any]) -> dict[str, Any]:
     """Merge override into base recursively."""
     result = base.copy()

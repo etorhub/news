@@ -6,13 +6,13 @@ Canonical phased plan for the minimum viable product. This document replaces sca
 
 ## MVP Scope Summary
 
-| Phase | Deliverable | Outcome |
-| --- | --- | --- |
-| 0 | Infrastructure & DX | Docker multi-service, Python tooling, git hooks, conventional commits |
-| 1 | News source discovery | Populated catalog of validated feeds |
-| 2 | Fetching pipeline | Articles stored on a schedule with full text when available |
-| 3 | Processing & storage | LLM rewrites (summary + full simplified) cached per profile hash |
-| 4 | Platform | Auth, multi-user profiles, feed UI, daily digest |
+| Phase | Deliverable           | Outcome                                                               |
+| ----- | --------------------- | --------------------------------------------------------------------- |
+| 0     | Infrastructure & DX   | Docker multi-service, Python tooling, git hooks, conventional commits |
+| 1     | News source discovery | Populated catalog of validated feeds                                  |
+| 2     | Fetching pipeline     | Articles stored on a schedule with full text when available           |
+| 3     | Processing & storage  | LLM rewrites (summary + full simplified) cached per profile hash      |
+| 4     | Platform              | Auth, multi-user profiles, feed UI, daily digest                      |
 
 ---
 
@@ -189,6 +189,7 @@ End users and caregivers always access the platform, never the codebase. Flow: *
 
 5. **UI requirements**
    - Clean, ad-free
+   - Inspiration from a newspaper: courier font, minimalistinc.
    - No clutter; minimal visual noise
    - Link to original source on every article
 
@@ -203,20 +204,20 @@ End users and caregivers always access the platform, never the codebase. Flow: *
 
 ## What the MVP Includes
 
-| Component | Status |
-| --- | --- |
-| Docker multi-service setup (db, web, scheduler) | ✅ |
-| Python tooling (ruff, mypy, pytest) | ✅ |
-| Git hooks (Lefthook) and conventional commits (Commitizen) | ✅ |
-| News source discovery (agent or manual seed) | ✅ |
-| Scheduled fetching from all sources | ✅ |
-| Scheduled rewriting (LLM rewrite, cache per profile hash) | ✅ |
-| Multi-user authentication | ✅ |
-| Profile configuration (setup wizard + settings) | ✅ |
-| Feed view (3-line summary, expandable) | ✅ |
-| Daily digest (top N articles) | ✅ |
-| Clean, ad-free UI | ✅ |
-| Accessibility (large fonts, TTS when supported, one-article-at-a-time) | ✅ |
+| Component                                                              | Status |
+| ---------------------------------------------------------------------- | ------ |
+| Docker multi-service setup (db, web, scheduler)                        | ✅     |
+| Python tooling (ruff, mypy, pytest)                                    | ✅     |
+| Git hooks (Lefthook) and conventional commits (Commitizen)             | ✅     |
+| News source discovery (agent or manual seed)                           | ✅     |
+| Scheduled fetching from all sources                                    | ✅     |
+| Scheduled rewriting (LLM rewrite, cache per profile hash)              | ✅     |
+| Multi-user authentication                                              | ✅     |
+| Profile configuration (setup wizard + settings)                        | ✅     |
+| Feed view (3-line summary, expandable)                                 | ✅     |
+| Daily digest (top N articles)                                          | ✅     |
+| Clean, ad-free UI                                                      | ✅     |
+| Accessibility (large fonts, TTS when supported, one-article-at-a-time) | ✅     |
 
 ---
 

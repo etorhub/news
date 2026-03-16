@@ -6,6 +6,7 @@ from pathlib import Path
 from dotenv import load_dotenv
 from flask import Flask, Response
 
+from app.cli import score_sources_cmd, seed_sources, validate_feeds_cmd
 from app.config import load_config
 
 load_dotenv()
@@ -30,7 +31,7 @@ def create_app(config_path: str | Path | None = None) -> Flask:
         )
 
     @app.route("/favicon.ico")
-    def favicon() -> tuple[Response, int]:
+    def favicon() -> Response:
         """No favicon yet; return 204 to avoid 404s in logs."""
         return Response(status=204)
 
@@ -38,5 +39,9 @@ def create_app(config_path: str | Path | None = None) -> Flask:
     def health() -> str:
         """Health check endpoint. Returns HTML per project rules."""
         return "<!DOCTYPE html><html><body><p>ok</p></body></html>"
+
+    app.cli.add_command(seed_sources)
+    app.cli.add_command(validate_feeds_cmd)
+    app.cli.add_command(score_sources_cmd)
 
     return app
