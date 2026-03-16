@@ -51,13 +51,26 @@ def get_feed(user_id: int) -> tuple[list[dict[str, Any]], bool]:
                 )
                 break
 
-    # Score and sort by relevance, limit
+    # Score each cluster
     for c in visible_clusters:
         c["relevance_score"] = score_cluster(
             c, source_ids, topic_ids, sources, config
         )
-    visible_clusters.sort(key=lambda c: c["relevance_score"], reverse=True)
-    visible_clusters = visible_clusters[:limit]
+
+    # Partition by source count: multi-source first, singletons as backfill
+    min_sources = config.get("relevance", {}).get("min_sources", 2)
+    primary: list[dict[str, Any]] = []
+    fallback: list[dict[str, Any]] = []
+    for c in visible_clusters:
+        distinct = len({a["source_id"] for a in c["articles"]})
+        if distinct >= min_sources:
+            primary.append(c)
+        else:
+            fallback.append(c)
+
+    primary.sort(key=lambda c: c["relevance_score"], reverse=True)
+    fallback.sort(key=lambda c: c["relevance_score"], reverse=True)
+    visible_clusters = (primary + fallback)[:limit]
 
     profile_hash = profile_service.compute_profile_hash(profile)
     cluster_ids = [c["cluster_id"] for c in visible_clusters]

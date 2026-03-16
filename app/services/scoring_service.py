@@ -89,8 +89,8 @@ def score_cluster(
 
     relevance = config.get("relevance", {})
     weights = relevance.get("weights", {})
-    w_recency = weights.get("recency", 0.30)
-    w_coverage = weights.get("coverage", 0.25)
+    w_recency = weights.get("recency", 0.20)
+    w_coverage = weights.get("coverage", 0.35)
     w_topic = weights.get("topic_affinity", 0.20)
     w_source = weights.get("source_affinity", 0.15)
     w_quality = weights.get("content_quality", 0.10)

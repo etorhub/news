@@ -249,3 +249,34 @@ def test_score_cluster_uses_default_weights() -> None:
         config={},
     )
     assert 0 < score <= 1.0
+
+
+def test_score_cluster_default_weights_favor_coverage() -> None:
+    """Default weights: multi-source cluster outscores singleton at same recency."""
+    now = datetime.now(UTC)
+    sources = {
+        "s1": {"topics": ["politics"]},
+        "s2": {"topics": ["politics"]},
+    }
+    singleton = {
+        "articles": [
+            {"source_id": "s1", "published_at": now, "extraction_status": "extracted"},
+        ],
+    }
+    multi_source = {
+        "articles": [
+            {"source_id": "s1", "published_at": now, "extraction_status": "extracted"},
+            {"source_id": "s2", "published_at": now, "extraction_status": "extracted"},
+        ],
+    }
+    user_sources = {"s1", "s2"}
+    user_topics = {"politics"}
+    config = {}  # uses defaults: recency 0.20, coverage 0.35
+
+    score_singleton = score_cluster(
+        singleton, user_sources, user_topics, sources, config
+    )
+    score_multi = score_cluster(
+        multi_source, user_sources, user_topics, sources, config
+    )
+    assert score_multi > score_singleton

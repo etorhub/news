@@ -40,13 +40,14 @@ processing:
 
 relevance:
   weights:
-    recency: 0.30
-    coverage: 0.25
+    recency: 0.20
+    coverage: 0.35
     topic_affinity: 0.20
     source_affinity: 0.15
     content_quality: 0.10
   recency_half_life_hours: 8
   coverage_cap: 4
+  min_sources: 2  # clusters below this go to backfill; multi-source shown first
 
 server:
   port: 5000
