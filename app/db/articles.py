@@ -14,6 +14,18 @@ def _article_id(source_id: str, url: str) -> str:
     return hashlib.sha256(f"{source_id}:{url}".encode()).hexdigest()[:16]
 
 
+def get_article_by_id(article_id: str) -> dict[str, Any] | None:
+    """Return article dict or None if not found."""
+    conn = get_connection()
+    try:
+        with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
+            cur.execute("SELECT * FROM articles WHERE id = %s", (article_id,))
+            row = cur.fetchone()
+            return dict(row) if row else None
+    finally:
+        return_connection(conn)
+
+
 def insert_article(article: dict[str, Any]) -> bool:
     """Insert an article. Returns True if inserted, False if duplicate.
 

@@ -1,0 +1,120 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>{% block title %}Accessible News{% endblock %}</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Courier+Prime:wght@400;700&display=swap" rel="stylesheet">
+  <script src="https://unpkg.com/htmx.org@1.9.10"></script>
+  <style>
+    :root {
+      --bg: #f5f5f0;
+      --fg: #1a1a1a;
+      --accent: #2c5282;
+      --border: #ccc;
+      --touch-min: 44px;
+      --font-base: 1.25rem;
+      --font-article: 1.5rem;
+    }
+    body.high-contrast {
+      --bg: #000;
+      --fg: #fff;
+      --accent: #7eb8ff;
+      --border: #666;
+    }
+    * { box-sizing: border-box; }
+    body {
+      font-family: "Courier Prime", "Courier New", monospace;
+      font-size: var(--font-base);
+      line-height: 1.6;
+      color: var(--fg);
+      background: var(--bg);
+      margin: 0;
+      padding: 1rem;
+      min-height: 100vh;
+    }
+    a {
+      color: var(--accent);
+      text-decoration: underline;
+    }
+    a:hover { text-decoration: none; }
+    button, input[type="submit"], .btn {
+      min-height: var(--touch-min);
+      min-width: var(--touch-min);
+      padding: 0.75rem 1.5rem;
+      font-family: inherit;
+      font-size: var(--font-base);
+      cursor: pointer;
+      border: 2px solid var(--border);
+      background: var(--bg);
+      color: var(--fg);
+    }
+    button:hover, input[type="submit"]:hover, .btn:hover {
+      background: var(--fg);
+      color: var(--bg);
+    }
+    input[type="text"], input[type="email"], input[type="password"], select, textarea {
+      min-height: var(--touch-min);
+      padding: 0.75rem;
+      font-family: inherit;
+      font-size: var(--font-base);
+      border: 2px solid var(--border);
+      background: var(--bg);
+      color: var(--fg);
+    }
+    input[type="checkbox"] {
+      min-width: 24px;
+      min-height: 24px;
+      cursor: pointer;
+    }
+    nav {
+      margin-bottom: 2rem;
+      padding-bottom: 1rem;
+      border-bottom: 2px solid var(--border);
+    }
+    nav a, nav form {
+      display: inline-block;
+      margin-right: 1rem;
+      min-height: var(--touch-min);
+      line-height: var(--touch-min);
+    }
+    .tts-only { display: none; }
+    body.tts-available .tts-only { display: inline-block; }
+  </style>
+  {% block head %}{% endblock %}
+</head>
+<body class="{% if profile and profile.high_contrast %}high-contrast {% endif %}{% if request and request.cookies.get('tts_available') %}tts-available{% endif %}">
+  <nav>
+    {% if session.get('user_id') %}
+      <a href="{{ url_for('reader.index') }}">Feed</a>
+      <a href="{{ url_for('settings.settings_page') }}">Settings</a>
+      <form method="post" action="{{ url_for('auth.logout') }}" style="display:inline;">
+        <button type="submit">Log out</button>
+      </form>
+    {% else %}
+      <a href="{{ url_for('auth.login') }}">Log in</a>
+      <a href="{{ url_for('auth.register') }}">Register</a>
+    {% endif %}
+  </nav>
+  <main>
+    {% block content %}{% endblock %}
+  </main>
+  <script>
+    (function() {
+      if ('speechSynthesis' in window) {
+        document.cookie = 'tts_available=1; path=/; max-age=86400';
+        document.body.classList.add('tts-available');
+      }
+    })();
+    function speak(text) {
+      if (!('speechSynthesis' in window)) return;
+      window.speechSynthesis.cancel();
+      var u = new SpeechSynthesisUtterance(text);
+      window.speechSynthesis.speak(u);
+    }
+  </script>
+  {% block scripts %}{% endblock %}
+</body>
+</html>

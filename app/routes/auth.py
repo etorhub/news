@@ -1,0 +1,63 @@
+"""Authentication routes: login, register, logout."""
+
+from typing import Any
+
+from flask import Blueprint, redirect, render_template, request, session, url_for
+
+from app.services import auth_service
+
+auth_bp = Blueprint("auth", __name__)
+
+
+@auth_bp.route("/login", methods=["GET", "POST"])
+def login() -> Any:
+    """GET: show login form. POST: authenticate and redirect to /."""
+    if request.method == "GET":
+        return render_template("login.html")
+    email = request.form.get("email", "").strip()
+    password = request.form.get("password", "")
+    if not email or not password:
+        return render_template(
+            "login.html", error="Email and password are required.", email=email
+        )
+    user_id = auth_service.authenticate_user(email, password)
+    if not user_id:
+        return render_template(
+            "login.html", error="Invalid email or password.", email=email
+        )
+    session["user_id"] = user_id
+    return redirect(url_for("reader.index"))
+
+
+@auth_bp.route("/register", methods=["GET", "POST"])
+def register() -> Any:
+    """GET: show registration form. POST: create user and redirect to /setup."""
+    if request.method == "GET":
+        return render_template("register.html")
+    email = request.form.get("email", "").strip()
+    password = request.form.get("password", "")
+    if not email or not password:
+        return render_template(
+            "register.html", error="Email and password are required.", email=email
+        )
+    if len(password) < 8:
+        return render_template(
+            "register.html",
+            error="Password must be at least 8 characters.",
+            email=email,
+        )
+    try:
+        user_id = auth_service.register_user(email, password)
+    except ValueError as e:
+        return render_template(
+            "register.html", error=str(e), email=email
+        )
+    session["user_id"] = user_id
+    return redirect(url_for("setup.setup_page"))
+
+
+@auth_bp.route("/logout", methods=["POST"])
+def logout() -> Any:
+    """Clear session and redirect to login."""
+    session.clear()
+    return redirect(url_for("auth.login"))

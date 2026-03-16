@@ -1,0 +1,9 @@
+<div class="source-grid" style="display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 1rem;">
+  {% for source in sources %}
+  <label style="display: flex; align-items: center; gap: 0.5rem; min-height: 44px;">
+    <input type="checkbox" name="sources" value="{{ source.id }}"
+      {% if not profile or source.id in (profile.source_ids or []) %}checked{% endif %}>
+    <span>{{ source.name }}</span>
+  </label>
+  {% endfor %}
+</div>

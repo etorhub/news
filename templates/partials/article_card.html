@@ -1,0 +1,16 @@
+<article>
+  <h2 style="font-size: var(--font-article);">{{ article.title }}</h2>
+  <p><small>{{ article.source_name }}</small></p>
+  {% if article.summary %}
+  <p>{{ article.summary }}</p>
+  {% endif %}
+  <p>
+    <a href="{{ article.url }}" target="_blank" rel="noopener">Read original</a>
+    <button type="button" class="btn tts-only" aria-label="Read aloud"
+      onclick="speak({{ (article.title + '. ' + (article.summary or '')) | tojson }})">Listen</button>
+    <button type="button" class="btn"
+      hx-get="{{ url_for('reader.expand_article', article_id=article.id) }}"
+      hx-target="#article-{{ article.id }}"
+      hx-swap="innerHTML">Read more</button>
+  </p>
+</article>

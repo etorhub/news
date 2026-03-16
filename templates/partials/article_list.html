@@ -1,0 +1,7 @@
+<div id="article-list">
+  {% for article in feed %}
+  <div id="article-{{ article.id }}" class="article-card">
+    {% include "partials/article_card.html" %}
+  </div>
+  {% endfor %}
+</div>

@@ -1,0 +1,14 @@
+{% if error %}
+<p style="color: #c00;">{{ error }}</p>
+{% elif article %}
+<article>
+  <h2 style="font-size: var(--font-article);">{{ article.title }}</h2>
+  <p><small>{{ article.source_name }}</small></p>
+  <div style="font-size: var(--font-article); white-space: pre-wrap;">{{ article.full_text }}</div>
+  <p>
+    <a href="{{ article.url }}" target="_blank" rel="noopener">Read original</a>
+    <button type="button" class="btn tts-only" aria-label="Read aloud"
+      onclick="speak({{ (article.title + '. ' + (article.full_text or '')) | tojson }})">Listen</button>
+  </p>
+</article>
+{% endif %}
