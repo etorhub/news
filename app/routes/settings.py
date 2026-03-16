@@ -65,6 +65,7 @@ def settings_page() -> Any:
             sources=sources,
             topics=topics,
             rewrite_tone_options=REWRITE_TONE_OPTIONS,
+            needs_regeneration_confirmation=False,
         )
 
     location = request.form.get("location", "").strip() or None
@@ -90,16 +91,43 @@ def settings_page() -> Any:
         "rewrite_tone": rewrite_tone,
         "high_contrast": high_contrast,
     }
+
+    confirm_regenerate = request.form.get("confirm_regenerate") == "1"
+    needs_regeneration = profile_service.regeneration_needed(
+        profile, form_data, source_ids, topic_ids
+    )
+
+    if needs_regeneration and not confirm_regenerate:
+        display_profile = {
+            **profile,
+            "location": form_data.get("location"),
+            "language": form_data.get("language"),
+            "filter_negative": form_data.get("filter_negative"),
+            "rewrite_tone": form_data.get("rewrite_tone"),
+            "high_contrast": form_data.get("high_contrast"),
+            "source_ids": source_ids,
+            "topic_ids": topic_ids,
+        }
+        return render_template(
+            "settings.html",
+            profile=display_profile,
+            sources=sources,
+            topics=topics,
+            rewrite_tone_options=REWRITE_TONE_OPTIONS,
+            needs_regeneration_confirmation=True,
+        )
+
     profile_service.save_setup(user_id, form_data, source_ids, topic_ids)
 
-    def _run_rewrite_with_app(app: Any, uid: int) -> None:
-        with app.app_context():
-            rewrite_service.run_rewrite_for_user(uid)
+    if needs_regeneration:
+        def _run_rewrite_with_app(app: Any, uid: int) -> None:
+            with app.app_context():
+                rewrite_service.run_rewrite_for_user(uid)
 
-    app = current_app._get_current_object()
-    threading.Thread(
-        target=lambda: _run_rewrite_with_app(app, user_id),
-        daemon=True,
-    ).start()
+        app = current_app._get_current_object()
+        threading.Thread(
+            target=lambda: _run_rewrite_with_app(app, user_id),
+            daemon=True,
+        ).start()
 
     return redirect(url_for("settings.settings_page") + "?saved=1")

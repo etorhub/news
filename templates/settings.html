@@ -5,7 +5,20 @@
 {% if request.args.get('saved') %}
 <p style="color: #0a0;">Settings saved.</p>
 {% endif %}
-<form method="post" action="{{ url_for('settings.settings_page') }}">
+{% if needs_regeneration_confirmation %}
+<section role="alert" aria-live="polite" style="margin-bottom: 1.5rem; padding: 1rem; border: 2px solid var(--accent, #2c5282); background: var(--bg);">
+  <h2 style="margin-top: 0;">Feed regeneration</h2>
+  <p>Changing these settings will regenerate your feed. This may take a few minutes. Your new articles will appear once ready.</p>
+  <p>
+    <button type="submit" form="settings-form">Confirm and save</button>
+    <a href="{{ url_for('settings.settings_page') }}" class="btn" style="margin-left: 0.5rem;">Cancel</a>
+  </p>
+</section>
+{% endif %}
+<form id="settings-form" method="post" action="{{ url_for('settings.settings_page') }}">
+  {% if needs_regeneration_confirmation %}
+  <input type="hidden" name="confirm_regenerate" value="1">
+  {% endif %}
   <section>
     <h2>Profile</h2>
     <p>
@@ -48,7 +61,7 @@
     {% include "partials/setup_topics.html" %}
   </section>
   <p>
-    <button type="submit">Save</button>
+    <button type="submit">{% if needs_regeneration_confirmation %}Confirm and save{% else %}Save{% endif %}</button>
   </p>
 </form>
 {% endblock %}
