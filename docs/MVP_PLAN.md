@@ -8,10 +8,52 @@ Canonical phased plan for the minimum viable product. This document replaces sca
 
 | Phase | Deliverable | Outcome |
 | --- | --- | --- |
+| 0 | Infrastructure & DX | Docker multi-service, Python tooling, git hooks, conventional commits |
 | 1 | News source discovery | Populated catalog of validated feeds |
 | 2 | Fetching pipeline | Articles stored on a schedule with full text when available |
 | 3 | Processing & storage | LLM rewrites (summary + full simplified) cached per profile hash |
 | 4 | Platform | Auth, multi-user profiles, feed UI, daily digest |
+
+---
+
+## Phase 0 — Infrastructure & Developer Experience
+
+**Goal:** Establish Docker multi-service setup, Python linting/formatting/type-checking/testing, Lefthook git hooks, and Commitizen conventional commits before feature development.
+
+### Tasks
+
+1. **Dockerization**
+   - `db` — PostgreSQL 16 (Alpine). Persistent volume, health check via `pg_isready`.
+   - `web` — Flask app serving HTTP only. No background jobs in this process. Runs via `gunicorn` in production, `flask run --debug` in dev.
+   - `scheduler` — APScheduler process. Triggers fetch and rewrite jobs on configured intervals. Same Docker image as `web`, different entrypoint (`python -m app.scheduler`).
+   - `Dockerfile` — Multi-stage build (builder + runtime). Python 3.12-slim base.
+   - `docker-compose.yml` — Production-like defaults (three services: `db`, `web`, `scheduler`).
+   - `docker-compose.override.yml` — Dev overrides: bind mounts for live reload, `flask run --debug`, exposed ports.
+   - `.env.example` — Template for `POSTGRES_PASSWORD`, `SECRET_KEY`, LLM API keys.
+
+2. **Python tooling (lint, format, type check, test)**
+   - Single config: `pyproject.toml`.
+   - **Ruff** — Linting (`ruff check`) and formatting (`ruff format`). Rule sets: `E`, `F`, `W`, `I`, `UP`, `B`, `SIM`, `RUF`. Target Python 3.12, line length 88.
+   - **Mypy** — Static type checking (`mypy .`). Strict mode, `--ignore-missing-imports` initially.
+   - **Pytest** — Testing (`pytest`). Config in `pyproject.toml`, test directory `tests/`.
+
+3. **Lefthook**
+   - Config: `lefthook.yml` at project root.
+   - `pre-commit`: `ruff check --fix`, `ruff format --check`, `mypy .`
+   - `pre-push`: `pytest`
+   - Developer setup: `lefthook install` after cloning.
+
+4. **Commitizen & conventional commits**
+   - Config in `pyproject.toml` under `[tool.commitizen]`: `cz_conventional_commits`, `version_provider = "pep621"`, `tag_format = "v$version"`.
+   - Interactive flow: `cz commit` (or `cz c`) for conventional commit prompt. Commitizen uses native `git` for the actual commit.
+   - Lefthook `commit-msg` hook: `cz check --commit-msg-file $1` to reject non-conforming messages.
+   - Bump/changelog (`cz bump`, `cz changelog`) deferred to when releases begin.
+
+### Output
+
+- `Dockerfile`, `docker-compose.yml`, `docker-compose.override.yml`, `.env.example`
+- `pyproject.toml` with Ruff, Mypy, Pytest, Commitizen config
+- `lefthook.yml` with pre-commit and pre-push hooks
 
 ---
 
@@ -161,6 +203,9 @@ End users and caregivers always access the platform, never the codebase. Flow: *
 
 | Component | Status |
 | --- | --- |
+| Docker multi-service setup (db, web, scheduler) | ✅ |
+| Python tooling (ruff, mypy, pytest) | ✅ |
+| Git hooks (Lefthook) and conventional commits (Commitizen) | ✅ |
 | News source discovery (agent or manual seed) | ✅ |
 | Scheduled fetching from all sources | ✅ |
 | Scheduled rewriting (LLM rewrite, cache per profile hash) | ✅ |
@@ -185,13 +230,14 @@ End users and caregivers always access the platform, never the codebase. Flow: *
 
 ## Suggested Implementation Order
 
-1. **Phase 4 (auth + setup)** — User registration, login, setup wizard, profile storage
-2. **Phase 1** — Discovery or manual seed → `news_sources` + `source_feeds` (or `sources.yaml`)
-3. **Phase 2** — Fetcher + scheduler → `articles` populated on schedule
-4. **Phase 3** — LLM rewriter + scheduled rewrite pipeline
-5. **Phase 4 (complete)** — Feed UI, digest, expandable articles, TTS
+1. **Phase 0** — Docker setup, Python tooling, Lefthook, Commitizen
+2. **Phase 4 (auth + setup)** — User registration, login, setup wizard, profile storage
+3. **Phase 1** — Discovery or manual seed → `news_sources` + `source_feeds` (or `sources.yaml`)
+4. **Phase 2** — Fetcher + scheduler → `articles` populated on schedule
+5. **Phase 3** — LLM rewriter + scheduled rewrite pipeline
+6. **Phase 4 (complete)** — Feed UI, digest, expandable articles, TTS
 
-Rationale: auth and profile storage come first because everything else depends on having users with profiles. The feed UI can be built incrementally as the pipeline behind it comes online.
+Rationale: Phase 0 establishes infrastructure and developer experience before any feature work. Auth and profile storage come next because everything else depends on having users with profiles. The feed UI can be built incrementally as the pipeline behind it comes online.
 
 ---
 

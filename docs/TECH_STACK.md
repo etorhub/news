@@ -33,7 +33,9 @@ Technology choices for the Accessible News Aggregator, with rationale.
 | python-dotenv | Load `.env` for API keys |
 | bcrypt | Password hashing |
 | ruff | Linting and formatting |
+| mypy | Static type checking |
 | pytest | Testing |
+| commitizen | Conventional commits and version bumping |
 
 ---
 
@@ -60,10 +62,13 @@ Technology choices for the Accessible News Aggregator, with rationale.
 │   └── app.yaml             # App-level config (LLM provider, schedule, etc.)
 ├── tests/                   # pytest test suite
 ├── docs/                    # Project documentation
-├── .cursor/rules/           # Cursor IDE rules
-├── CLAUDE.md                # AI assistant context
+├── .cursor/rules/           # Cursor IDE rules (project-context.mdc = full CLAUDE.md equivalent)
+├── CLAUDE.md                # AI assistant context (Claude Code)
 ├── README.md
+├── pyproject.toml           # Ruff, Mypy, Pytest, Commitizen config
+├── lefthook.yml             # Git hooks (pre-commit, pre-push, commit-msg)
 ├── docker-compose.yml
+├── docker-compose.override.yml  # Dev overrides (bind mounts, flask run --debug)
 ├── Dockerfile
 ├── requirements.txt
 └── .env.example             # Template for API keys and secrets
@@ -80,6 +85,13 @@ flask run
 # Run with Docker (recommended)
 docker-compose up
 
+# Install git hooks (run after cloning)
+lefthook install
+
+# Conventional commit (interactive)
+cz commit
+# or: cz c
+
 # Run tests
 pytest
 
@@ -88,28 +100,20 @@ ruff check .
 
 # Format
 ruff format .
+
+# Type check
+mypy .
 ```
 
 ---
 
 ## Docker Composition
 
-Two services: the Flask app and PostgreSQL.
+Three services: PostgreSQL, the Flask web app, and the APScheduler process.
 
 ```yaml
 # docker-compose.yml (simplified)
 services:
-  app:
-    build: .
-    ports:
-      - "5000:5000"
-    depends_on:
-      - db
-    env_file:
-      - .env
-    volumes:
-      - ./config:/app/config
-
   db:
     image: postgres:16-alpine
     volumes:
@@ -118,12 +122,43 @@ services:
       - POSTGRES_DB=news
       - POSTGRES_USER=news
       - POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U news"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  web:
+    build: .
+    ports:
+      - "5000:5000"
+    depends_on:
+      db:
+        condition: service_healthy
+    env_file:
+      - .env
+    volumes:
+      - ./config:/app/config
+    command: gunicorn -b 0.0.0.0:5000 "app:create_app()"
+
+  scheduler:
+    build: .
+    depends_on:
+      db:
+        condition: service_healthy
+    env_file:
+      - .env
+    volumes:
+      - ./config:/app/config
+    command: python -m app.scheduler
 
 volumes:
   pgdata:
 ```
 
-The `.env` file contains API keys and the database password. An `.env.example` template is provided in the repo.
+`docker-compose.override.yml` provides dev overrides: bind mounts for live reload, `flask run --debug` for the web service, exposed ports. The `.env` file contains API keys and the database password. An `.env.example` template is provided in the repo.
+
+**Dev tools:** Lefthook (git hooks) is a standalone binary; install via your package manager or from [lefthook.dev](https://lefthook.dev). Run `lefthook install` after cloning.
 
 ---
 

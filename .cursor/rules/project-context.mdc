@@ -1,4 +1,9 @@
-# CLAUDE.md — Accessible News Aggregator
+---
+description: Full project context — problem statement, audience, deployment, features, tech stack, architecture constraints, design principles. Canonical reference for AI assistants.
+alwaysApply: true
+---
+
+# Project Context — Accessible News Aggregator
 
 Context document for an AI-powered news aggregator built for people who struggle with the way news is currently delivered.
 
@@ -64,8 +69,7 @@ See `docs/TECH_STACK.md` for full details, project structure, dependencies, Dock
 - **LLM:** External APIs (Anthropic, OpenAI, Gemini) via provider interface
 - **Frontend:** Plain HTML + CSS + HTMX
 - **Scheduling:** APScheduler (fetch + rewrite on a schedule, content ready when user opens app)
-- **Packaging:** Docker + docker-compose (db, web, scheduler services)
-- **Dev tooling:** Ruff (lint/format), Mypy (type check), Pytest, Lefthook (git hooks), Commitizen (conventional commits)
+- **Packaging:** Docker + docker-compose
 
 ---
 
@@ -91,11 +95,10 @@ These are hard rules, not preferences:
 - Database access goes through the db layer (`app/db/`), never raw SQL in routes or services
 - Every config value has a documented default in `app.yaml`
 - API keys and secrets live in `.env`, never committed to the repo
-- All commits follow conventional commit format via Commitizen (`cz commit`); Lefthook enforces this on `commit-msg`
 
 ---
 
-## What Claude Gets Wrong on This Stack
+## What AI Assistants Often Get Wrong on This Stack
 
 - **Returning JSON from Flask routes.** Every route must return `render_template(...)` or `render_template_string(...)`. If you find yourself writing `jsonify`, stop.
 - **Adding JavaScript.** HTMX attributes on HTML elements handle all interactivity. There is no `static/js/` directory.

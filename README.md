@@ -60,14 +60,14 @@ flask run
 
 ## Tech Stack
 
-| Layer | Technology |
-| --- | --- |
-| Backend | Python 3.12+ / Flask |
-| Database | PostgreSQL 16 |
-| LLM | Anthropic, OpenAI, or Gemini (via provider interface) |
-| Frontend | HTML + CSS + HTMX (no JavaScript frameworks) |
-| Scheduling | APScheduler |
-| Packaging | Docker + docker-compose |
+| Layer      | Technology                                            |
+| ---------- | ----------------------------------------------------- |
+| Backend    | Python 3.12+ / Flask                                  |
+| Database   | PostgreSQL 16                                         |
+| LLM        | Anthropic, OpenAI, or Gemini (via provider interface) |
+| Frontend   | HTML + CSS + HTMX (no JavaScript frameworks)          |
+| Scheduling | APScheduler                                           |
+| Packaging  | Docker + docker-compose                               |
 
 See [docs/TECH_STACK.md](docs/TECH_STACK.md) for full details.
 
@@ -75,13 +75,14 @@ See [docs/TECH_STACK.md](docs/TECH_STACK.md) for full details.
 
 ## Documentation
 
-| Document | Description |
-| --- | --- |
-| [CLAUDE.md](CLAUDE.md) | AI assistant context — coding rules, architecture constraints, design principles |
-| [docs/TECH_STACK.md](docs/TECH_STACK.md) | Tech stack, project structure, dependencies, Docker setup |
-| [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) | System architecture, database schema, component map, request lifecycle |
-| [docs/MVP_PLAN.md](docs/MVP_PLAN.md) | Phased MVP plan with tasks and success criteria |
-| [docs/news_source_discovery_agent.md](docs/news_source_discovery_agent.md) | News source discovery pipeline specification |
+| Document                                                                   | Description                                                                                                                           |
+| -------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------- |
+| [CLAUDE.md](CLAUDE.md)                                                     | AI assistant context (Claude Code) — coding rules, architecture constraints, design principles                                        |
+| [.cursor/rules/](.cursor/rules/)                                           | Cursor IDE rules — same context via `project-context.mdc` (always apply) plus architecture, accessibility, LLM, news-source-discovery |
+| [docs/TECH_STACK.md](docs/TECH_STACK.md)                                   | Tech stack, project structure, dependencies, Docker setup                                                                             |
+| [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)                               | System architecture, database schema, component map, request lifecycle                                                                |
+| [docs/MVP_PLAN.md](docs/MVP_PLAN.md)                                       | Phased MVP plan with tasks and success criteria                                                                                       |
+| [docs/news_source_discovery_agent.md](docs/news_source_discovery_agent.md) | News source discovery pipeline specification                                                                                          |
 
 ---
 
