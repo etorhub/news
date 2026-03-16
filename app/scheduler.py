@@ -7,8 +7,9 @@ from apscheduler.schedulers.blocking import BlockingScheduler
 from apscheduler.triggers.cron import CronTrigger
 from apscheduler.triggers.interval import IntervalTrigger
 
-from app.config import load_config
 from app.clustering.service import run_cluster_and_embed
+from app.config import load_config
+from app.extraction.extractor import enrich_articles
 from app.feed.orchestrator import fetch_all_due_feeds
 from app.services.rewrite_service import run_rewrite_batch
 
@@ -29,6 +30,22 @@ def _run_fetch_job() -> None:
         )
     except Exception:
         logger.exception("Fetch job failed")
+
+
+def _run_enrichment_job() -> None:
+    """Scheduled job: extract full article content for pending articles."""
+    try:
+        config = load_config()
+        report = enrich_articles(config)
+        logger.info(
+            "Enrichment run: checked=%d extracted=%d failed=%d skipped=%d",
+            report.articles_checked,
+            report.articles_extracted,
+            report.articles_failed,
+            report.articles_skipped,
+        )
+    except Exception:
+        logger.exception("Enrichment job failed")
 
 
 def _run_cluster_job() -> None:
@@ -79,6 +96,13 @@ def main() -> None:
         _run_fetch_job,
         trigger=IntervalTrigger(minutes=interval_min),
         id="fetch_feeds",
+    )
+
+    enrichment_cron = config.get("schedule", {}).get("enrichment_cron", "10 * * * *")
+    scheduler.add_job(
+        _run_enrichment_job,
+        trigger=CronTrigger.from_crontab(enrichment_cron),
+        id="enrich_articles",
     )
 
     cluster_cron = config.get("schedule", {}).get("cluster_cron", "5 * * * *")

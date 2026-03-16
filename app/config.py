@@ -14,8 +14,16 @@ DEFAULTS: dict[str, Any] = {
         "provider": "local",
         "model": "paraphrase-multilingual-MiniLM-L12-v2",
     },
+    "extraction": {
+        "enabled": True,
+        "min_content_length": 200,
+        "batch_size": 30,
+        "rate_limit_per_domain": 2.0,
+        "timeout": 30,
+    },
     "schedule": {
         "fetch_interval_minutes": 60,
+        "enrichment_cron": "10 * * * *",
         "cluster_cron": "5 * * * *",
         "rewrite_cron": "0 6 * * *",
         "rewrite_batch_size": 10,

@@ -8,6 +8,7 @@ embeddings:
 
 schedule:
   fetch_interval_minutes: 60
+  enrichment_cron: "10 * * * *"   # Hourly at 10 min past (after fetch)
   cluster_cron: "5 * * * *"   # Hourly at 5 min past (after fetch)
   rewrite_cron: "0 6 * * *"   # Daily at 6am
   rewrite_batch_size: 10
@@ -15,6 +16,13 @@ schedule:
     circuit_breaker_threshold: 5
     request_timeout_seconds: 30
     user_agent: "AccessibleNewsAggregator/0.1 (+https://github.com/accessible-news/aggregator)"
+
+extraction:
+  enabled: true
+  min_content_length: 200
+  batch_size: 30
+  rate_limit_per_domain: 2.0
+  timeout: 30
 
 processing:
   articles_per_day: 10

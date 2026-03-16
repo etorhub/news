@@ -1,0 +1,102 @@
+"""Batch enrichment orchestrator for article content extraction."""
+
+import logging
+import time
+from dataclasses import dataclass
+from urllib.parse import urlparse
+
+from app.db import articles as db_articles
+from app.extraction.trafilatura import extract_article
+
+logger = logging.getLogger(__name__)
+
+
+@dataclass
+class EnrichmentReport:
+    """Summary of an enrichment run."""
+
+    articles_checked: int
+    articles_extracted: int
+    articles_failed: int
+    articles_skipped: int
+
+
+def _domain_from_url(url: str) -> str:
+    """Extract domain from URL for rate limiting."""
+    try:
+        parsed = urlparse(url)
+        return parsed.netloc or url
+    except Exception:
+        return url
+
+
+def enrich_articles(config: dict) -> EnrichmentReport:
+    """Process articles needing extraction. Returns EnrichmentReport."""
+    extraction_cfg = config.get("extraction", {})
+    if not extraction_cfg.get("enabled", True):
+        return EnrichmentReport(0, 0, 0, 0)
+
+    batch_size = extraction_cfg.get("batch_size", 30)
+    min_content_length = extraction_cfg.get("min_content_length", 200)
+    rate_limit = extraction_cfg.get("rate_limit_per_domain", 2.0)
+    timeout = extraction_cfg.get("timeout", 30)
+
+    candidates = db_articles.get_articles_needing_extraction(limit=batch_size)
+    if not candidates:
+        return EnrichmentReport(0, 0, 0, 0)
+
+    # Group by domain for rate limiting
+    by_domain: dict[str, list[dict]] = {}
+    for art in candidates:
+        domain = _domain_from_url(art["url"])
+        by_domain.setdefault(domain, []).append(art)
+
+    report = EnrichmentReport(
+        articles_checked=0,
+        articles_extracted=0,
+        articles_failed=0,
+        articles_skipped=0,
+    )
+
+    min_interval = 1.0 / rate_limit if rate_limit > 0 else 0
+
+    for _domain, arts in by_domain.items():
+        for art in arts:
+            report.articles_checked += 1
+            article_id = art["id"]
+            url = art["url"]
+            full_text = art.get("full_text") or ""
+            raw_text = art.get("raw_text") or ""
+
+            # Skip if RSS already provided enough content
+            if len(full_text) >= min_content_length:
+                db_articles.update_article_extraction(
+                    article_id, full_text, "skipped", "rss"
+                )
+                report.articles_skipped += 1
+                continue
+
+            # Extract with trafilatura
+            extracted = extract_article(url, timeout=timeout)
+
+            if extracted and len(extracted) >= min_content_length:
+                db_articles.update_article_extraction(
+                    article_id, extracted, "extracted", "trafilatura"
+                )
+                report.articles_extracted += 1
+            else:
+                # Keep raw_text as fallback, mark failed
+                fallback = full_text or raw_text
+                db_articles.update_article_extraction(
+                    article_id, fallback or None, "failed", "trafilatura"
+                )
+                report.articles_failed += 1
+                logger.debug(
+                    "Extraction failed or insufficient for %s (got %d chars)",
+                    url,
+                    len(extracted or ""),
+                )
+
+            time.sleep(min_interval)
+
+    return report

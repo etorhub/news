@@ -67,7 +67,6 @@ def fetch_all_due_feeds(config: dict[str, Any] | None = None) -> FetchReport:
         feed_id = feed["id"]
         feed_url = feed["feed_url"]
         source_id = feed["source_id"]
-        full_text_available = feed.get("full_text_available", False)
 
         etag = feed.get("etag")
         last_modified = feed.get("last_modified")
@@ -128,7 +127,7 @@ def fetch_all_due_feeds(config: dict[str, Any] | None = None) -> FetchReport:
                 "url": raw["url"],
                 "published_at": raw.get("published_at"),
                 "raw_text": raw.get("raw_text") or "",
-                "full_text": raw.get("full_text") if full_text_available else None,
+                "full_text": raw.get("full_text") or None,
                 "guid": raw.get("guid"),
             }
             if articles_db.insert_article(article):

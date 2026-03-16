@@ -203,6 +203,50 @@ def get_articles_by_ids(article_ids: list[str]) -> list[dict[str, Any]]:
         return_connection(conn)
 
 
+def get_articles_needing_extraction(limit: int) -> list[dict[str, Any]]:
+    """Return articles with extraction_status = 'pending', by fetched_at DESC."""
+    conn = get_connection()
+    try:
+        with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
+            cur.execute(
+                """
+                SELECT id, url, source_id, full_text, raw_text
+                FROM articles
+                WHERE extraction_status = 'pending'
+                ORDER BY fetched_at DESC NULLS LAST
+                LIMIT %s
+                """,
+                (limit,),
+            )
+            return [dict(row) for row in cur.fetchall()]
+    finally:
+        return_connection(conn)
+
+
+def update_article_extraction(
+    article_id: str,
+    full_text: str | None,
+    status: str,
+    method: str,
+) -> None:
+    """Update article with extraction result."""
+    conn = get_connection()
+    try:
+        with conn.cursor() as cur:
+            cur.execute(
+                """
+                UPDATE articles
+                SET full_text = %s, extraction_status = %s, extraction_method = %s,
+                    extracted_at = now()
+                WHERE id = %s
+                """,
+                (full_text, status, method, article_id),
+            )
+        conn.commit()
+    finally:
+        return_connection(conn)
+
+
 def get_recent_articles(
     since: datetime,
     source_id: str | None = None,
