@@ -1,0 +1,84 @@
+---
+description: Rules for all LLM-related code. Apply to files in app/llm/ and anywhere LLM calls are made.
+globs: ["app/llm/**/*.py", "app/services/**/*.py"]
+---
+
+# LLM Layer Rules
+
+## Always use the provider interface
+
+Never call Ollama, OpenAI, Anthropic, or any LLM SDK directly from a route or service. Always go through the provider interface.
+
+**Wrong:**
+```python
+import ollama
+
+def rewrite_article(text):
+    response = ollama.chat(model="llama3", messages=[...])
+    return response["message"]["content"]
+```
+
+**Correct:**
+```python
+from app.llm.provider import get_provider
+
+def rewrite_article(text, profile):
+    provider = get_provider()
+    return provider.complete(prompt=build_prompt(text, profile))
+```
+
+## Provider interface
+
+`app/llm/provider.py` defines an abstract base class `LLMProvider` with a single method:
+
+```python
+class LLMProvider(ABC):
+    @abstractmethod
+    def complete(self, prompt: str, max_tokens: int = 1000) -> str:
+        ...
+```
+
+Concrete implementations: `OllamaProvider`, `OpenAIProvider`, `AnthropicProvider`. The active provider is selected from `config/app.yaml` at startup. Never instantiate a provider directly outside of the provider factory.
+
+## Prompts live in files, not code
+
+Prompt templates live in `app/llm/prompts/` as plain `.txt` files. Load them with the prompt loader, do not inline them in Python strings.
+
+**Wrong:**
+```python
+prompt = f"Rewrite this article in simple language: {article_text}"
+```
+
+**Correct:**
+```python
+from app.llm.prompts import load_prompt
+
+template = load_prompt("rewrite_article")
+prompt = template.format(article_text=article_text, **profile.to_dict())
+```
+
+## Prompt structure
+
+The canonical rewrite prompt accepts these variables from the user profile:
+- `rewrite_tone` — free text describing how to rewrite (e.g. "Short sentences. Simple vocabulary. No jargon.")
+- `language` — BCP 47 language tag (e.g. `ca`, `es`, `en`)
+- `summary_sentences` — integer, number of summary lines
+- `article_text` — the raw article content
+- `filter_negative` — when enabled, instruct the LLM to omit or soften distressing content
+
+Always instruct the model to preserve factual accuracy and never add information not present in the source.
+
+## Caching
+
+LLM output for a given article + profile combination is cached in SQLite. Never call the LLM twice for the same (article_id, profile_hash) pair within the same day. The cache is invalidated at the start of each day.
+
+## Error handling
+
+LLM calls must always be wrapped in try/except. On failure, return the original article text with a flag indicating the rewrite failed. Never surface a raw exception to the user or render a broken partial.
+
+```python
+try:
+    rewritten = provider.complete(prompt)
+except LLMProviderError:
+    return ArticleContent(text=original_text, rewrite_failed=True)
+```

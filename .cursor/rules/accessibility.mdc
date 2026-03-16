@@ -1,0 +1,73 @@
+---
+description: Accessibility rules for all HTML templates and CSS. Non-negotiable. Apply to every UI change.
+globs: ["**/*.html", "**/*.css"]
+---
+
+# Accessibility Rules
+
+These are hard constraints, not suggestions. The primary user has Parkinson's disease. Every UI decision is evaluated against their motor and cognitive profile first.
+
+## Touch targets
+
+Every interactive element — buttons, links, toggles — must have a minimum tap target of 48x48px. Use padding rather than fixed height so text scales correctly.
+
+**Wrong:**
+```html
+<a href="/articles/42">Read more</a>
+```
+
+**Correct:**
+```html
+<a href="/articles/42" class="article-link">Read more</a>
+```
+```css
+.article-link {
+  display: inline-block;
+  padding: 12px 16px;
+  min-height: 48px;
+  min-width: 48px;
+}
+```
+
+## Typography
+
+- Base font size: minimum 18px, default 22px
+- Line height: minimum 1.6
+- Never use light font weights (< 400) for body text
+- Maximum line length: 65ch — beyond this, reading becomes tracking work
+- Use a system font stack or a dyslexia-friendly font (OpenDyslexic as an option)
+
+## Layout
+
+- One article at a time. No infinite scroll. No pagination that requires precise clicking.
+- Navigation must be operable with large, widely spaced buttons only.
+- No hover-only interactions — the primary user may be on a touch device or have tremor that makes hover unreliable.
+- No timed interactions or auto-advancing content.
+
+## Contrast
+
+- Minimum contrast ratio: 4.5:1 for body text (WCAG AA)
+- Target: 7:1 for high contrast mode (WCAG AAA)
+- High contrast mode must be togglable and the preference must persist
+
+## Semantics
+
+- Use semantic HTML. `<article>`, `<nav>`, `<main>`, `<header>`, `<button>` — not `<div>` with click handlers.
+- Every image has an `alt` attribute. Decorative images use `alt=""`.
+- Form inputs have associated `<label>` elements — never placeholder-only labels.
+- HTMX dynamic regions have `aria-live` attributes where content updates without a page reload.
+
+## Text-to-speech
+
+- Every article has a TTS trigger button, clearly labelled ("Listen")
+- TTS uses the browser Web Speech API — no library, no external service
+- TTS controls (play, pause, stop) are large and always visible when active
+- The currently spoken sentence should be visually highlighted
+
+## Setup wizard
+
+The initial configuration page must follow the same accessibility rules as the rest of the app: large touch targets, high contrast, large fonts, semantic HTML, no timed interactions. The rewrite tone field (textarea) must have a visible `<label>` and sufficient size for imprecise input. Source and topic checkboxes must be large and clearly labelled.
+
+## Graceful degradation
+
+The app must be usable without JavaScript. HTMX enhances it; `<a>` and `<form>` elements are the fallback. Every HTMX-enhanced action must have a non-JS equivalent route.

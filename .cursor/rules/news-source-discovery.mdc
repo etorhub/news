@@ -1,0 +1,45 @@
+---
+description: Rules for news source discovery, feed detection, and adding sources. Legal/ethical constraints and discovery pipeline.
+globs:
+  [
+    'app/feed/**/*.py',
+    'config/sources.yaml',
+    'docs/news_source_discovery_agent.md',
+  ]
+alwaysApply: false
+---
+
+# News Source Discovery
+
+When working on feed fetching, source configuration, or automated discovery, follow the operational spec in `docs/news_source_discovery_agent.md`. This rule summarizes the non-negotiable constraints and key patterns.
+
+## Legal & Ethical (Non-Negotiable)
+
+- **robots.txt**: Check before ANY HTTP request to a domain. Use `urllib.robotparser.RobotFileParser`. If unreachable, assume disallowed.
+- **ToS compliance**: Before indexing, check `/terms`, `/terms-of-service`, `/legal`, `/tos` for scraping prohibitions. If found → mark `status='banned'`, skip.
+- **No paywall bypass**, no CAPTCHA circumvention, no scraping where disallowed.
+- **Rate limiting**: Minimum 2s between requests to same domain; respect `Retry-After`; backoff on 429/503.
+- **Copyright**: Collect only title, URL, pubDate, author, source, brief description. Never store full article body without explicit permission.
+
+## Consumption Method Priority
+
+1. Official REST/GraphQL API
+2. Official RSS 2.0 or Atom feed
+3. Google News RSS fallback: `https://news.google.com/rss/search?q=site:{domain}&hl={lang}&gl={country}`
+4. XML Sitemap with `lastmod`
+5. robots.txt-compliant HTML scrape with `schema.org/NewsArticle` only
+
+## Feed Detection Paths
+
+Try in order: `/feed`, `/rss`, `/rss.xml`, `/feed.xml`, `/atom.xml`, `/?feed=rss2`, `/news/rss.xml`, `/sitemap_news.xml`. Also parse HTML `<link rel="alternate" type="application/rss+xml">`.
+
+## Discovery Pipeline (when implementing automated discovery)
+
+1. **Phase 1**: Seeded reference databases (NewsAPI, ABYZ, GDELT, W3Newspapers, Reuters Institute)
+2. **Phase 2**: Search-based discovery with query templates
+3. **Phase 3**: TLD/Common Crawl scan (full depth only)
+4. **Phase 4**: Validate each candidate (domain resolves, language match, robots.txt, ToS, feed availability, HTTPS)
+
+## Current Project Alignment
+
+The app uses `config/sources.yaml` for the source catalog. User selections live in SQLite. When adding sources manually, ensure `full_text: true` only for open publishers. For automated discovery, the spec defines `news_sources`, `source_feeds`, and `source_discovery_log` tables — adapt schema to SQLite if integrating.

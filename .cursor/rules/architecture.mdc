@@ -1,0 +1,67 @@
+---
+description: Core architecture rules for the Flask + HTMX + SQLite stack. Apply to all Python and HTML files.
+globs: ["**/*.py", "**/*.html", "**/*.yaml"]
+---
+
+# Architecture Rules
+
+## HATEOAS — Flask routes return HTML only
+
+Every Flask route must return a rendered Jinja2 template. Never return JSON. Never use `jsonify`.
+
+**Wrong:**
+```python
+@bp.route("/articles")
+def articles():
+    return jsonify({"articles": [...]})
+```
+
+**Correct:**
+```python
+@bp.route("/articles")
+def articles():
+    articles = article_service.get_today()
+    return render_template("partials/article_list.html", articles=articles)
+```
+
+HTMX swaps HTML fragments into the DOM. The server owns all state and all rendering.
+
+## Template structure
+
+- Full pages live in `templates/`
+- HTMX fragment responses live in `templates/partials/`
+- Partial naming convention: `{resource}_{action}.html` — e.g. `article_expanded.html`, `article_card.html`
+- Partials must be self-contained — they should render correctly when swapped into the target element
+
+## No JavaScript
+
+HTMX attributes handle all interactivity. There is no `static/js/` directory and no JS files should be created. If you find yourself reaching for JavaScript, use an HTMX attribute instead.
+
+**Wrong:**
+```html
+<button onclick="expandArticle(42)">Read more</button>
+```
+
+**Correct:**
+```html
+<button hx-post="/articles/42/expand"
+        hx-target="#article-42"
+        hx-swap="outerHTML">Read more</button>
+```
+
+## Flask structure
+
+- Routes use blueprints. Never register routes directly on the `app` object.
+- Routes are thin: they parse the request, call a service, return a template. No business logic in routes.
+- Services live in `app/services/` and contain all business logic.
+- The db layer in `app/db/` is the only place that touches SQLite.
+
+## Configuration
+
+No hardcoded values. App config (source catalog, LLM settings, server settings) lives in `config/*.yaml`. The app reads it at startup via `app/config.py`.
+
+User preferences (location, selected sources, selected topics, filter toggle, rewrite tone, language) are never stored in YAML. They live in SQLite and are managed through the setup wizard and settings page.
+
+## Docker
+
+The app runs via `docker-compose up`. This starts both the Flask app and Ollama. Do not assume any other services are running.
