@@ -2,6 +2,7 @@
 {% block title %}Admin — Accessible News{% endblock %}
 {% block content %}
 <h1>Admin dashboard</h1>
+<p><a href="{{ url_for('admin.articles_page') }}">Articles &amp; clusters</a></p>
 
 {% if incidents %}
 <section aria-labelledby="incidents-heading" style="margin-bottom: 2rem; padding: 1rem; border: 2px solid #c00;">

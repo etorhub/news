@@ -372,3 +372,149 @@ def get_incidents(config: dict[str, Any]) -> list[dict[str, Any]]:
         return_connection(conn)
 
     return incidents
+
+
+def get_admin_articles(
+    limit: int,
+    offset: int,
+    extraction_status: str | None = None,
+    source_id: str | None = None,
+) -> list[dict[str, Any]]:
+    """Return articles for admin view with cluster_id and source_name."""
+    conn = get_connection()
+    try:
+        conditions: list[str] = []
+        params: list[Any] = []
+        if extraction_status:
+            conditions.append("a.extraction_status = %s")
+            params.append(extraction_status)
+        if source_id:
+            conditions.append("a.source_id = %s")
+            params.append(source_id)
+        where_clause = " AND ".join(conditions) if conditions else "TRUE"
+        params.extend([limit, offset])
+
+        with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
+            cur.execute(
+                f"""
+                SELECT a.id, a.title, a.url, a.source_id, a.published_at,
+                       a.fetched_at, a.extraction_status, a.extraction_method,
+                       ca.cluster_id::text AS cluster_id,
+                       ns.name AS source_name
+                FROM articles a
+                LEFT JOIN news_sources ns ON ns.id = a.source_id
+                LEFT JOIN cluster_articles ca ON ca.article_id = a.id
+                WHERE {where_clause}
+                ORDER BY a.fetched_at DESC NULLS LAST
+                LIMIT %s OFFSET %s
+                """,
+                params,
+            )
+            return [dict(row) for row in cur.fetchall()]
+    finally:
+        return_connection(conn)
+
+
+def get_admin_articles_count(
+    extraction_status: str | None = None,
+    source_id: str | None = None,
+) -> int:
+    """Return total article count for admin pagination."""
+    conn = get_connection()
+    try:
+        conditions: list[str] = []
+        params: list[Any] = []
+        if extraction_status:
+            conditions.append("extraction_status = %s")
+            params.append(extraction_status)
+        if source_id:
+            conditions.append("source_id = %s")
+            params.append(source_id)
+        where_clause = " AND ".join(conditions) if conditions else "TRUE"
+
+        with conn.cursor() as cur:
+            cur.execute(
+                f"SELECT COUNT(*) FROM articles WHERE {where_clause}",
+                params,
+            )
+            row = cur.fetchone()
+            return row[0] if row else 0
+    finally:
+        return_connection(conn)
+
+
+def get_admin_clusters(limit: int, offset: int) -> list[dict[str, Any]]:
+    """Return clusters with article_count and sample_titles for admin view."""
+    conn = get_connection()
+    try:
+        with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
+            cur.execute(
+                """
+                SELECT c.id::text AS cluster_id, c.created_at,
+                       COUNT(ca.article_id) AS article_count,
+                       (
+                         SELECT COALESCE(array_agg(t.title), ARRAY[]::text[])
+                         FROM (
+                           SELECT a.title
+                           FROM cluster_articles ca2
+                           JOIN articles a ON a.id = ca2.article_id
+                           WHERE ca2.cluster_id = c.id
+                           ORDER BY ca2.position
+                           LIMIT 3
+                         ) t
+                       ) AS sample_titles
+                FROM clusters c
+                LEFT JOIN cluster_articles ca ON ca.cluster_id = c.id
+                GROUP BY c.id
+                ORDER BY c.created_at DESC
+                LIMIT %s OFFSET %s
+                """,
+                (limit, offset),
+            )
+            rows = cur.fetchall()
+            result: list[dict[str, Any]] = []
+            for row in rows:
+                d = dict(row)
+                # sample_titles may be a list from array_agg; limit to 3
+                titles = d.get("sample_titles")
+                if titles is not None and not isinstance(titles, list):
+                    titles = list(titles) if titles else []
+                d["sample_titles"] = (titles or [])[:3]
+                result.append(d)
+            return result
+    finally:
+        return_connection(conn)
+
+
+def get_admin_clusters_count() -> int:
+    """Return total cluster count for admin pagination."""
+    conn = get_connection()
+    try:
+        with conn.cursor() as cur:
+            cur.execute("SELECT COUNT(*) FROM clusters")
+            row = cur.fetchone()
+            return row[0] if row else 0
+    finally:
+        return_connection(conn)
+
+
+def get_admin_cluster_articles(cluster_id: str) -> list[dict[str, Any]]:
+    """Return articles in a cluster with source_name for admin cluster detail view."""
+    conn = get_connection()
+    try:
+        with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
+            cur.execute(
+                """
+                SELECT a.id, a.title, a.url, a.source_id, ca.position,
+                       ns.name AS source_name
+                FROM articles a
+                JOIN cluster_articles ca ON ca.article_id = a.id
+                LEFT JOIN news_sources ns ON ns.id = a.source_id
+                WHERE ca.cluster_id = %s::uuid
+                ORDER BY ca.position
+                """,
+                (cluster_id,),
+            )
+            return [dict(row) for row in cur.fetchall()]
+    finally:
+        return_connection(conn)

@@ -24,6 +24,13 @@ This sets `is_admin = true` for the user with that email. The user must already 
 
 ## Dashboard sections
 
+### Articles & clusters
+
+A dedicated page at `/admin/articles` lets operators browse:
+
+- **Articles view** — Paginated table of all fetched and enriched articles with extraction status, source, fetched date, and cluster assignment. Filters: extraction status (pending, extracted, failed, skipped), source.
+- **Clusters view** — Paginated list of clusters with article count and sample titles. Each cluster can be expanded to show its member articles.
+
 ### 1. Overview
 
 Four stat cards:
@@ -144,6 +151,6 @@ Report structures vary by job:
 ## Implementation notes
 
 - **Blueprint:** `app/routes/admin.py` — `admin_bp` at `/admin`
-- **DB layer:** `app/db/admin.py` — overview stats, job run CRUD, feed health, pipeline stats, clustering stats, user list, incidents
-- **Templates:** `templates/admin/dashboard.html`, `templates/admin/partials/jobs.html`
+- **DB layer:** `app/db/admin.py` — overview stats, job run CRUD, feed health, pipeline stats, clustering stats, user list, incidents, admin articles/clusters queries
+- **Templates:** `templates/admin/dashboard.html`, `templates/admin/articles.html`, `templates/admin/partials/jobs.html`, `templates/admin/partials/articles_table.html`, `templates/admin/partials/clusters_list.html`, `templates/admin/partials/cluster_detail.html`
 - **Guard:** `admin_bp.before_request` checks `session["user_id"]` and `users.is_admin`; aborts with 403 if not admin
