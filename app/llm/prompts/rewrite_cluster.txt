@@ -1,4 +1,4 @@
-Merge and rewrite these news articles about the same event for accessibility. The reader has motor or cognitive difficulties and benefits from simple language, short sentences, and clear structure.
+Merge and rewrite these news articles about the same event for accessibility.
 
 ## Instructions
 - Output exclusively in {language}. The title, summary (short version), and full text must all be written in {language}. Do not mix languages.
@@ -17,7 +17,7 @@ SUMMARY:
 Write exactly {summary_sentences} plain sentences summarizing the combined article.
 
 FULL:
-Write the full article in simplified form. Short sentences. Simple vocabulary. No jargon. One idea per sentence.
+Write the full article. Follow the tone and style instructions above.
 
 ## Articles
 

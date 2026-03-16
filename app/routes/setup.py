@@ -21,6 +21,10 @@ REWRITE_TONE_OPTIONS = [
         "Calm",
     ),
     ("Short sentences. Formal but clear. Avoid colloquialisms.", "Formal"),
+    (
+        "Journalistic style. Formal and well-written. Do not simplify; preserve original complexity and nuance. Avoid spoilers in headlines or summaries.",
+        "Neutral",
+    ),
 ]
 
 

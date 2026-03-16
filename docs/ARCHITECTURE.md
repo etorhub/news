@@ -418,7 +418,7 @@ SUMMARY:
 {summary_sentences} plain sentences.
 
 FULL:
-Full article in simplified form.
+Full article (style follows rewrite_tone).
 ```
 
 When `filter_negative` is enabled, the prompt instructs the LLM to omit or soften distressing content. The negative filter is applied at rewrite time via the LLM prompt — not by keyword list or pre-filtering. It is a soft filter; the LLM exercises judgement.
@@ -433,6 +433,7 @@ The `rewrite_tone` field is a short freeform instruction string included verbati
 | `Very short sentences. One idea per sentence. Elementary vocabulary.` | Very simple |
 | `Short sentences. Calm, reassuring tone. Avoid alarming phrasing.` | Calm |
 | `Short sentences. Formal but clear. Avoid colloquialisms.` | Formal |
+| `Journalistic style. Formal and well-written. Do not simplify; preserve original complexity and nuance. Avoid spoilers in headlines or summaries.` | Neutral |
 
 Store and pass the full instruction string, not a code name. The LLM prompt uses it directly. The default is `Short sentences. Simple vocabulary. No jargon.`
 
