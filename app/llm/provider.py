@@ -156,12 +156,13 @@ class LocalLLMProvider(LLMProvider):
             # Use chat template if available (instruction-tuned models)
             try:
                 messages = [{"role": "user", "content": prompt}]
-                input_ids = tokenizer.apply_chat_template(
+                result = tokenizer.apply_chat_template(
                     messages,
                     tokenize=True,
                     add_generation_prompt=True,
                     return_tensors="pt",
-                ).to(self._device)
+                )
+                input_ids = result.input_ids.to(self._device)
             except Exception:
                 input_ids = tokenizer(
                     prompt,
@@ -190,7 +191,14 @@ class LocalLLMProvider(LLMProvider):
         except Exception as e:
             if isinstance(e, LLMProviderError):
                 raise
-            raise LLMProviderError(str(e)) from e
+            msg = str(e)
+            if not msg:
+                msg = f"{type(e).__name__}"
+                if e.__cause__:
+                    msg += f" (cause: {e.__cause__})"
+                else:
+                    msg += f" ({repr(e)})"
+            raise LLMProviderError(msg) from e
 
 
 def get_provider(config: dict[str, Any] | None = None) -> LLMProvider:
@@ -211,7 +219,7 @@ def get_provider(config: dict[str, Any] | None = None) -> LLMProvider:
     if provider_name == "local":
         model_path = llm.get("model_path")
         device = llm.get("device") or "cpu"
-        local_model = llm.get("model") or "HuggingFaceH4/zephyr-3b-beta"
+        local_model = llm.get("model") or "Qwen/Qwen2.5-1.5B-Instruct"
         model_or_path = model_path or local_model
         return LocalLLMProvider(
             model=model_or_path,

@@ -8,7 +8,7 @@ from app.config import load_config
 from app.db import clusters as db_clusters
 from app.db import users as db_users
 from app.llm.prompts import load_prompt
-from app.llm.provider import LLMProviderError, get_provider
+from app.llm.provider import get_provider
 from app.services import profile_service
 
 
@@ -122,7 +122,8 @@ def rewrite_cluster(
             rewrite_failed=False,
         )
         return True
-    except (LLMProviderError, ValueError) as e:
+    except Exception as e:
+        err_msg = str(e)[:500]
         db_clusters.insert_cluster_rewrite(
             cluster_id=cluster_id,
             profile_hash=profile_hash,
@@ -130,7 +131,7 @@ def rewrite_cluster(
             summary=None,
             full_text=None,
             rewrite_failed=True,
-            error_message=str(e)[:500],
+            error_message=err_msg,
         )
         return False
 
