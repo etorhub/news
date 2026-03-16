@@ -229,7 +229,11 @@ def run_rewrite_batch(config: dict[str, Any]) -> RewriteReport:
     logger.info("run_rewrite_batch: starting")
     processing = config.get("processing", {})
     window_hours = processing.get("cluster_window_hours", 24)
-    since = datetime.now(UTC) - timedelta(hours=window_hours)
+    since = (
+        datetime.now(UTC) - timedelta(hours=window_hours)
+        if window_hours
+        else None
+    )
     schedule_cfg = config.get("schedule", {})
     batch_size = schedule_cfg.get("rewrite_batch_size", 10)
     parallel_workers = schedule_cfg.get("rewrite_parallel_workers", 2)
@@ -306,7 +310,11 @@ def run_rewrite_for_user(
 
     processing = cfg.get("processing", {})
     window_hours = processing.get("cluster_window_hours", 24)
-    since = datetime.now(UTC) - timedelta(hours=window_hours)
+    since = (
+        datetime.now(UTC) - timedelta(hours=window_hours)
+        if window_hours
+        else None
+    )
     schedule_cfg = cfg.get("schedule", {})
     batch_size = schedule_cfg.get("rewrite_batch_size", 10)
     parallel_workers = schedule_cfg.get("rewrite_parallel_workers", 2)

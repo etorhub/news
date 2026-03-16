@@ -114,7 +114,9 @@ def run_cluster_and_embed(config: dict[str, Any] | None = None) -> ClusterReport
     threshold = processing.get("cluster_similarity_threshold", 0.82)
     embed_limit = processing.get("embed_batch_size", 50)
 
-    since = datetime.now(UTC) - timedelta(hours=window_hours)
+    # Use 168h (1 week) when window_hours=0 to avoid clustering all articles ever
+    effective_hours = window_hours if window_hours else 168
+    since = datetime.now(UTC) - timedelta(hours=effective_hours)
     report = ClusterReport(articles_embedded=0, articles_clustered=0, clusters_created=0)
 
     # 1. Embed articles without embeddings

@@ -31,7 +31,11 @@ def get_feed(user_id: int) -> tuple[list[dict[str, Any]], bool]:
     window_hours = processing.get("cluster_window_hours", 24)
     limit = processing.get("articles_per_day", 10)
 
-    since = datetime.now(UTC) - timedelta(hours=window_hours)
+    since: datetime | None = (
+        datetime.now(UTC) - timedelta(hours=window_hours)
+        if window_hours
+        else None
+    )
     cluster_rows = db_clusters.get_clusters_with_articles_in_window(since)
     read_ids = db_clusters.get_read_cluster_ids(user_id)
 
@@ -74,7 +78,8 @@ def get_feed(user_id: int) -> tuple[list[dict[str, Any]], bool]:
 
     primary.sort(key=lambda c: c["relevance_score"], reverse=True)
     fallback.sort(key=lambda c: c["relevance_score"], reverse=True)
-    visible_clusters = (primary + fallback)[:limit]
+    combined = primary + fallback
+    visible_clusters = combined[:limit] if limit else combined
 
     profile_hash = profile_service.compute_profile_hash(profile)
     cluster_ids = [c["cluster_id"] for c in visible_clusters]

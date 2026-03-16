@@ -77,29 +77,41 @@ def get_cluster_ids_for_articles(article_ids: list[str]) -> dict[str, str]:
 
 
 def get_clusters_with_articles_in_window(
-    since: datetime,
+    since: datetime | None,
     source_ids: set[str] | None = None,
     topic_ids: set[str] | None = None,
 ) -> list[dict[str, Any]]:
-    """Return clusters that have at least one article published since given time.
+    """Return clusters that have at least one article.
 
-    Optionally filter by source_ids and topic_ids (requires sources metadata).
-    For now, source/topic filtering is done at the service layer.
+    If since is not None, only clusters with articles published since that time.
+    If since is None, return all clusters (ordered by most recent article).
+    Source/topic filtering is done at the service layer.
     """
     conn = get_connection()
     try:
         with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
-            cur.execute(
-                """
-                SELECT DISTINCT c.id::text as cluster_id, c.created_at
-                FROM clusters c
-                JOIN cluster_articles ca ON ca.cluster_id = c.id
-                JOIN articles a ON a.id = ca.article_id
-                WHERE a.published_at >= %s
-                ORDER BY c.created_at DESC
-                """,
-                (since,),
-            )
+            if since is not None:
+                cur.execute(
+                    """
+                    SELECT DISTINCT c.id::text as cluster_id, c.created_at
+                    FROM clusters c
+                    JOIN cluster_articles ca ON ca.cluster_id = c.id
+                    JOIN articles a ON a.id = ca.article_id
+                    WHERE a.published_at >= %s
+                    ORDER BY c.created_at DESC
+                    """,
+                    (since,),
+                )
+            else:
+                cur.execute(
+                    """
+                    SELECT DISTINCT c.id::text as cluster_id, c.created_at
+                    FROM clusters c
+                    JOIN cluster_articles ca ON ca.cluster_id = c.id
+                    JOIN articles a ON a.id = ca.article_id
+                    ORDER BY c.created_at DESC
+                    """
+                )
             return [dict(row) for row in cur.fetchall()]
     finally:
         return_connection(conn)
@@ -107,26 +119,45 @@ def get_clusters_with_articles_in_window(
 
 def get_clusters_needing_rewrite(
     profile_hash: str,
-    since: datetime,
+    since: datetime | None,
     limit: int | None = None,
 ) -> list[dict[str, Any]]:
-    """Return clusters with articles in window that have no rewrite for this profile_hash."""
+    """Return clusters that have no rewrite for this profile_hash.
+
+    If since is not None, only clusters with articles published since that time.
+    If since is None, return all clusters needing rewrite.
+    """
     conn = get_connection()
     try:
         with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
-            cur.execute(
-                """
-                SELECT c.id::text as cluster_id
-                FROM clusters c
-                JOIN cluster_articles ca ON ca.cluster_id = c.id
-                JOIN articles a ON a.id = ca.article_id
-                LEFT JOIN cluster_rewrites cr ON cr.cluster_id = c.id AND cr.profile_hash = %s
-                WHERE a.published_at >= %s AND cr.cluster_id IS NULL
-                GROUP BY c.id
-                ORDER BY MAX(a.published_at) DESC
-                """,
-                (profile_hash, since),
-            )
+            if since is not None:
+                cur.execute(
+                    """
+                    SELECT c.id::text as cluster_id
+                    FROM clusters c
+                    JOIN cluster_articles ca ON ca.cluster_id = c.id
+                    JOIN articles a ON a.id = ca.article_id
+                    LEFT JOIN cluster_rewrites cr ON cr.cluster_id = c.id AND cr.profile_hash = %s
+                    WHERE a.published_at >= %s AND cr.cluster_id IS NULL
+                    GROUP BY c.id
+                    ORDER BY MAX(a.published_at) DESC
+                    """,
+                    (profile_hash, since),
+                )
+            else:
+                cur.execute(
+                    """
+                    SELECT c.id::text as cluster_id
+                    FROM clusters c
+                    JOIN cluster_articles ca ON ca.cluster_id = c.id
+                    JOIN articles a ON a.id = ca.article_id
+                    LEFT JOIN cluster_rewrites cr ON cr.cluster_id = c.id AND cr.profile_hash = %s
+                    WHERE cr.cluster_id IS NULL
+                    GROUP BY c.id
+                    ORDER BY MAX(a.published_at) DESC
+                    """,
+                    (profile_hash,),
+                )
             rows = cur.fetchall()
             if limit is not None:
                 rows = rows[:limit]
