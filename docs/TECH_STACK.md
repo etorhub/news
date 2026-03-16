@@ -30,6 +30,7 @@ Technology choices for the Accessible News Aggregator, with rationale.
 | anthropic | Anthropic Claude API client |
 | openai | OpenAI API client |
 | google-generativeai | Google Gemini API client |
+| sentence-transformers | Local embeddings for article clustering (default) |
 | python-dotenv | Load `.env` for API keys |
 | bcrypt | Password hashing |
 | alembic | Database migrations |
@@ -53,6 +54,7 @@ Technology choices for the Accessible News Aggregator, with rationale.
 │   │   └── partials/        # HTMX fragment templates
 │   ├── llm/
 │   │   ├── provider.py      # Abstract LLM interface + factory
+│   │   ├── embeddings.py   # Embedding provider (local sentence-transformers)
 │   │   ├── providers/       # Anthropic, OpenAI, Gemini implementations
 │   │   └── prompts/         # Prompt templates (plain .txt files)
 │   ├── feed/                # RSS fetching and normalisation
@@ -170,6 +172,10 @@ volumes:
 The app never calls an LLM SDK directly. All LLM access goes through `app/llm/provider.py`, which defines an abstract `LLMProvider` class. Concrete implementations exist for Anthropic, OpenAI, and Gemini. The active provider is selected from `config/app.yaml`.
 
 This makes it straightforward to add new providers (including local ones like Ollama for self-hosters who prefer it).
+
+## Embedding Provider
+
+Article clustering uses embeddings for similarity via **local** `sentence-transformers` (`paraphrase-multilingual-MiniLM-L12-v2`) — no API key, runs on CPU.
 
 ---
 

@@ -82,6 +82,7 @@ A `RawArticle` has: `id`, `title`, `url`, `source`, `published_at`, `raw_text` (
 The LLM abstraction layer. Nothing outside this directory calls an LLM SDK directly.
 
 - `provider.py` — `LLMProvider` abstract base class and provider factory
+- `embeddings.py` — `EmbeddingProvider` for article clustering; local sentence-transformers
 - `providers/anthropic.py` — Anthropic Claude implementation
 - `providers/openai.py` — OpenAI implementation
 - `providers/gemini.py` — Google Gemini implementation
@@ -244,6 +245,10 @@ All config lives in `config/`. The app reads it at startup. No config is hardcod
 llm:
   provider: anthropic        # anthropic | openai | gemini
   model: claude-sonnet-4-20250514
+
+embeddings:
+  provider: local            # sentence-transformers
+  model: paraphrase-multilingual-MiniLM-L12-v2
 
 schedule:
   fetch_interval_minutes: 60

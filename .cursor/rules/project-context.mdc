@@ -67,6 +67,7 @@ See `docs/TECH_STACK.md` for full details, project structure, dependencies, Dock
 - **Backend:** Python 3.12+ with Flask
 - **Database:** PostgreSQL 16
 - **LLM:** External APIs (Anthropic, OpenAI, Gemini) via provider interface
+- **Embeddings:** Local sentence-transformers for article clustering (no API key)
 - **Frontend:** Plain HTML + CSS + HTMX
 - **Scheduling:** APScheduler (fetch + rewrite on a schedule, content ready when user opens app)
 - **Packaging:** Docker + docker-compose

@@ -3,7 +3,7 @@ llm:
   model: claude-sonnet-4-20250514
 
 embeddings:
-  provider: local   # local | openai
+  provider: local   # sentence-transformers
   model: paraphrase-multilingual-MiniLM-L12-v2
 
 schedule:
