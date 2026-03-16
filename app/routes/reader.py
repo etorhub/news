@@ -20,8 +20,27 @@ def index() -> Any:
     if not profile:
         return redirect(url_for("setup.setup_page"))
 
-    feed = article_service.get_feed(user_id)
-    return render_template("index.html", feed=feed, profile=profile)
+    feed, rewrites_pending = article_service.get_feed(user_id)
+    return render_template("index.html", feed=feed, rewrites_pending=rewrites_pending, profile=profile)
+
+
+@reader_bp.route("/feed")
+def feed_partial() -> Any:
+    """HTMX partial: feed content. Polled when rewrites are pending."""
+    user_id = session.get("user_id")
+    if not user_id:
+        return redirect(url_for("auth.login"))
+
+    profile = profile_service.get_profile_with_selections(user_id)
+    if not profile:
+        return redirect(url_for("setup.setup_page"))
+
+    feed, rewrites_pending = article_service.get_feed(user_id)
+    return render_template(
+        "partials/feed_content.html",
+        feed=feed,
+        rewrites_pending=rewrites_pending,
+    )
 
 
 @reader_bp.route("/clusters/<cluster_id>/expand")

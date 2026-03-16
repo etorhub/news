@@ -82,6 +82,19 @@
     }
     .tts-only { display: none; }
     body.tts-available .tts-only { display: inline-block; }
+    .feed-loading-dots {
+      display: inline-block;
+      width: 1em;
+      text-align: left;
+      animation: feed-loading-pulse 1.5s ease-in-out infinite;
+    }
+    .feed-loading-dots::before {
+      content: "...";
+    }
+    @keyframes feed-loading-pulse {
+      0%, 100% { opacity: 0.4; }
+      50% { opacity: 1; }
+    }
   </style>
   {% block head %}{% endblock %}
 </head>

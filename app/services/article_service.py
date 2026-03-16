@@ -8,11 +8,13 @@ from app.db import clusters as db_clusters
 from app.services import profile_service
 
 
-def get_feed(user_id: int) -> list[dict[str, Any]]:
+def get_feed(user_id: int) -> tuple[list[dict[str, Any]], bool]:
     """Return today's clusters for the user, filtered by sources/topics.
 
-    Each item has: id (cluster_id), title, summary, full_text, sources (list of
-    {source_name, url, title}), profile_hash. Uses cluster_rewrites.
+    Returns (feed, rewrites_pending). rewrites_pending is True when there are
+    clusters matching the user's profile but no rewrites yet (e.g. after setup).
+    Each feed item has: id (cluster_id), title, summary, full_text, sources (list
+    of {source_name, url, title}), profile_hash. Uses cluster_rewrites.
     """
     # #region agent log
     import json
@@ -26,12 +28,12 @@ def get_feed(user_id: int) -> list[dict[str, Any]]:
     profile = profile_service.get_profile_with_selections(user_id)
     if not profile:
         _dbg("early_exit", {"hypothesisId": "A", "reason": "no_profile", "user_id": user_id})
-        return []
+        return ([], False)
     source_ids = set(profile.get("source_ids", []))
     topic_ids = set(profile.get("topic_ids", []))
     if not source_ids or not topic_ids:
         _dbg("early_exit", {"hypothesisId": "A", "reason": "empty_sources_or_topics", "user_id": user_id, "source_ids": list(source_ids), "topic_ids": list(topic_ids)})
-        return []
+        return ([], False)
 
     sources = {s["id"]: s for s in load_sources()}
     config = load_config()
@@ -112,8 +114,9 @@ def get_feed(user_id: int) -> list[dict[str, Any]]:
                 "profile_hash": profile_hash,
             }
         )
+    rewrites_pending = len(visible_clusters) > 0 and len(result) == 0
     _dbg("feed_result", {"hypothesisId": "all", "user_id": user_id, "result_count": len(result)})
-    return result
+    return (result, rewrites_pending)
 
 
 def get_expanded_cluster(cluster_id: str, profile_hash: str) -> dict[str, Any] | None:

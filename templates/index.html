@@ -2,10 +2,7 @@
 {% block title %}Today's feed — Accessible News{% endblock %}
 {% block content %}
 <h1>Today's feed</h1>
-{% if feed %}
-  {% include "partials/article_list.html" %}
-{% else %}
-  <p>No articles yet. Your articles are being prepared, or there are no articles matching your sources and topics for today.</p>
-  <p>You can adjust your <a href="{{ url_for('settings.settings_page') }}">settings</a> to change which sources and topics you follow.</p>
-{% endif %}
+<div id="feed-container">
+  {% include "partials/feed_content.html" %}
+</div>
 {% endblock %}
