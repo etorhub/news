@@ -14,6 +14,11 @@ DEFAULTS: dict[str, Any] = {
         "fetch_interval_minutes": 60,
         "rewrite_cron": "0 6 * * *",
         "rewrite_batch_size": 10,
+        "fetcher": {
+            "circuit_breaker_threshold": 5,
+            "request_timeout_seconds": 30,
+            "user_agent": "AccessibleNewsAggregator/0.1 (+https://github.com/accessible-news/aggregator)",
+        },
     },
     "processing": {
         "articles_per_day": 10,

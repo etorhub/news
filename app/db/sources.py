@@ -104,6 +104,8 @@ def update_feed(
     *,
     last_fetched_at: str | None = None,
     last_item_guid: str | None = None,
+    etag: str | None = None,
+    last_modified: str | None = None,
     consecutive_failures: int | None = None,
     avg_articles_per_day: float | None = None,
     feed_active: bool | None = None,
@@ -118,6 +120,12 @@ def update_feed(
     if last_item_guid is not None:
         updates.append("last_item_guid = %(last_item_guid)s")
         params["last_item_guid"] = last_item_guid
+    if etag is not None:
+        updates.append("etag = %(etag)s")
+        params["etag"] = etag
+    if last_modified is not None:
+        updates.append("last_modified = %(last_modified)s")
+        params["last_modified"] = last_modified
     if consecutive_failures is not None:
         updates.append("consecutive_failures = %(consecutive_failures)s")
         params["consecutive_failures"] = consecutive_failures
@@ -188,13 +196,13 @@ def get_feeds_for_source(source_id: str) -> list[dict[str, Any]]:
 
 
 def get_all_active_feeds() -> list[dict[str, Any]]:
-    """Return all active feeds with their source info."""
+    """Return all active feeds with source info (incl. full_text_available)."""
     conn = get_connection()
     try:
         with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
             cur.execute(
                 """
-                SELECT sf.*, ns.domain, ns.name
+                SELECT sf.*, ns.domain, ns.name, ns.full_text_available
                 FROM source_feeds sf
                 JOIN news_sources ns ON ns.id = sf.source_id
                 WHERE sf.feed_active = TRUE AND ns.status = 'active'

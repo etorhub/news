@@ -1,8 +1,8 @@
-"""Flask CLI commands for news source discovery."""
+"""Flask CLI commands for news source discovery and feed fetching."""
 
 import click
 
-from app.config import load_sources
+from app.config import load_config, load_sources
 from app.db import sources as sources_db
 from app.discovery.feed_detection import validate_feed
 from app.discovery.scoring import calculate_quality_score
@@ -118,3 +118,18 @@ def score_sources_cmd() -> None:
         click.echo(f"  {source['name']}: score={score}")
 
     click.echo(f"Scored {len(sources)} sources.")
+
+
+@click.command("fetch-feeds")
+def fetch_feeds_cmd() -> None:
+    """Run the feed fetcher once (fetch all due feeds)."""
+    from app.feed.orchestrator import fetch_all_due_feeds
+
+    config = load_config()
+    report = fetch_all_due_feeds(config)
+    click.echo(
+        f"Fetched: checked={report.feeds_checked} "
+        f"fetched={report.feeds_fetched} "
+        f"inserted={report.articles_inserted} "
+        f"deactivated={report.feeds_deactivated}"
+    )

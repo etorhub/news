@@ -6,7 +6,7 @@ from pathlib import Path
 from dotenv import load_dotenv
 from flask import Flask, Response
 
-from app.cli import score_sources_cmd, seed_sources, validate_feeds_cmd
+from app.cli import fetch_feeds_cmd, score_sources_cmd, seed_sources, validate_feeds_cmd
 from app.config import load_config
 
 load_dotenv()
@@ -43,5 +43,6 @@ def create_app(config_path: str | Path | None = None) -> Flask:
     app.cli.add_command(seed_sources)
     app.cli.add_command(validate_feeds_cmd)
     app.cli.add_command(score_sources_cmd)
+    app.cli.add_command(fetch_feeds_cmd)
 
     return app
