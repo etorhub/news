@@ -103,20 +103,23 @@ Business logic. Routes call services; services do the work.
 
 All PostgreSQL access. No other module writes to the database directly.
 
-- `schema.py` — table definitions and migrations
 - `articles.py` — read/write for articles
-- `rewrites.py` — read/write for rewrite cache
+- `clusters.py` — clusters, cluster_articles, cluster_rewrites
+- `rewrites.py` — read/write for rewrite cache (legacy per-article)
+- `sources.py` — news_sources, source_feeds, source_discovery_log
 - `users.py` — read/write for users and profiles
+- `admin.py` — admin dashboard queries (job runs, overview stats, feed health, incidents)
 - `connection.py` — connection pool management
 
 ### `app/routes/`
 
 Flask blueprints. Routes are thin wrappers: parse request, call service, return template.
 
-- `reader.py` — main reader interface (`/`, `/articles/<id>/expand`)
+- `reader.py` — main reader interface (`/`, `/clusters/<id>/expand`)
 - `auth.py` — login, register, logout
 - `setup.py` — initial configuration wizard (`GET /setup`, `POST /setup`)
 - `settings.py` — configuration interface; allows editing profile fields after initial setup
+- `admin.py` — admin dashboard (`GET /admin`, `GET /admin/partials/jobs`); requires `is_admin`
 
 ### `app/templates/`
 
@@ -130,6 +133,10 @@ templates/
 ├── register.html           # Registration page
 ├── setup.html              # Initial configuration wizard
 ├── settings.html           # Settings page
+├── admin/
+│   ├── dashboard.html      # Admin dashboard (pipelines, jobs, users, incidents)
+│   └── partials/
+│       └── jobs.html       # Job runs table (HTMX partial, auto-refresh)
 └── partials/
     ├── article_card.html   # Summary card (one article in list)
     ├── article_expanded.html  # Full simplified article
@@ -150,7 +157,9 @@ CREATE TABLE users (
     email TEXT NOT NULL UNIQUE,
     password_hash TEXT NOT NULL,
     is_active BOOLEAN NOT NULL DEFAULT TRUE,
-    created_at TIMESTAMPTZ DEFAULT NOW()
+    is_admin BOOLEAN NOT NULL DEFAULT FALSE,
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    last_login_at TIMESTAMPTZ
 );
 
 CREATE TABLE user_profiles (
@@ -202,6 +211,19 @@ CREATE TABLE rewrites (
 CREATE INDEX idx_articles_source ON articles(source_id);
 CREATE INDEX idx_articles_published ON articles(published_at DESC);
 CREATE INDEX idx_rewrites_hash ON rewrites(profile_hash);
+
+-- Admin dashboard: job run history (see docs/ADMIN_DASHBOARD.md)
+CREATE TABLE job_runs (
+    id SERIAL PRIMARY KEY,
+    job_name TEXT NOT NULL,
+    started_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    finished_at TIMESTAMPTZ,
+    duration_ms INTEGER,
+    status TEXT NOT NULL DEFAULT 'running',
+    result JSONB,
+    error_message TEXT
+);
+CREATE INDEX idx_job_runs_job_name_started_at ON job_runs(job_name, started_at);
 ```
 
 ### Source tables
@@ -368,6 +390,10 @@ Caregivers should be aware of this during setup: the setup wizard should display
 ---
 
 ## Operational Rules
+
+### Admin dashboard
+
+Operators can monitor the system at `/admin`. Access requires `is_admin = true` on the user account. Grant via `flask make-admin <email>`. The dashboard shows job run history, feed health, article pipeline stats, clustering coverage, user activity, and auto-detected incidents. See [docs/ADMIN_DASHBOARD.md](ADMIN_DASHBOARD.md).
 
 ### APScheduler and Gunicorn workers
 

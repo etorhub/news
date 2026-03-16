@@ -90,6 +90,7 @@
     {% if session.get('user_id') %}
       <a href="{{ url_for('reader.index') }}">Feed</a>
       <a href="{{ url_for('settings.settings_page') }}">Settings</a>
+      {% if is_admin %}<a href="{{ url_for('admin.dashboard') }}">Admin</a>{% endif %}
       <form method="post" action="{{ url_for('auth.logout') }}" style="display:inline;">
         <button type="submit">Log out</button>
       </form>

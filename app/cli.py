@@ -120,6 +120,20 @@ def score_sources_cmd() -> None:
     click.echo(f"Scored {len(sources)} sources.")
 
 
+@click.command("make-admin")
+@click.argument("email", type=str)
+def make_admin(email: str) -> None:
+    """Grant admin privileges to a user by email."""
+    from app.db import users as db_users
+
+    user = db_users.get_user_by_email(email.strip())
+    if not user:
+        click.echo(f"User not found: {email}")
+        raise SystemExit(1)
+    db_users.set_admin(user["id"], True)
+    click.echo(f"Granted admin to {email}")
+
+
 @click.command("fetch-feeds")
 def fetch_feeds_cmd() -> None:
     """Run the feed fetcher once (fetch all due feeds)."""

@@ -6,8 +6,16 @@ from pathlib import Path
 from dotenv import load_dotenv
 from flask import Flask, Response, redirect, request, session, url_for
 
-from app.cli import fetch_feeds_cmd, score_sources_cmd, seed_sources, validate_feeds_cmd
+from app.cli import (
+    fetch_feeds_cmd,
+    make_admin,
+    score_sources_cmd,
+    seed_sources,
+    validate_feeds_cmd,
+)
 from app.config import load_config
+from app.db import users as db_users
+from app.routes.admin import admin_bp
 from app.routes.auth import auth_bp
 from app.routes.reader import reader_bp
 from app.routes.settings import settings_bp
@@ -50,10 +58,21 @@ def create_app(config_path: str | Path | None = None) -> Flask:
     app.register_blueprint(setup_bp)
     app.register_blueprint(settings_bp)
     app.register_blueprint(reader_bp)
+    app.register_blueprint(admin_bp)
+
+    @app.context_processor
+    def inject_admin_flag():  # type: ignore[no-untyped-def]
+        """Inject is_admin for nav link."""
+        user_id = session.get("user_id")
+        if not user_id:
+            return {"is_admin": False}
+        user = db_users.get_user_by_id(user_id)
+        return {"is_admin": user.get("is_admin", False) if user else False}
 
     app.cli.add_command(seed_sources)
     app.cli.add_command(validate_feeds_cmd)
     app.cli.add_command(score_sources_cmd)
     app.cli.add_command(fetch_feeds_cmd)
+    app.cli.add_command(make_admin)
 
     return app

@@ -48,6 +48,16 @@ docker-compose up
 
 The app starts at `http://localhost:5000`. Create an account, complete the setup wizard, and you'll see your first articles after the next scheduled fetch/rewrite cycle.
 
+### Admin dashboard
+
+Operators can monitor ingestion pipelines, job history, and system health at `/admin`. Access requires admin privileges. Grant them with:
+
+```bash
+flask make-admin your@email.com
+```
+
+See [docs/ADMIN_DASHBOARD.md](docs/ADMIN_DASHBOARD.md) for full documentation.
+
 ### Running Locally (without Docker)
 
 ```bash
@@ -81,6 +91,7 @@ See [docs/TECH_STACK.md](docs/TECH_STACK.md) for full details.
 | [.cursor/rules/](.cursor/rules/)                                           | Cursor IDE rules — same context via `project-context.mdc` (always apply) plus architecture, accessibility, LLM, news-source-discovery |
 | [docs/TECH_STACK.md](docs/TECH_STACK.md)                                   | Tech stack, project structure, dependencies, Docker setup                                                                             |
 | [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)                               | System architecture, database schema, component map, request lifecycle                                                                |
+| [docs/ADMIN_DASHBOARD.md](docs/ADMIN_DASHBOARD.md)                         | Admin dashboard: pipeline monitoring, job history, user activity, incidents                                                           |
 | [docs/MVP_PLAN.md](docs/MVP_PLAN.md)                                       | Phased MVP plan with tasks and success criteria                                                                                       |
 | [docs/news_source_discovery_agent.md](docs/news_source_discovery_agent.md) | News source discovery pipeline specification                                                                                          |
 

@@ -2,6 +2,7 @@
 
 import contextlib
 import logging
+from dataclasses import asdict
 
 from apscheduler.schedulers.blocking import BlockingScheduler
 from apscheduler.triggers.cron import CronTrigger
@@ -9,6 +10,7 @@ from apscheduler.triggers.interval import IntervalTrigger
 
 from app.clustering.service import run_cluster_and_embed
 from app.config import load_config
+from app.db import admin as admin_db
 from app.extraction.extractor import enrich_articles
 from app.feed.orchestrator import fetch_all_due_feeds
 from app.services.rewrite_service import run_rewrite_batch
@@ -18,9 +20,11 @@ logger = logging.getLogger(__name__)
 
 def _run_fetch_job() -> None:
     """Scheduled job: fetch all due feeds."""
+    job_id = admin_db.insert_job_run("fetch_feeds")
     try:
         config = load_config()
         report = fetch_all_due_feeds(config)
+        admin_db.update_job_run(job_id, status="success", result=asdict(report))
         logger.info(
             "Fetch run: checked=%d fetched=%d inserted=%d deactivated=%d",
             report.feeds_checked,
@@ -28,15 +32,18 @@ def _run_fetch_job() -> None:
             report.articles_inserted,
             report.feeds_deactivated,
         )
-    except Exception:
+    except Exception as e:
+        admin_db.update_job_run(job_id, status="error", error_message=str(e))
         logger.exception("Fetch job failed")
 
 
 def _run_enrichment_job() -> None:
     """Scheduled job: extract full article content for pending articles."""
+    job_id = admin_db.insert_job_run("enrich_articles")
     try:
         config = load_config()
         report = enrich_articles(config)
+        admin_db.update_job_run(job_id, status="success", result=asdict(report))
         logger.info(
             "Enrichment run: checked=%d extracted=%d failed=%d skipped=%d",
             report.articles_checked,
@@ -44,30 +51,36 @@ def _run_enrichment_job() -> None:
             report.articles_failed,
             report.articles_skipped,
         )
-    except Exception:
+    except Exception as e:
+        admin_db.update_job_run(job_id, status="error", error_message=str(e))
         logger.exception("Enrichment job failed")
 
 
 def _run_cluster_job() -> None:
     """Scheduled job: embed and cluster today's articles."""
+    job_id = admin_db.insert_job_run("cluster_articles")
     try:
         config = load_config()
         report = run_cluster_and_embed(config)
+        admin_db.update_job_run(job_id, status="success", result=asdict(report))
         logger.info(
             "Cluster run: embedded=%d clustered=%d clusters_created=%d",
             report.articles_embedded,
             report.articles_clustered,
             report.clusters_created,
         )
-    except Exception:
+    except Exception as e:
+        admin_db.update_job_run(job_id, status="error", error_message=str(e))
         logger.exception("Cluster job failed")
 
 
 def _run_rewrite_job() -> None:
     """Scheduled job: rewrite today's articles for all profile hashes."""
+    job_id = admin_db.insert_job_run("rewrite_articles")
     try:
         config = load_config()
         report = run_rewrite_batch(config)
+        admin_db.update_job_run(job_id, status="success", result=asdict(report))
         logger.info(
             "Rewrite run: profiles=%d clusters_attempted=%d ok=%d failed=%d",
             report.profiles_processed,
@@ -75,7 +88,8 @@ def _run_rewrite_job() -> None:
             report.clusters_succeeded,
             report.clusters_failed,
         )
-    except Exception:
+    except Exception as e:
+        admin_db.update_job_run(job_id, status="error", error_message=str(e))
         logger.exception("Rewrite job failed")
 
 

@@ -48,7 +48,7 @@ Technology choices for the Accessible News Aggregator, with rationale.
 ├── app/
 │   ├── __init__.py          # Flask app factory
 │   ├── config.py            # Loads config/*.yaml
-│   ├── routes/              # Flask blueprints — one per domain area
+│   ├── routes/              # Flask blueprints — reader, auth, setup, settings, admin
 │   ├── services/            # Business logic — routes call services
 │   ├── templates/           # Jinja2 templates
 │   │   └── partials/        # HTMX fragment templates
@@ -58,7 +58,7 @@ Technology choices for the Accessible News Aggregator, with rationale.
 │   │   ├── providers/       # Anthropic, OpenAI, Gemini implementations
 │   │   └── prompts/         # Prompt templates (plain .txt files)
 │   ├── feed/                # RSS fetching and normalisation
-│   └── db/                  # PostgreSQL access layer
+│   └── db/                  # PostgreSQL access layer (includes admin queries)
 ├── alembic/                 # Database migration scripts (Alembic)
 │   ├── env.py
 │   └── versions/            # Versioned migration files
@@ -90,6 +90,9 @@ flask run
 # Run with Docker (recommended)
 docker-compose up
 
+# Grant admin access to a user (for /admin dashboard)
+flask make-admin user@example.com
+
 # Install git hooks (run after cloning)
 lefthook install
 
@@ -109,6 +112,10 @@ ruff format .
 # Type check
 mypy .
 ```
+
+### Admin dashboard
+
+Operators can access `/admin` to monitor ingestion pipelines, job history, feed health, user activity, and incidents. Admin access is granted via `flask make-admin <email>`. See [docs/ADMIN_DASHBOARD.md](ADMIN_DASHBOARD.md) for details.
 
 ---
 

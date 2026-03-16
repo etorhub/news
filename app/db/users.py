@@ -35,7 +35,8 @@ def get_user_by_email(email: str) -> dict[str, Any] | None:
     try:
         with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
             cur.execute(
-                """SELECT id, email, password_hash, is_active, created_at
+                """SELECT id, email, password_hash, is_active, is_admin,
+                          created_at, last_login_at
                    FROM users WHERE email = %s""",
                 (email,),
             )
@@ -51,7 +52,8 @@ def get_user_by_id(user_id: int) -> dict[str, Any] | None:
     try:
         with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
             cur.execute(
-                """SELECT id, email, password_hash, is_active, created_at
+                """SELECT id, email, password_hash, is_active, is_admin,
+                          created_at, last_login_at
                    FROM users WHERE id = %s""",
                 (user_id,),
             )
@@ -225,5 +227,33 @@ def get_user_topics(user_id: int) -> list[str]:
                 (user_id,),
             )
             return [row[0] for row in cur.fetchall()]
+    finally:
+        return_connection(conn)
+
+
+def update_last_login(user_id: int) -> None:
+    """Update last_login_at for the user."""
+    conn = get_connection()
+    try:
+        with conn.cursor() as cur:
+            cur.execute(
+                "UPDATE users SET last_login_at = NOW() WHERE id = %s",
+                (user_id,),
+            )
+        conn.commit()
+    finally:
+        return_connection(conn)
+
+
+def set_admin(user_id: int, is_admin: bool) -> None:
+    """Set is_admin flag for the user."""
+    conn = get_connection()
+    try:
+        with conn.cursor() as cur:
+            cur.execute(
+                "UPDATE users SET is_admin = %s WHERE id = %s",
+                (is_admin, user_id),
+            )
+        conn.commit()
     finally:
         return_connection(conn)

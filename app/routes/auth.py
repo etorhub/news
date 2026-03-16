@@ -4,6 +4,7 @@ from typing import Any
 
 from flask import Blueprint, redirect, render_template, request, session, url_for
 
+from app.db import users as db_users
 from app.services import auth_service
 
 auth_bp = Blueprint("auth", __name__)
@@ -25,6 +26,7 @@ def login() -> Any:
         return render_template(
             "login.html", error="Invalid email or password.", email=email
         )
+    db_users.update_last_login(user_id)
     session["user_id"] = user_id
     return redirect(url_for("reader.index"))
 
