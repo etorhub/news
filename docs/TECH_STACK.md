@@ -32,6 +32,7 @@ Technology choices for the Accessible News Aggregator, with rationale.
 | google-generativeai | Google Gemini API client |
 | python-dotenv | Load `.env` for API keys |
 | bcrypt | Password hashing |
+| alembic | Database migrations |
 | ruff | Linting and formatting |
 | mypy | Static type checking |
 | pytest | Testing |
@@ -55,8 +56,10 @@ Technology choices for the Accessible News Aggregator, with rationale.
 │   │   ├── providers/       # Anthropic, OpenAI, Gemini implementations
 │   │   └── prompts/         # Prompt templates (plain .txt files)
 │   ├── feed/                # RSS fetching and normalisation
-│   ├── db/                  # PostgreSQL access layer
-│   └── tts/                 # Text-to-speech helpers (browser API prep)
+│   └── db/                  # PostgreSQL access layer
+├── alembic/                 # Database migration scripts (Alembic)
+│   ├── env.py
+│   └── versions/            # Versioned migration files
 ├── config/
 │   ├── sources.yaml         # Catalog of available RSS feeds and API sources
 │   └── app.yaml             # App-level config (LLM provider, schedule, etc.)
@@ -172,7 +175,9 @@ This makes it straightforward to add new providers (including local ones like Ol
 
 ## Scheduling Model
 
-APScheduler runs two types of background jobs inside the Flask process:
+APScheduler runs in the dedicated `scheduler` container only (`python -m app.scheduler`). It is never started inside the `web` container. Running APScheduler inside Gunicorn causes every worker to spawn its own scheduler, executing every job N times.
+
+Two types of background jobs:
 
 1. **Fetch jobs** — poll feeds per their configured interval (high/medium/low frequency tiers). Articles are stored centrally in the `articles` table with full text when available.
 2. **Rewrite jobs** — run at a configurable daily time (default: early morning). For each active user, rewrite new articles that haven't been cached yet for their profile.

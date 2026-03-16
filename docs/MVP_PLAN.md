@@ -36,6 +36,7 @@ Canonical phased plan for the minimum viable product. This document replaces sca
    - **Ruff** — Linting (`ruff check`) and formatting (`ruff format`). Rule sets: `E`, `F`, `W`, `I`, `UP`, `B`, `SIM`, `RUF`. Target Python 3.12, line length 88.
    - **Mypy** — Static type checking (`mypy .`). Strict mode, `--ignore-missing-imports` initially.
    - **Pytest** — Testing (`pytest`). Config in `pyproject.toml`, test directory `tests/`.
+   - **Alembic** — Database migrations. `alembic init` at project root. `alembic upgrade head` runs on container start. Initial migration creates all tables from scratch. Subsequent schema changes get versioned migration scripts — never modify the initial migration.
 
 3. **Lefthook**
    - Config: `lefthook.yml` at project root.
@@ -54,6 +55,7 @@ Canonical phased plan for the minimum viable product. This document replaces sca
 - `Dockerfile`, `docker-compose.yml`, `docker-compose.override.yml`, `.env.example`
 - `pyproject.toml` with Ruff, Mypy, Pytest, Commitizen config
 - `lefthook.yml` with pre-commit and pre-push hooks
+- `alembic/` with initial migration creating all tables
 
 ---
 
@@ -231,13 +233,15 @@ End users and caregivers always access the platform, never the codebase. Flow: *
 ## Suggested Implementation Order
 
 1. **Phase 0** — Docker setup, Python tooling, Lefthook, Commitizen
-2. **Phase 4 (auth + setup)** — User registration, login, setup wizard, profile storage
+2. **Phase 4 (auth + setup wizard)** — User registration, login, setup wizard, profile storage
 3. **Phase 1** — Discovery or manual seed → `news_sources` + `source_feeds` (or `sources.yaml`)
 4. **Phase 2** — Fetcher + scheduler → `articles` populated on schedule
 5. **Phase 3** — LLM rewriter + scheduled rewrite pipeline
 6. **Phase 4 (complete)** — Feed UI, digest, expandable articles, TTS
 
 Rationale: Phase 0 establishes infrastructure and developer experience before any feature work. Auth and profile storage come next because everything else depends on having users with profiles. The feed UI can be built incrementally as the pipeline behind it comes online.
+
+**Dependency note:** Building the setup wizard (Phase 4a) before the source catalog (Phase 1) means the wizard has no real sources to display. Use a stub: seed 3–5 hardcoded sources in `config/sources.yaml` before Phase 4a so the wizard can render source selection. The stub is replaced by the real catalog when Phase 1 completes. Do not wire up the source catalog to the database until Phase 1 is done.
 
 ---
 

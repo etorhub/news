@@ -123,7 +123,7 @@ Jinja2 templates. Pages extend `base.html`. HTMX responses use partials.
 
 ```
 templates/
-├── base.html               # Shell: nav, font settings, TTS controls
+├── base.html               # Shell: nav, font settings; contains inline <script> for Web Speech API TTS only
 ├── index.html              # Main reader view (today's digest)
 ├── login.html              # Login page
 ├── register.html           # Registration page
@@ -136,12 +136,6 @@ templates/
     ├── setup_sources.html  # Source selection section for setup
     └── setup_topics.html   # Topic selection section for setup
 ```
-
-### `app/tts/`
-
-Thin helpers for browser TTS. The actual synthesis happens via the Web Speech API in the browser — no server-side audio generation. If the browser does not support the Web Speech API, TTS controls are hidden via feature detection.
-
-- `helpers.py` — prepares text for TTS (sentence splitting, SSML markers if needed)
 
 ---
 
@@ -209,13 +203,32 @@ CREATE INDEX idx_articles_published ON articles(published_at DESC);
 CREATE INDEX idx_rewrites_hash ON rewrites(profile_hash);
 ```
 
+### Source tables
+
+`articles.source_id` is a text FK whose referent depends on the deployment mode:
+
+- **With discovery pipeline:** references `news_sources.id` (UUID cast to text). The full `news_sources`, `source_feeds`, and `source_discovery_log` tables are defined in `docs/news_source_discovery_agent.md` and are the canonical source catalog when the discovery pipeline is active.
+- **Manual seed only (MVP shortcut):** `source_id` is the string `id` field from `config/sources.yaml`. No `news_sources` table is required; the YAML catalog is the source of truth.
+
+Both modes use the same `articles` schema. The fetching layer (`app/feed/`) handles the difference. When integrating the discovery pipeline, migrate `source_id` values to UUIDs and add the FK constraint.
+
 ### Profile hash
 
-The cache key for a rewrite is `sha256(json(profile_rewrite_fields))`. The hash includes **only fields that affect the rewrite output**:
+The cache key for a rewrite is `sha256(json(profile_rewrite_fields))`. The hash includes **only fields that affect the rewrite output**, serialised as a canonical JSON object with sorted keys:
 
-- `language`
-- `rewrite_tone`
-- `filter_negative`
+```python
+import hashlib, json
+
+def compute_profile_hash(profile: dict) -> str:
+    fields = {
+        "language": profile["language"],
+        "rewrite_tone": profile["rewrite_tone"],
+        "filter_negative": profile["filter_negative"],
+    }
+    return hashlib.sha256(
+        json.dumps(fields, sort_keys=True).encode()
+    ).hexdigest()
+```
 
 It does **not** include source selections, topic selections, or location. Changing which sources you follow does not invalidate existing rewrites. Two users with identical language, tone, and filter settings share cached rewrites.
 
@@ -244,8 +257,9 @@ processing:
 server:
   port: 5000
   debug: false
-  secret_key: ${SECRET_KEY}
 ```
+
+> **Note:** `SECRET_KEY` is loaded directly from the environment (`.env`) by the Flask app factory — not via `app.yaml`. YAML is for non-secret config only.
 
 ### `config/sources.yaml`
 
@@ -256,7 +270,7 @@ sources:
   - id: "3cat"
     name: "3Cat Notícies"
     type: rss
-    url: "https://www.ccma.cat/rss/noticia/catala/rss.xml"
+    url: "https://www.3cat.cat/rss/noticia/catala/rss.xml"
     language: ca
     topics: ["general"]
     full_text: true
@@ -299,18 +313,66 @@ Rules:
 - Do not shorten the article — simplify it
 ```
 
-When `filter_negative` is enabled, the prompt includes an additional instruction to omit or soften distressing content.
+When `filter_negative` is enabled, the prompt appends:
+
+```
+- If an article describes violence, death, severe illness, or disaster in graphic detail, soften the tone or summarise it briefly without graphic content.
+- If an article is primarily distressing with no informational value, omit it from the output entirely.
+```
+
+The negative filter is applied at rewrite time via the LLM prompt — not by keyword list or pre-filtering. It is a soft filter; the LLM exercises judgement.
+
+### `rewrite_tone` valid values
+
+The `rewrite_tone` field is a short freeform instruction string included verbatim in the LLM prompt. Recommended values (enforce via the setup wizard dropdown):
+
+| Value (stored in DB) | Label shown to caregiver |
+|---|---|
+| `Short sentences. Simple vocabulary. No jargon.` | Simple (default) |
+| `Very short sentences. One idea per sentence. Elementary vocabulary.` | Very simple |
+| `Short sentences. Calm, reassuring tone. Avoid alarming phrasing.` | Calm |
+| `Short sentences. Formal but clear. Avoid colloquialisms.` | Formal |
+
+Store and pass the full instruction string, not a code name. The LLM prompt uses it directly. The default is `Short sentences. Simple vocabulary. No jargon.`
 
 ### Rewrite scheduling
 
+**Active user definition:** A user is considered active for the daily rewrite job if they have completed the setup wizard (i.e., `user_profiles` row exists for that `user_id`) AND their account `is_active = TRUE`. No recency requirement — every user with a complete profile gets fresh rewrites daily. This means LLM cost scales with the number of registered, setup-complete accounts, not just recent logins.
+
 The daily rewrite job (APScheduler):
 
-1. Collects all active users and their profile hashes
+1. Collects all active users (defined above) and their profile hashes
 2. Collects today's articles (from scheduled fetch)
 3. For each unique profile hash, rewrites articles that don't have a cached result
 4. Stores results in the `rewrites` table
 
 Two users with the same profile hash share cached rewrites — the LLM is never called twice for the same content + profile combination.
+
+### Daily digest delivery
+
+The daily digest is an **in-app experience only**. There is no email or push notification in the MVP. When a user opens the app after the rewrite job has run, they see a badge or banner: "N new articles since your last visit." This is rendered server-side from the `rewrites` table — no service worker, no push API.
+
+The badge is shown to both the end user and the caregiver (same account). The caregiver can therefore check it from any device without special notification setup.
+
+### Language and source mismatch
+
+If a user sets `language = "en"` but selects Catalan-language sources, the LLM rewrites the article **in the user's configured language** (English), effectively translating it. The rewrite prompt always specifies the target language. There is no pre-filtering by source language.
+
+Caregivers should be aware of this during setup: the setup wizard should display each source's language so they can make an informed selection. Cross-language selections are allowed; translation is automatic.
+
+---
+
+## Operational Rules
+
+### APScheduler and Gunicorn workers
+
+**Hard rule:** APScheduler must only run in the `scheduler` container (entrypoint: `python -m app.scheduler`). It must never be imported or started inside the `web` container.
+
+If APScheduler is started inside a Gunicorn process, every worker spawns its own scheduler, causing every scheduled job to run N times (where N = number of workers). This causes duplicate fetches, duplicate rewrites, and duplicate LLM charges.
+
+- The `web` container runs `gunicorn` only — no scheduler import, no `scheduler.start()` call anywhere in the Flask app factory or any module it imports at startup.
+- The `scheduler` container imports and starts APScheduler in `app/scheduler.py` (the `__main__` module), which is a separate process that never handles HTTP requests.
+- Do not add `scheduler.start()` to `create_app()` or any Flask init code, even for convenience during development.
 
 ---
 

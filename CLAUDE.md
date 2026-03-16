@@ -74,7 +74,7 @@ See `docs/TECH_STACK.md` for full details, project structure, dependencies, Dock
 These are hard rules, not preferences:
 
 - **Flask routes return HTML only.** Never return JSON to the frontend. Every endpoint renders and returns a Jinja2 template partial. This is HATEOAS — the server owns all state and rendering.
-- **HTMX is the only frontend dependency.** No JavaScript frameworks. No build step. No npm. HTMX is loaded via a single CDN script tag.
+- **HTMX is the only frontend dependency.** No JavaScript frameworks. No build step. No npm. HTMX is loaded via a single CDN script tag. The only permitted JavaScript is a small inline `<script>` block in `base.html` for the Web Speech API (TTS feature detection and playback). No external JS files, no JS libraries beyond HTMX.
 - **LLM calls are always abstracted.** Never call Anthropic, OpenAI, or Gemini directly from a route. Always go through the provider interface in `app/llm/provider.py`.
 - **Fetching and rewriting run on a schedule.** APScheduler fetches feeds on configured intervals and rewrites articles for active users daily. When a user opens the app, content is already ready. No on-demand LLM calls during page load.
 - **Config is never hardcoded.** YAML files define the catalog of available sources/topics and app-level settings. User preferences (location, selected sources, selected topics, filter toggle, rewrite tone, language) live in PostgreSQL, set via the web UI.
@@ -98,7 +98,7 @@ These are hard rules, not preferences:
 ## What Claude Gets Wrong on This Stack
 
 - **Returning JSON from Flask routes.** Every route must return `render_template(...)` or `render_template_string(...)`. If you find yourself writing `jsonify`, stop.
-- **Adding JavaScript.** HTMX attributes on HTML elements handle all interactivity. There is no `static/js/` directory.
+- **Adding JavaScript frameworks or files.** HTMX attributes on HTML elements handle all interactivity. There is no `static/js/` directory and no external JS libraries. The only permitted JavaScript is a small inline `<script>` in `base.html` for the Web Speech API (TTS). Do not add JS for anything else.
 - **Calling the LLM directly.** Always use `from app.llm.provider import get_provider` and call through the interface.
 - **Hardcoding source URLs or prompts.** These live in config files.
 - **Putting user preferences in YAML files.** User profile settings live in PostgreSQL, set through the setup wizard. Only the source catalog and app-level config belong in YAML.
@@ -133,6 +133,12 @@ For automated news source discovery (finding feeds by location, validation, qual
 - **Caregiver setup, user operation.** The caregiver creates the account and configures via the web UI; daily use requires none.
 - **Config-driven throughout.** App config (source catalog, LLM prompts, server settings) lives in YAML. User preferences live in PostgreSQL, set via the setup wizard and settings page.
 - **Self-hosted must be genuinely usable.** Whoever deploys (e.g. a family member) should be able to run and maintain it without ongoing help. End users and caregivers using the platform never touch deployment.
+
+---
+
+## Cursor IDE Rules
+
+`.cursor/rules/` contains Cursor IDE rule files that mirror this document. `project-context.mdc` is the full equivalent of CLAUDE.md for Cursor users. Additional rules cover architecture, accessibility, LLM usage, and news source discovery. These rules are authoritative for Cursor users and must stay in sync with CLAUDE.md — if one is updated, update the other.
 
 ---
 
