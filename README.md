@@ -44,6 +44,9 @@ cp .env.example .env
 
 # Start everything
 docker-compose up
+
+# Seed news sources from config (required before fetch-feeds)
+docker compose exec web flask seed-sources
 ```
 
 The app starts at `http://localhost:5000`. Create an account, complete the setup wizard, and you'll see your first articles after the next scheduled fetch/rewrite cycle.
@@ -57,6 +60,29 @@ flask make-admin your@email.com
 ```
 
 See [docs/ADMIN_DASHBOARD.md](docs/ADMIN_DASHBOARD.md) for full documentation.
+
+### Running scheduler jobs manually
+
+The scheduler runs four jobs on a schedule: fetch feeds, enrich articles (extract full text), cluster articles (embed + group), and rewrite articles (LLM simplification). You can run any of them manually via Flask CLI:
+
+| Command | Description |
+| ------- | ----------- |
+| `flask seed-sources` | Load sources from config/sources.yaml into the database (run once before fetch) |
+| `flask fetch-feeds` | Fetch all due RSS feeds |
+| `flask enrich-articles` | Extract full article content for pending articles |
+| `flask cluster-articles` | Embed and cluster today's articles |
+| `flask rewrite-articles` | Rewrite articles for all user profiles |
+| `flask run-pipeline` | Run the full pipeline once (seed → fetch → enrich → cluster → rewrite) |
+
+Pipeline order matters: seed sources first (once), then fetch, enrich, cluster, rewrite. Use `flask run-pipeline` to run the full pipeline (seed is included).
+
+With Docker, run commands inside the web container (which has the same codebase as the scheduler):
+
+```bash
+docker compose exec web flask seed-sources
+docker compose exec web flask fetch-feeds
+docker compose exec web flask run-pipeline
+```
 
 ### Running Locally (without Docker)
 
