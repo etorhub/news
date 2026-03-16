@@ -1,0 +1,44 @@
+{% for c in clusters %}
+<div style="margin-bottom: 1rem; padding: 1rem; border: 2px solid var(--border);">
+  <p style="margin: 0 0 0.5rem;">
+    <strong>Cluster</strong> <code>{{ c.cluster_id[:8] }}…</code>
+    · {{ c.article_count or 0 }} articles
+    · {{ c.created_at.strftime('%Y-%m-%d %H:%M') if c.created_at else '—' }}
+  </p>
+  {% if c.sample_titles %}
+  <p style="margin: 0 0 0.5rem; font-size: 0.9em;">
+    {% for t in c.sample_titles[:3] %}{{ t[:50] }}{% if t|length > 50 %}…{% endif %}{% if not loop.last %} · {% endif %}{% endfor %}
+  </p>
+  {% endif %}
+  <button hx-get="{{ url_for('admin.cluster_detail_partial', cluster_id=c.cluster_id) }}"
+          hx-target="#cluster-detail-{{ c.cluster_id }}"
+          hx-swap="innerHTML"
+          hx-trigger="click"
+          style="min-height: var(--touch-min); min-width: var(--touch-min);">
+    Expand
+  </button>
+  <div id="cluster-detail-{{ c.cluster_id }}" style="margin-top: 1rem;"></div>
+</div>
+{% else %}
+<p>No clusters</p>
+{% endfor %}
+
+{% if total > 0 %}
+{% set start = (page - 1) * per_page + 1 %}
+{% set end = [page * per_page, total]|min %}
+<p style="margin-top: 1rem;">
+  {{ start }}–{{ end }} of {{ total }}
+  {% if page > 1 %}
+  <a href="{{ url_for('admin.clusters_partial', page=page - 1, per_page=per_page) }}"
+     hx-get="{{ url_for('admin.clusters_partial', page=page - 1, per_page=per_page) }}"
+     hx-target="#clusters-content"
+     hx-swap="innerHTML">Previous</a>
+  {% endif %}
+  {% if end < total %}
+  <a href="{{ url_for('admin.clusters_partial', page=page + 1, per_page=per_page) }}"
+     hx-get="{{ url_for('admin.clusters_partial', page=page + 1, per_page=per_page) }}"
+     hx-target="#clusters-content"
+     hx-swap="innerHTML">Next</a>
+  {% endif %}
+</p>
+{% endif %}
