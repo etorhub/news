@@ -1,5 +1,6 @@
 """LLM rewrite orchestration. Runs on schedule or via manual trigger after settings save."""
 
+import logging
 import re
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from dataclasses import dataclass
@@ -7,6 +8,8 @@ from datetime import UTC, datetime, timedelta
 from typing import Any
 
 from app.config import load_config
+
+logger = logging.getLogger(__name__)
 from app.db import clusters as db_clusters
 from app.db import users as db_users
 from app.llm.prompts import load_prompt
@@ -92,6 +95,7 @@ def rewrite_cluster(
     provider: LLMProvider | None = None,
 ) -> bool:
     """Rewrite a cluster (merge + adapt all articles) and store. Returns True on success."""
+    logger.info("rewrite_cluster: starting cluster_id=%s articles=%d", cluster_id, len(articles))
     articles_text = _build_articles_text(articles)
     if not articles_text:
         profile_hash = profile_service.compute_profile_hash(profile)
@@ -126,6 +130,7 @@ def rewrite_cluster(
     if provider is None:
         provider = get_provider(config)
     try:
+        logger.info("rewrite_cluster: calling LLM cluster_id=%s max_tokens=%d", cluster_id, max_tokens)
         response = provider.complete(prompt, max_tokens=max_tokens)
         title, summary, full_text = _parse_cluster_llm_response(response)
         db_clusters.insert_cluster_rewrite(
@@ -136,6 +141,7 @@ def rewrite_cluster(
             full_text=full_text,
             rewrite_failed=False,
         )
+        logger.info("rewrite_cluster: done cluster_id=%s ok=True", cluster_id)
         return True
     except Exception as e:
         err_msg = str(e)[:500]
@@ -148,6 +154,7 @@ def rewrite_cluster(
             rewrite_failed=True,
             error_message=err_msg,
         )
+        logger.warning("rewrite_cluster: done cluster_id=%s ok=False error=%s", cluster_id, err_msg)
         return False
 
 
@@ -170,24 +177,38 @@ def _rewrite_one(
 
 def run_rewrite_batch(config: dict[str, Any]) -> RewriteReport:
     """Process today's clusters for all distinct rewrite profiles."""
+    logger.info("run_rewrite_batch: starting")
     processing = config.get("processing", {})
     window_hours = processing.get("cluster_window_hours", 24)
     since = datetime.now(UTC) - timedelta(hours=window_hours)
     schedule_cfg = config.get("schedule", {})
     batch_size = schedule_cfg.get("rewrite_batch_size", 10)
     parallel_workers = schedule_cfg.get("rewrite_parallel_workers", 2)
+    logger.info(
+        "run_rewrite_batch: window_hours=%d batch_size=%d parallel_workers=%d",
+        window_hours,
+        batch_size,
+        parallel_workers,
+    )
 
     profiles = db_users.get_distinct_rewrite_profiles()
+    logger.info("run_rewrite_batch: got profiles=%d", len(profiles))
     clusters_attempted = 0
     clusters_succeeded = 0
     clusters_failed = 0
     provider: LLMProvider | None = None
 
     for profile in profiles:
+        profile_hash = profile_service.compute_profile_hash(profile)
         clusters = db_clusters.get_clusters_needing_rewrite(
-            profile_hash=profile_service.compute_profile_hash(profile),
+            profile_hash=profile_hash,
             since=since,
             limit=batch_size,
+        )
+        logger.info(
+            "run_rewrite_batch: profile_hash=%s clusters_needing_rewrite=%d",
+            profile_hash[:12] if profile_hash else "none",
+            len(clusters),
         )
         work: list[tuple[str, list[dict[str, Any]]]] = []
         for row in clusters:
@@ -202,8 +223,10 @@ def run_rewrite_batch(config: dict[str, Any]) -> RewriteReport:
         # Share provider across calls. Eager-load in main thread to avoid
         # deadlock when workers load concurrently (local LLM).
         if provider is None:
+            logger.info("run_rewrite_batch: loading provider and warming up (may take minutes)")
             provider = get_provider(config)
             provider.warm_up()
+            logger.info("run_rewrite_batch: provider ready, processing %d clusters", len(work))
 
         if parallel_workers > 1:
             with ThreadPoolExecutor(max_workers=parallel_workers) as executor:
@@ -224,6 +247,12 @@ def run_rewrite_batch(config: dict[str, Any]) -> RewriteReport:
                         clusters_succeeded += 1
                     else:
                         clusters_failed += 1
+                logger.info(
+                    "run_rewrite_batch: profile done attempted=%d ok=%d failed=%d",
+                    len(work),
+                    clusters_succeeded,
+                    clusters_failed,
+                )
         else:
             for cluster_id, articles in work:
                 clusters_attempted += 1
@@ -237,7 +266,20 @@ def run_rewrite_batch(config: dict[str, Any]) -> RewriteReport:
                     clusters_succeeded += 1
                 else:
                     clusters_failed += 1
+            logger.info(
+                "run_rewrite_batch: profile done attempted=%d ok=%d failed=%d",
+                len(work),
+                clusters_succeeded,
+                clusters_failed,
+            )
 
+    logger.info(
+        "run_rewrite_batch: finished profiles=%d attempted=%d ok=%d failed=%d",
+        len(profiles),
+        clusters_attempted,
+        clusters_succeeded,
+        clusters_failed,
+    )
     return RewriteReport(
         profiles_processed=len(profiles),
         clusters_attempted=clusters_attempted,
@@ -250,6 +292,7 @@ def run_rewrite_for_user(
     user_id: int, config: dict[str, Any] | None = None
 ) -> RewriteReport:
     """Process clusters needing rewrite for a single user's profile. Used after setup/settings save."""
+    logger.info("run_rewrite_for_user: starting user_id=%d", user_id)
     cfg = config or load_config()
     profile = db_users.get_profile(user_id)
     if not profile:
@@ -285,6 +328,7 @@ def run_rewrite_for_user(
     clusters_failed = 0
 
     if not work:
+        logger.info("run_rewrite_for_user: no work for user_id=%d", user_id)
         return RewriteReport(
             profiles_processed=1,
             clusters_attempted=0,
@@ -292,9 +336,10 @@ def run_rewrite_for_user(
             clusters_failed=0,
         )
 
-    # Eager-load in main thread to avoid deadlock when workers load concurrently.
+    logger.info("run_rewrite_for_user: work=%d clusters, loading provider", len(work))
     provider = get_provider(cfg)
     provider.warm_up()
+    logger.info("run_rewrite_for_user: provider ready")
 
     if parallel_workers > 1:
         with ThreadPoolExecutor(max_workers=parallel_workers) as executor:
@@ -329,6 +374,13 @@ def run_rewrite_for_user(
             else:
                 clusters_failed += 1
 
+    logger.info(
+        "run_rewrite_for_user: finished user_id=%d attempted=%d ok=%d failed=%d",
+        user_id,
+        clusters_attempted,
+        clusters_succeeded,
+        clusters_failed,
+    )
     return RewriteReport(
         profiles_processed=1,
         clusters_attempted=clusters_attempted,

@@ -68,11 +68,11 @@ def test_get_provider_unknown_raises() -> None:
         get_provider(config)
 
 
-def test_get_provider_defaults_to_anthropic() -> None:
-    """get_provider defaults to anthropic when provider not specified."""
-    config = {"llm": {"model": "claude-3-5-sonnet"}}
+def test_get_provider_defaults_to_local() -> None:
+    """get_provider defaults to local when provider not specified."""
+    config = {"llm": {"model": "Qwen/Qwen2.5-1.5B-Instruct"}}
     provider = get_provider(config)
-    assert isinstance(provider, AnthropicProvider)
+    assert isinstance(provider, LocalLLMProvider)
 
 
 def test_anthropic_provider_raises_on_missing_key(

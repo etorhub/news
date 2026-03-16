@@ -1,9 +1,12 @@
 """LLM provider abstraction. Use get_provider(); never call SDKs from routes."""
 
+import logging
 from abc import ABC, abstractmethod
 from typing import Any
 
 from app.config import load_config
+
+logger = logging.getLogger(__name__)
 
 
 class LLMProviderError(Exception):
@@ -149,17 +152,20 @@ class LocalLLMProvider(LLMProvider):
 
             from transformers import AutoModelForCausalLM, AutoTokenizer
 
+            logger.info("LocalLLMProvider: loading tokenizer from %s", self._model_name)
             self._tokenizer = AutoTokenizer.from_pretrained(self._model_name)
             # On CPU, use float32 to avoid "mat1 and mat2 must have the same dtype"
             # (BFloat16) and "Cannot copy out of meta tensor" (low_cpu_mem_usage).
             load_kwargs: dict[str, Any] = {}
             if self._device == "cpu":
-                load_kwargs["torch_dtype"] = torch.float32
+                load_kwargs["dtype"] = torch.float32
                 load_kwargs["low_cpu_mem_usage"] = False
+            logger.info("LocalLLMProvider: loading model from %s (device=%s)", self._model_name, self._device)
             self._model = AutoModelForCausalLM.from_pretrained(
                 self._model_name, **load_kwargs
             )
             self._model.to(self._device)
+            logger.info("LocalLLMProvider: model loaded")
 
         return self._model, self._tokenizer
 
@@ -167,6 +173,7 @@ class LocalLLMProvider(LLMProvider):
         try:
             model, tokenizer = self._get_model_and_tokenizer()
 
+            logger.info("LocalLLMProvider: generating max_tokens=%d prompt_len=%d", max_tokens, len(prompt))
             max_length = getattr(
                 model.config, "max_position_embeddings", None
             ) or getattr(model.config, "model_max_length", 2048)
@@ -183,23 +190,30 @@ class LocalLLMProvider(LLMProvider):
                 )
                 input_ids = result.input_ids.to(self._device)
             except Exception:
-                input_ids = tokenizer(
+                result = tokenizer(
                     prompt,
                     return_tensors="pt",
                     truncation=True,
                     max_length=max_input_length,
-                ).input_ids.to(self._device)
+                )
+                input_ids = result.input_ids.to(self._device)
 
             # Truncate to fit context window
             if input_ids.shape[1] > max_input_length:
                 input_ids = input_ids[:, -max_input_length:]
 
+            # Attention mask: all 1s (no padding). Required when pad_token == eos_token.
+            import torch
+
+            attention_mask = torch.ones_like(input_ids, dtype=torch.long, device=input_ids.device)
             outputs = model.generate(
                 input_ids,
+                attention_mask=attention_mask,
                 max_new_tokens=max_tokens,
                 do_sample=False,
                 pad_token_id=tokenizer.eos_token_id,
             )
+            logger.info("LocalLLMProvider: generation done")
 
             # Decode only the generated part (exclude input)
             generated_ids = outputs[:, input_ids.shape[1] :]
