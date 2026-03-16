@@ -9,6 +9,7 @@ DEFAULTS: dict[str, Any] = {
     "llm": {
         "provider": "anthropic",
         "model": "claude-sonnet-4-20250514",
+        "device": "cpu",
     },
     "embeddings": {
         "provider": "local",

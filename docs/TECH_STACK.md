@@ -10,7 +10,7 @@ Technology choices for the Accessible News Aggregator, with rationale.
 | --- | --- | --- |
 | Backend | Python 3.12+ with Flask | Lightweight, well-understood, Jinja2 built-in |
 | Database | PostgreSQL 16 | Robust, multi-user, JSONB support, wide hosting availability |
-| LLM | External APIs (Anthropic, OpenAI, Gemini) via provider interface | No local GPU required, production-grade reliability, easy setup |
+| LLM | External APIs (Anthropic, OpenAI, Gemini) or local (transformers + PyTorch) via provider interface | Cloud for reliability; local for privacy/air-gapped, no API key |
 | Frontend | Plain HTML + CSS + HTMX | No build step, no JS framework, server-rendered throughout |
 | Templating | Jinja2 (Flask built-in) | Tight Flask integration, partial rendering for HTMX |
 | Scheduling | APScheduler (embedded in Flask process) | No external cron or task queue; fetching and rewriting run on a schedule |
@@ -31,6 +31,8 @@ Technology choices for the Accessible News Aggregator, with rationale.
 | openai | OpenAI API client |
 | google-generativeai | Google Gemini API client |
 | sentence-transformers | Local embeddings for article clustering (default) |
+| transformers | Hugging Face models (used by sentence-transformers and local LLM) |
+| accelerate | Device handling and model loading for local LLM |
 | python-dotenv | Load `.env` for API keys |
 | bcrypt | Password hashing |
 | alembic | Database migrations |
@@ -176,9 +178,9 @@ volumes:
 
 ## LLM Provider Interface
 
-The app never calls an LLM SDK directly. All LLM access goes through `app/llm/provider.py`, which defines an abstract `LLMProvider` class. Concrete implementations exist for Anthropic, OpenAI, and Gemini. The active provider is selected from `config/app.yaml`.
+The app never calls an LLM SDK directly. All LLM access goes through `app/llm/provider.py`, which defines an abstract `LLMProvider` class. Concrete implementations exist for Anthropic, OpenAI, Gemini, and **local** (Hugging Face transformers + PyTorch). The active provider is selected from `config/app.yaml`.
 
-This makes it straightforward to add new providers (including local ones like Ollama for self-hosters who prefer it).
+For `provider: local`, no API key is required. Models run in-process via `transformers` and PyTorch. Use `model` (Hugging Face model ID) or `model_path` (local directory for air-gapped use). Default model: `HuggingFaceH4/zephyr-3b-beta`.
 
 ## Embedding Provider
 

@@ -120,6 +120,79 @@ class GeminiProvider(LLMProvider):
             raise LLMProviderError(str(e)) from e
 
 
+class LocalLLMProvider(LLMProvider):
+    """Local LLM via Hugging Face transformers and PyTorch. No API key required."""
+
+    def __init__(
+        self,
+        model: str,
+        model_path: str | None = None,
+        device: str = "cpu",
+    ) -> None:
+        self._model_name = model_path or model
+        self._device = device
+        self._model: Any = None
+        self._tokenizer: Any = None
+
+    def _get_model_and_tokenizer(self) -> tuple[Any, Any]:
+        """Lazy-load the model and tokenizer on first use."""
+        if self._model is None:
+            from transformers import AutoModelForCausalLM, AutoTokenizer
+
+            self._tokenizer = AutoTokenizer.from_pretrained(self._model_name)
+            self._model = AutoModelForCausalLM.from_pretrained(self._model_name)
+            self._model.to(self._device)
+        return self._model, self._tokenizer
+
+    def complete(self, prompt: str, max_tokens: int = 1000) -> str:
+        try:
+            model, tokenizer = self._get_model_and_tokenizer()
+
+            max_length = getattr(
+                model.config, "max_position_embeddings", None
+            ) or getattr(model.config, "model_max_length", 2048)
+            max_input_length = (max_length or 2048) - max_tokens
+
+            # Use chat template if available (instruction-tuned models)
+            try:
+                messages = [{"role": "user", "content": prompt}]
+                input_ids = tokenizer.apply_chat_template(
+                    messages,
+                    tokenize=True,
+                    add_generation_prompt=True,
+                    return_tensors="pt",
+                ).to(self._device)
+            except Exception:
+                input_ids = tokenizer(
+                    prompt,
+                    return_tensors="pt",
+                    truncation=True,
+                    max_length=max_input_length,
+                ).input_ids.to(self._device)
+
+            # Truncate to fit context window
+            if input_ids.shape[1] > max_input_length:
+                input_ids = input_ids[:, -max_input_length:]
+
+            outputs = model.generate(
+                input_ids,
+                max_new_tokens=max_tokens,
+                do_sample=False,
+                pad_token_id=tokenizer.eos_token_id,
+            )
+
+            # Decode only the generated part (exclude input)
+            generated_ids = outputs[:, input_ids.shape[1] :]
+            text: str = tokenizer.decode(
+                generated_ids[0], skip_special_tokens=True
+            )
+            return text.strip()
+        except Exception as e:
+            if isinstance(e, LLMProviderError):
+                raise
+            raise LLMProviderError(str(e)) from e
+
+
 def get_provider(config: dict[str, Any] | None = None) -> LLMProvider:
     """Return the configured LLM provider."""
     if config is None:
@@ -135,4 +208,14 @@ def get_provider(config: dict[str, Any] | None = None) -> LLMProvider:
         return OpenAIProvider(model=model, api_key=api_key)
     if provider_name == "gemini":
         return GeminiProvider(model=model, api_key=api_key)
+    if provider_name == "local":
+        model_path = llm.get("model_path")
+        device = llm.get("device") or "cpu"
+        local_model = llm.get("model") or "HuggingFaceH4/zephyr-3b-beta"
+        model_or_path = model_path or local_model
+        return LocalLLMProvider(
+            model=model_or_path,
+            model_path=model_path,
+            device=device,
+        )
     raise LLMProviderError(f"Unknown LLM provider: {provider_name}")

@@ -41,7 +41,7 @@ class LLMProvider(ABC):
         ...
 ```
 
-Concrete implementations: `AnthropicProvider`, `OpenAIProvider`, `GeminiProvider`. The active provider is selected from `config/app.yaml` at startup. Never instantiate a provider directly outside of the provider factory.
+Concrete implementations: `AnthropicProvider`, `OpenAIProvider`, `GeminiProvider`, `LocalLLMProvider`. The active provider is selected from `config/app.yaml` at startup. Never instantiate a provider directly outside of the provider factory.
 
 ## Prompts live in files, not code
 

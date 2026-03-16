@@ -1,6 +1,10 @@
 llm:
-  provider: anthropic        # anthropic | openai | gemini
+  provider: anthropic        # anthropic | openai | gemini | local
   model: claude-sonnet-4-20250514
+  # For provider: local (transformers + PyTorch, no API key):
+  #   model: HuggingFaceH4/zephyr-3b-beta
+  #   model_path: /path/to/local/model   # optional, for air-gapped
+  #   device: cpu   # or cuda
 
 embeddings:
   provider: local   # sentence-transformers

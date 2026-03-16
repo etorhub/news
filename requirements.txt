@@ -1,5 +1,6 @@
 # Runtime
 sentence-transformers
+accelerate
 flask
 psycopg2-binary
 apscheduler
