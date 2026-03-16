@@ -7,6 +7,7 @@ import pytest
 from app.services.rewrite_service import (
     RewriteReport,
     _parse_cluster_llm_response,
+    _strip_markdown_bold,
     rewrite_cluster,
     run_rewrite_batch,
 )
@@ -26,6 +27,31 @@ This is the full simplified article. Short sentences. Simple words."""
     assert "Power outage" in title
     assert "First sentence" in summary
     assert "This is the full simplified article" in full
+
+
+def test_strip_markdown_bold() -> None:
+    """_strip_markdown_bold removes ** from start and end of text."""
+    assert _strip_markdown_bold("**Title here**") == "Title here"
+    assert _strip_markdown_bold("** Power outage **") == "Power outage"
+    assert _strip_markdown_bold("No asterisks") == "No asterisks"
+    assert _strip_markdown_bold("**Only start") == "Only start"
+    assert _strip_markdown_bold("Only end**") == "Only end"
+
+
+def test_parse_cluster_llm_response_strips_markdown_bold() -> None:
+    """_parse_cluster_llm_response strips ** from title, summary and full_text."""
+    text = """TITLE:
+**Power outage affects 500 homes.**
+
+SUMMARY:
+**First sentence. Second sentence. Third sentence.**
+
+FULL:
+**This is the full simplified article. Short sentences. Simple words.**"""
+    title, summary, full = _parse_cluster_llm_response(text)
+    assert title == "Power outage affects 500 homes."
+    assert summary == "First sentence. Second sentence. Third sentence."
+    assert full == "This is the full simplified article. Short sentences. Simple words."
 
 
 def test_parse_cluster_llm_response_missing_title_raises() -> None:

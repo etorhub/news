@@ -22,6 +22,16 @@ class RewriteReport:
     clusters_failed: int
 
 
+def _strip_markdown_bold(text: str) -> str:
+    """Remove markdown bold markers (**) from the start and end of text."""
+    s = text.strip()
+    if s.startswith("**"):
+        s = s[2:].lstrip()
+    if s.endswith("**"):
+        s = s[:-2].rstrip()
+    return s.strip()
+
+
 def _parse_cluster_llm_response(text: str) -> tuple[str, str, str]:
     """Parse LLM output into (title, summary, full_text). Raises ValueError on bad format."""
     title_marker = "TITLE:"
@@ -56,7 +66,11 @@ def _parse_cluster_llm_response(text: str) -> tuple[str, str, str]:
 
     if not title or not summary or not full_text:
         raise ValueError("Empty TITLE, SUMMARY, or FULL section")
-    return (title, summary, full_text)
+    return (
+        _strip_markdown_bold(title),
+        _strip_markdown_bold(summary),
+        _strip_markdown_bold(full_text),
+    )
 
 
 def _build_articles_text(articles: list[dict[str, Any]]) -> str:
