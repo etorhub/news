@@ -1,0 +1,22 @@
+# Runtime
+flask
+psycopg2-binary
+apscheduler
+feedparser
+httpx
+anthropic
+openai
+google-generativeai
+python-dotenv
+bcrypt
+alembic
+sqlalchemy
+gunicorn
+PyYAML
+
+# Dev (install with: pip install -r requirements.txt)
+ruff
+mypy
+pytest
+commitizen
+types-PyYAML

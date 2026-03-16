@@ -1,0 +1,22 @@
+pre-commit:
+  commands:
+    ruff-check:
+      glob: "*.py"
+      run: ruff check --fix {staged_files}
+      stage_fixed: true
+    ruff-format:
+      glob: "*.py"
+      run: ruff format --check {staged_files}
+    mypy:
+      glob: "*.py"
+      run: mypy .
+
+pre-push:
+  commands:
+    pytest:
+      run: pytest
+
+commit-msg:
+  commands:
+    commitizen:
+      run: cz check --commit-msg-file {1}

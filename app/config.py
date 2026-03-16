@@ -1,0 +1,51 @@
+"""Load configuration from YAML files."""
+
+from pathlib import Path
+from typing import Any
+
+import yaml
+
+DEFAULTS: dict[str, Any] = {
+    "llm": {
+        "provider": "anthropic",
+        "model": "claude-sonnet-4-20250514",
+    },
+    "schedule": {
+        "fetch_interval_minutes": 60,
+        "rewrite_cron": "0 6 * * *",
+        "rewrite_batch_size": 10,
+    },
+    "processing": {
+        "articles_per_day": 10,
+        "summary_sentences": 3,
+    },
+    "server": {
+        "port": 5000,
+        "debug": False,
+    },
+}
+
+
+def load_config(config_path: str | Path | None = None) -> dict[str, Any]:
+    """Load app config from YAML file, falling back to defaults if missing."""
+    if config_path is None:
+        config_path = Path(__file__).resolve().parent.parent / "config" / "app.yaml"
+    path = Path(config_path)
+    if not path.exists():
+        return DEFAULTS.copy()
+    with path.open() as f:
+        data = yaml.safe_load(f)
+    if not isinstance(data, dict):
+        return DEFAULTS.copy()
+    return _deep_merge(DEFAULTS.copy(), data)
+
+
+def _deep_merge(base: dict[str, Any], override: dict[str, Any]) -> dict[str, Any]:
+    """Merge override into base recursively."""
+    result = base.copy()
+    for key, value in override.items():
+        if key in result and isinstance(result[key], dict) and isinstance(value, dict):
+            result[key] = _deep_merge(result[key], value)
+        else:
+            result[key] = value
+    return result

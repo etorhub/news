@@ -1,0 +1,16 @@
+llm:
+  provider: anthropic        # anthropic | openai | gemini
+  model: claude-sonnet-4-20250514
+
+schedule:
+  fetch_interval_minutes: 60
+  rewrite_cron: "0 6 * * *"   # Daily at 6am
+  rewrite_batch_size: 10
+
+processing:
+  articles_per_day: 10
+  summary_sentences: 3
+
+server:
+  port: 5000
+  debug: false

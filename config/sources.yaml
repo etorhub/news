@@ -1,0 +1,24 @@
+sources:
+  - id: "3cat"
+    name: "3Cat Notícies"
+    type: rss
+    url: "https://www.3cat.cat/rss/noticia/catala/rss.xml"
+    language: ca
+    topics: ["general"]
+    full_text: true
+
+  - id: "elcritic"
+    name: "El Crític"
+    type: rss
+    url: "https://www.elcritic.cat/feed"
+    language: ca
+    topics: ["politics", "society"]
+    full_text: true
+
+  - id: "vilaweb"
+    name: "Vilaweb"
+    type: rss
+    url: "https://www.vilaweb.cat/feed/"
+    language: ca
+    topics: ["general", "politics"]
+    full_text: true

@@ -1,0 +1,50 @@
+[project]
+name = "accessible-news-aggregator"
+version = "0.1.0"
+requires-python = ">=3.12"
+dependencies = [
+    "flask",
+    "psycopg2-binary",
+    "apscheduler",
+    "feedparser",
+    "httpx",
+    "anthropic",
+    "openai",
+    "google-generativeai",
+    "python-dotenv",
+    "bcrypt",
+    "alembic",
+    "sqlalchemy",
+    "gunicorn",
+    "PyYAML",
+]
+
+[project.optional-dependencies]
+dev = [
+    "ruff",
+    "mypy",
+    "pytest",
+    "commitizen",
+    "types-PyYAML",
+]
+
+[tool.ruff]
+target-version = "py312"
+line-length = 88
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "UP", "B", "SIM", "RUF"]
+
+[tool.mypy]
+python_version = "3.12"
+strict = true
+ignore_missing_imports = true
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+python_files = ["test_*.py"]
+
+[tool.commitizen]
+name = "cz_conventional_commits"
+version_provider = "pep621"
+tag_format = "v$version"

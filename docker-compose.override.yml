@@ -1,0 +1,14 @@
+# Dev overrides: bind mounts for live reload, flask run --debug
+services:
+  web:
+    volumes:
+      - .:/app
+    command: >
+      sh -c "alembic upgrade head && flask run --host 0.0.0.0 --debug"
+    ports:
+      - "5000:5000"
+      - "5678:5678"
+
+  scheduler:
+    volumes:
+      - .:/app
