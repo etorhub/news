@@ -134,6 +134,29 @@ def make_admin(email: str) -> None:
     click.echo(f"Granted admin to {email}")
 
 
+@click.command("show-rewrite-failures")
+@click.option("--hours", default=24, help="Look back N hours (default: 24)")
+@click.option("--limit", default=50, help="Max failures to show (default: 50)")
+def show_rewrite_failures(hours: int, limit: int) -> None:
+    """List recent cluster rewrite failures with reasons (for diagnostics)."""
+    from app.db import admin as admin_db
+
+    failures = admin_db.get_recent_rewrite_failures(hours=hours, limit=limit)
+    if not failures:
+        click.echo("No rewrite failures in the last %d hours." % hours)
+        return
+
+    click.echo("Rewrite failures (last %d hours): %d" % (hours, len(failures)))
+    click.echo()
+    for f in failures:
+        reason = f.get("error_message") or "(reason not stored — failures before error tracking)"
+        created = f.get("created_at")
+        ts = created.strftime("%Y-%m-%d %H:%M") if created else "—"
+        click.echo("  %s  %s" % (ts, f.get("cluster_id", "?")[:8]))
+        click.echo("    %s" % (reason[:100] + "…" if len(str(reason)) > 100 else reason))
+        click.echo()
+
+
 @click.command("fetch-feeds")
 def fetch_feeds_cmd() -> None:
     """Run the feed fetcher once (fetch all due feeds)."""

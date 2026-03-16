@@ -142,6 +142,7 @@ def insert_cluster_rewrite(
     summary: str | None,
     full_text: str | None,
     rewrite_failed: bool = False,
+    error_message: str | None = None,
 ) -> None:
     """Insert or update a cluster rewrite."""
     conn = get_connection()
@@ -150,17 +151,18 @@ def insert_cluster_rewrite(
             cur.execute(
                 """
                 INSERT INTO cluster_rewrites (
-                    cluster_id, profile_hash, title, summary, full_text, rewrite_failed
+                    cluster_id, profile_hash, title, summary, full_text, rewrite_failed, error_message
                 )
-                VALUES (%s::uuid, %s, %s, %s, %s, %s)
+                VALUES (%s::uuid, %s, %s, %s, %s, %s, %s)
                 ON CONFLICT (cluster_id, profile_hash)
                 DO UPDATE SET
                     title = EXCLUDED.title,
                     summary = EXCLUDED.summary,
                     full_text = EXCLUDED.full_text,
-                    rewrite_failed = EXCLUDED.rewrite_failed
+                    rewrite_failed = EXCLUDED.rewrite_failed,
+                    error_message = EXCLUDED.error_message
                 """,
-                (cluster_id, profile_hash, title, summary, full_text, rewrite_failed),
+                (cluster_id, profile_hash, title, summary, full_text, rewrite_failed, error_message),
             )
         conn.commit()
     finally:

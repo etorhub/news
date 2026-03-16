@@ -236,6 +236,27 @@ def get_clustering_stats() -> dict[str, Any]:
         return_connection(conn)
 
 
+def get_recent_rewrite_failures(hours: int = 24, limit: int = 50) -> list[dict[str, Any]]:
+    """Return recent cluster rewrite failures with cluster_id, created_at, error_message."""
+    conn = get_connection()
+    try:
+        with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
+            cur.execute(
+                """
+                SELECT cluster_id::text, profile_hash, created_at, error_message
+                FROM cluster_rewrites
+                WHERE rewrite_failed = true
+                  AND created_at >= NOW() - INTERVAL '1 hour' * %s
+                ORDER BY created_at DESC
+                LIMIT %s
+                """,
+                (hours, limit),
+            )
+            return [dict(row) for row in cur.fetchall()]
+    finally:
+        return_connection(conn)
+
+
 def get_admin_users() -> list[dict[str, Any]]:
     """Return all users with profile info for the users panel."""
     conn = get_connection()

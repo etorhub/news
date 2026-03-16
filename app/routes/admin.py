@@ -30,6 +30,7 @@ def dashboard() -> Any:
     feed_health = admin_db.get_feed_health()
     pipeline_stats = admin_db.get_article_pipeline_stats()
     clustering_stats = admin_db.get_clustering_stats()
+    rewrite_failures = admin_db.get_recent_rewrite_failures(hours=24, limit=50)
     users_list = admin_db.get_admin_users()
     incidents = admin_db.get_incidents(config)
     job_runs = admin_db.get_recent_job_runs(limit=20)
@@ -40,6 +41,7 @@ def dashboard() -> Any:
         feed_health=feed_health,
         pipeline_stats=pipeline_stats,
         clustering_stats=clustering_stats,
+        rewrite_failures=rewrite_failures,
         users_list=users_list,
         incidents=incidents,
         job_runs=job_runs,

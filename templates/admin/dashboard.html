@@ -116,6 +116,31 @@
     Clusters with rewrite: {{ clustering_stats.clusters_with_rewrite or 0 }} |
     Rewrite failures (24h): {{ clustering_stats.rewrite_failures_24h or 0 }}
   </p>
+  {% if rewrite_failures %}
+  <p><strong>Recent rewrite failures (24h)</strong></p>
+  <table style="width: 100%; border-collapse: collapse; margin-top: 0.5rem;">
+    <thead>
+      <tr>
+        <th style="text-align: left; padding: 0.5rem; border: 1px solid var(--border);">Cluster</th>
+        <th style="text-align: left; padding: 0.5rem; border: 1px solid var(--border);">When</th>
+        <th style="text-align: left; padding: 0.5rem; border: 1px solid var(--border);">Reason</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for f in rewrite_failures %}
+      <tr>
+        <td style="padding: 0.5rem; border: 1px solid var(--border);"><code>{{ f.cluster_id[:8] }}…</code></td>
+        <td style="padding: 0.5rem; border: 1px solid var(--border);">
+          {% if f.created_at %}{{ f.created_at.strftime('%Y-%m-%d %H:%M') }}{% else %}—{% endif %}
+        </td>
+        <td style="padding: 0.5rem; border: 1px solid var(--border);">
+          {% if f.error_message %}<small>{{ f.error_message[:120] }}{% if f.error_message|length > 120 %}…{% endif %}</small>{% else %}<em>—</em>{% endif %}
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  {% endif %}
 </section>
 
 <section aria-labelledby="users-heading" style="margin-top: 2rem;">

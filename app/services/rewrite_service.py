@@ -90,6 +90,7 @@ def rewrite_cluster(
             summary=None,
             full_text=None,
             rewrite_failed=True,
+            error_message="Articles have no full_text or raw_text",
         )
         return False
 
@@ -121,7 +122,7 @@ def rewrite_cluster(
             rewrite_failed=False,
         )
         return True
-    except (LLMProviderError, ValueError):
+    except (LLMProviderError, ValueError) as e:
         db_clusters.insert_cluster_rewrite(
             cluster_id=cluster_id,
             profile_hash=profile_hash,
@@ -129,6 +130,7 @@ def rewrite_cluster(
             summary=None,
             full_text=None,
             rewrite_failed=True,
+            error_message=str(e)[:500],
         )
         return False
 

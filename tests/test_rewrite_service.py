@@ -72,6 +72,7 @@ def test_rewrite_cluster_empty_articles_stores_failed() -> None:
             summary=None,
             full_text=None,
             rewrite_failed=True,
+            error_message="Articles have no full_text or raw_text",
         )
 
 
@@ -151,6 +152,7 @@ def test_rewrite_cluster_provider_error_stores_failed() -> None:
             summary=None,
             full_text=None,
             rewrite_failed=True,
+            error_message="API down",
         )
 
 

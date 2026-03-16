@@ -13,6 +13,7 @@ from app.cli import (
     make_admin,
     score_sources_cmd,
     seed_sources,
+    show_rewrite_failures,
     validate_feeds_cmd,
 )
 from app.config import load_config
@@ -83,5 +84,6 @@ def create_app(config_path: str | Path | None = None) -> Flask:
     app.cli.add_command(score_sources_cmd)
     app.cli.add_command(fetch_feeds_cmd)
     app.cli.add_command(make_admin)
+    app.cli.add_command(show_rewrite_failures)
 
     return app
