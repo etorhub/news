@@ -1,14 +1,16 @@
 # ARCHITECTURE.md
 
-Technical reference for the Accessible News Aggregator. This document describes the system as it is built, not as it is planned. Update it when architectural decisions change.
+Technical reference for the Accessible News Aggregator. Update this document when architectural decisions change.
 
 ---
 
 ## System Overview
 
-A Flask web application that fetches news from RSS feeds and open publisher APIs, rewrites each article via a local LLM to match a reader's accessibility profile, and presents the result in a clean, accessible reader interface.
+A Flask web application that fetches news from RSS feeds and open publisher APIs on a schedule, rewrites each article via an external LLM to match a reader's accessibility profile, and presents the result in a clean, accessible reader interface.
 
-The system has no client-side rendering. Flask renders all HTML server-side via Jinja2. HTMX makes targeted requests to Flask routes and swaps HTML fragments into the page. SQLite stores fetched articles, rewritten content, and the user profile.
+The system has no client-side rendering. Flask renders all HTML server-side via Jinja2. HTMX makes targeted requests to Flask routes and swaps HTML fragments into the page. PostgreSQL stores user accounts, fetched articles, rewritten content, and all configuration.
+
+Fetching and rewriting happen on a background schedule (APScheduler). When a user opens the app, content is already ready.
 
 ---
 
@@ -17,46 +19,44 @@ The system has no client-side rendering. Flask renders all HTML server-side via 
 ### First-time setup
 
 ```
-User opens app for the first time
+User opens app
     → GET /
-    → Flask checks SQLite: does a user profile exist?
+    → Flask checks: is user logged in?
+    → No: redirect to GET /login (or /register for new users)
+    → After login, Flask checks: does this user have a profile?
     → No: redirect to GET /setup
     → Caregiver fills in: location, language, sources, topics, negative news filter, rewrite tone
-    → POST /setup → validate, store in SQLite → redirect to /
+    → POST /setup → validate, store in PostgreSQL → trigger initial rewrite job → redirect to /
 ```
 
-### First open of the day
+### Normal open (content already scheduled)
 
 ```
-User opens browser
+User opens app
     → GET /
-    → Flask checks SQLite: has today's content been processed?
-    → No: return skeleton page with HTMX polling target
-    → HTMX polls GET /articles/status
-    → Flask triggers background processing (fetch + rewrite pipeline)
-    → Articles are processed one at a time, written to SQLite as they complete
-    → Each poll returns a count: "3 of 5 articles ready"
-    → When complete, HTMX swaps in the article list
-    → User sees the first article immediately
-```
-
-### Subsequent opens (same day)
-
-```
-User opens browser
-    → GET /
-    → Flask checks SQLite: content already processed today
+    → Flask queries PostgreSQL: get today's articles + cached rewrites for this user's profile_hash
     → Returns full article list immediately — no LLM calls made
+    → User sees today's digest with 3-line summaries
+```
+
+### New user before first scheduled rewrite
+
+```
+User opens app for the first time after completing setup
+    → GET /
+    → Flask checks: any cached rewrites for this user's profile?
+    → No: return page with message "Your articles are being prepared"
+    → APScheduler picks up the new user's profile in the next rewrite cycle
+    → On next visit (or via HTMX polling), content is ready
 ```
 
 ### Article expansion
 
 ```
 User taps "Read more"
-    → hx-post="/articles/{id}/expand"
-    → Flask checks SQLite: has full rewrite been cached?
-    → Yes: return partials/article_expanded.html with cached content
-    → No: call LLM, cache result, return partial
+    → hx-get="/articles/{id}/expand"
+    → Flask queries PostgreSQL: get cached full rewrite for this article + profile_hash
+    → Returns partials/article_expanded.html with cached content
     → HTMX swaps the partial into #article-{id}
 ```
 
@@ -73,81 +73,49 @@ For automated source discovery (location-based discovery, feed detection, qualit
 - `fetcher.py` — fetches RSS feeds via `feedparser`, returns normalised `RawArticle` objects
 - `normaliser.py` — converts raw feed entries to a common schema regardless of source
 - `sources.py` — loads and validates `config/sources.yaml`
+- `scheduler.py` — APScheduler job definitions for feed polling (tiered by frequency)
 
-A `RawArticle` has: `id`, `title`, `url`, `source`, `published_at`, `raw_text` (may be partial for paywalled sources), `full_text` (populated when full content is available).
+A `RawArticle` has: `id`, `title`, `url`, `source`, `published_at`, `raw_text` (RSS description/lede), `full_text` (populated when the source provides full article content).
 
 ### `app/llm/`
 
 The LLM abstraction layer. Nothing outside this directory calls an LLM SDK directly.
 
 - `provider.py` — `LLMProvider` abstract base class and provider factory
-- `providers/ollama.py` — Ollama implementation
-- `providers/openai.py` — OpenAI implementation (fallback)
-- `providers/anthropic.py` — Anthropic implementation (fallback)
+- `providers/anthropic.py` — Anthropic Claude implementation
+- `providers/openai.py` — OpenAI implementation
+- `providers/gemini.py` — Google Gemini implementation
 - `prompts/` — prompt template files (`.txt`)
 - `rewriter.py` — orchestrates the rewrite: loads profile, builds prompt, calls provider, returns `RewrittenArticle`
+- `scheduler.py` — APScheduler job definitions for daily rewrite cycle
+
+### `app/services/`
+
+Business logic. Routes call services; services do the work.
+
+- `article_service.py` — get today's articles for a user, get digest, expand article
+- `profile_service.py` — create/update user profile, compute profile_hash
+- `rewrite_service.py` — rewrite articles for a profile, manage cache
+- `auth_service.py` — user registration, login, session management
 
 ### `app/db/`
 
-All SQLite access. No other module writes to the database directly.
+All PostgreSQL access. No other module writes to the database directly.
 
 - `schema.py` — table definitions and migrations
-- `articles.py` — read/write for articles and rewrites
-- `profile.py` — read/write for the user profile
-- `cache.py` — rewrite cache logic (check, store, invalidate)
-
-Schema:
-
-```sql
-articles (
-    id TEXT PRIMARY KEY,
-    title TEXT,
-    url TEXT,
-    source TEXT,
-    published_at TEXT,
-    raw_text TEXT,
-    fetched_at TEXT
-)
-
-rewrites (
-    article_id TEXT,
-    profile_hash TEXT,
-    summary TEXT,
-    full_text TEXT,
-    rewrite_failed INTEGER DEFAULT 0,
-    created_at TEXT,
-    PRIMARY KEY (article_id, profile_hash)
-)
-
-user_profile (
-    id INTEGER PRIMARY KEY DEFAULT 1,
-    location TEXT,
-    language TEXT NOT NULL DEFAULT 'ca',
-    filter_negative INTEGER NOT NULL DEFAULT 0,
-    rewrite_tone TEXT NOT NULL DEFAULT 'Short sentences. Simple vocabulary. No jargon.',
-    created_at TEXT,
-    updated_at TEXT
-)
-
-user_sources (
-    source_id TEXT PRIMARY KEY,
-    enabled INTEGER NOT NULL DEFAULT 1
-)
-
-user_topics (
-    topic_id TEXT PRIMARY KEY,
-    enabled INTEGER NOT NULL DEFAULT 1
-)
-```
+- `articles.py` — read/write for articles
+- `rewrites.py` — read/write for rewrite cache
+- `users.py` — read/write for users and profiles
+- `connection.py` — connection pool management
 
 ### `app/routes/`
 
 Flask blueprints. Routes are thin wrappers: parse request, call service, return template.
 
-- `reader.py` — main reader interface (`/`, `/articles/status`, `/articles/<id>/expand`)
+- `reader.py` — main reader interface (`/`, `/articles/<id>/expand`)
+- `auth.py` — login, register, logout
 - `setup.py` — initial configuration wizard (`GET /setup`, `POST /setup`)
-- `settings.py` — caregiver configuration interface; allows editing the same fields after initial setup
-- `tts.py` — TTS support routes if needed server-side
+- `settings.py` — configuration interface; allows editing profile fields after initial setup
 
 ### `app/templates/`
 
@@ -156,23 +124,100 @@ Jinja2 templates. Pages extend `base.html`. HTMX responses use partials.
 ```
 templates/
 ├── base.html               # Shell: nav, font settings, TTS controls
-├── index.html              # Main reader view
+├── index.html              # Main reader view (today's digest)
+├── login.html              # Login page
+├── register.html           # Registration page
 ├── setup.html              # Initial configuration wizard
-├── settings.html           # Caregiver settings page
+├── settings.html           # Settings page
 └── partials/
     ├── article_card.html   # Summary card (one article in list)
     ├── article_expanded.html  # Full simplified article
     ├── article_list.html   # The full list of today's articles
-    ├── loading.html        # Polling state while processing
     ├── setup_sources.html  # Source selection section for setup
     └── setup_topics.html   # Topic selection section for setup
 ```
 
 ### `app/tts/`
 
-Thin helpers for browser TTS. The actual synthesis happens via the Web Speech API in the browser — no server-side audio generation.
+Thin helpers for browser TTS. The actual synthesis happens via the Web Speech API in the browser — no server-side audio generation. If the browser does not support the Web Speech API, TTS controls are hidden via feature detection.
 
 - `helpers.py` — prepares text for TTS (sentence splitting, SSML markers if needed)
+
+---
+
+## Database Schema
+
+PostgreSQL 16. Multi-user from the start.
+
+```sql
+CREATE TABLE users (
+    id SERIAL PRIMARY KEY,
+    email TEXT NOT NULL UNIQUE,
+    password_hash TEXT NOT NULL,
+    is_active BOOLEAN NOT NULL DEFAULT TRUE,
+    created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE TABLE user_profiles (
+    user_id INTEGER PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
+    location TEXT,
+    language TEXT NOT NULL DEFAULT 'ca',
+    filter_negative BOOLEAN NOT NULL DEFAULT FALSE,
+    rewrite_tone TEXT NOT NULL DEFAULT 'Short sentences. Simple vocabulary. No jargon.',
+    high_contrast BOOLEAN NOT NULL DEFAULT FALSE,
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE TABLE user_sources (
+    user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
+    source_id TEXT,
+    enabled BOOLEAN NOT NULL DEFAULT TRUE,
+    PRIMARY KEY (user_id, source_id)
+);
+
+CREATE TABLE user_topics (
+    user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
+    topic_id TEXT,
+    enabled BOOLEAN NOT NULL DEFAULT TRUE,
+    PRIMARY KEY (user_id, topic_id)
+);
+
+CREATE TABLE articles (
+    id TEXT PRIMARY KEY,
+    title TEXT NOT NULL,
+    url TEXT NOT NULL,
+    source_id TEXT NOT NULL,
+    published_at TIMESTAMPTZ,
+    raw_text TEXT,
+    full_text TEXT,
+    fetched_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE TABLE rewrites (
+    article_id TEXT REFERENCES articles(id) ON DELETE CASCADE,
+    profile_hash TEXT NOT NULL,
+    summary TEXT,
+    full_text TEXT,
+    rewrite_failed BOOLEAN DEFAULT FALSE,
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    PRIMARY KEY (article_id, profile_hash)
+);
+
+CREATE INDEX idx_articles_source ON articles(source_id);
+CREATE INDEX idx_articles_published ON articles(published_at DESC);
+CREATE INDEX idx_rewrites_hash ON rewrites(profile_hash);
+```
+
+### Profile hash
+
+The cache key for a rewrite is `sha256(json(profile_rewrite_fields))`. The hash includes **only fields that affect the rewrite output**:
+
+- `language`
+- `rewrite_tone`
+- `filter_negative`
+
+It does **not** include source selections, topic selections, or location. Changing which sources you follow does not invalidate existing rewrites. Two users with identical language, tone, and filter settings share cached rewrites.
 
 ---
 
@@ -184,71 +229,54 @@ All config lives in `config/`. The app reads it at startup. No config is hardcod
 
 ```yaml
 llm:
-  provider: ollama          # ollama | openai | anthropic
-  model: llama3.2
-  base_url: http://ollama:11434  # Docker service name
+  provider: anthropic        # anthropic | openai | gemini
+  model: claude-sonnet-4-20250514
+
+schedule:
+  fetch_interval_minutes: 60
+  rewrite_cron: "0 6 * * *"  # Daily at 6am
+  rewrite_batch_size: 10
 
 processing:
-  articles_per_day: 5
+  articles_per_day: 10
   summary_sentences: 3
 
 server:
   port: 5000
   debug: false
+  secret_key: ${SECRET_KEY}
 ```
 
 ### `config/sources.yaml`
 
-Defines the catalog of available sources and their metadata. Each source should include a `topics` list. User selections are stored in SQLite via the setup wizard and settings page.
+Defines the catalog of available sources and their metadata. Each source should include a `topics` list. User selections are stored in PostgreSQL via the setup wizard and settings page.
 
 ```yaml
 sources:
-  - name: "3Cat Notícies"
+  - id: "3cat"
+    name: "3Cat Notícies"
     type: rss
     url: "https://www.ccma.cat/rss/noticia/catala/rss.xml"
     language: ca
+    topics: ["general"]
     full_text: true
 
-  - name: "El Crític"
+  - id: "elcritic"
+    name: "El Crític"
     type: rss
     url: "https://www.elcritic.cat/feed"
     language: ca
+    topics: ["politics", "society"]
     full_text: true
 
-  - name: "The Guardian"
-    type: api
-    api: guardian
-    topics: ["world", "science"]
-    language: en
+  - id: "vilaweb"
+    name: "Vilaweb"
+    type: rss
+    url: "https://www.vilaweb.cat/feed/"
+    language: ca
+    topics: ["general", "politics"]
     full_text: true
 ```
-
----
-
-## Docker Setup
-
-Two services: the Flask app and Ollama.
-
-```yaml
-# docker-compose.yml (simplified)
-services:
-  app:
-    build: .
-    ports:
-      - "5000:5000"
-    volumes:
-      - ./config:/app/config
-      - ./data:/app/data      # SQLite lives here
-    depends_on:
-      - ollama
-
-  ollama:
-    image: ollama/ollama
-    volumes:
-      - ollama_data:/root/.ollama
-```
-
-The SQLite database and Ollama models persist across restarts via named volumes.
 
 ---
 
@@ -273,9 +301,16 @@ Rules:
 
 When `filter_negative` is enabled, the prompt includes an additional instruction to omit or soften distressing content.
 
-### Profile hash
+### Rewrite scheduling
 
-The cache key for a rewrite is `sha256(article_id + json(profile))`. The profile includes `location`, `language`, `filter_negative`, `rewrite_tone`, and selected source/topic IDs. If any of these change, cached rewrites for that day are invalidated.
+The daily rewrite job (APScheduler):
+
+1. Collects all active users and their profile hashes
+2. Collects today's articles (from scheduled fetch)
+3. For each unique profile hash, rewrites articles that don't have a cached result
+4. Stores results in the `rewrites` table
+
+Two users with the same profile hash share cached rewrites — the LLM is never called twice for the same content + profile combination.
 
 ---
 
@@ -284,4 +319,4 @@ The cache key for a rewrite is `sha256(article_id + json(profile))`. The profile
 - Not a scraper. It uses RSS and official APIs.
 - Not a republisher. Every article links to and credits the original source.
 - Not a single-page application. There is no client-side routing.
-- Not multi-tenant (yet). One profile, one user, one SQLite file. User preferences live in SQLite, not in YAML.
+- Not a local-only tool. It uses external LLM APIs (Anthropic, OpenAI, Gemini) — an internet connection and API key are required.

@@ -19,7 +19,7 @@ When working on feed fetching, source configuration, or automated discovery, fol
 - **ToS compliance**: Before indexing, check `/terms`, `/terms-of-service`, `/legal`, `/tos` for scraping prohibitions. If found → mark `status='banned'`, skip.
 - **No paywall bypass**, no CAPTCHA circumvention, no scraping where disallowed.
 - **Rate limiting**: Minimum 2s between requests to same domain; respect `Retry-After`; backoff on 429/503.
-- **Copyright**: Collect only title, URL, pubDate, author, source, brief description. Never store full article body without explicit permission.
+- **Copyright**: During discovery, collect only source metadata (domain, name, feeds). During ingestion, store full article text only from open publishers that provide it via RSS or API. Never extract content from behind paywalls.
 
 ## Consumption Method Priority
 
@@ -42,4 +42,4 @@ Try in order: `/feed`, `/rss`, `/rss.xml`, `/feed.xml`, `/atom.xml`, `/?feed=rss
 
 ## Current Project Alignment
 
-The app uses `config/sources.yaml` for the source catalog. User selections live in SQLite. When adding sources manually, ensure `full_text: true` only for open publishers. For automated discovery, the spec defines `news_sources`, `source_feeds`, and `source_discovery_log` tables — adapt schema to SQLite if integrating.
+The app uses `config/sources.yaml` for the source catalog. User selections live in PostgreSQL. When adding sources manually, ensure `full_text: true` only for open publishers that provide full content in their RSS feed. For automated discovery, the spec defines `news_sources`, `source_feeds`, and `source_discovery_log` tables in PostgreSQL.

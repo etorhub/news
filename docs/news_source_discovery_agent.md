@@ -214,40 +214,37 @@ Each source receives a composite quality score (0–100) used to prioritize inge
 
 ### 4.2 Score Calculation
 
-```javascript
-function calculateQualityScore(source) {
-  const weights = {
-    editorialReputation: 0.25,
-    publicationFrequency: 0.20,
-    consumptionMethod:   0.20,
-    feedCompleteness:    0.15,
-    security:            0.10,
-    geoRelevance:        0.10,
-  };
-
-  const CONSUMPTION_SCORES = {
-    json_api:           100,
-    rss:                 80,
-    atom:                80,
-    sitemap:             60,
-    google_news_rss:     55,
-    scrape_structured:   40,
-    scrape_html:         20,
-  };
-
-  const scores = {
-    editorialReputation: lookupReputationScore(source.domain),       // 0-100
-    publicationFrequency: Math.min(source.articles_per_day / 10 * 100, 100),
-    consumptionMethod:   CONSUMPTION_SCORES[source.feed_type],
-    feedCompleteness:    source.feed_completeness_pct,
-    security:            source.ssl_grade_score,
-    geoRelevance:        source.geo_relevance_pct,
-  };
-
-  return Object.entries(weights).reduce((total, [key, weight]) => {
-    return total + (scores[key] * weight);
-  }, 0);
+```python
+WEIGHTS: dict[str, float] = {
+    "editorial_reputation": 0.25,
+    "publication_frequency": 0.20,
+    "consumption_method": 0.20,
+    "feed_completeness": 0.15,
+    "security": 0.10,
+    "geo_relevance": 0.10,
 }
+
+CONSUMPTION_SCORES: dict[str, int] = {
+    "json_api": 100,
+    "rss": 80,
+    "atom": 80,
+    "sitemap": 60,
+    "google_news_rss": 55,
+    "scrape_structured": 40,
+    "scrape_html": 20,
+}
+
+
+def calculate_quality_score(source: dict) -> float:
+    scores = {
+        "editorial_reputation": lookup_reputation_score(source["domain"]),
+        "publication_frequency": min(source["articles_per_day"] / 10 * 100, 100),
+        "consumption_method": CONSUMPTION_SCORES.get(source["feed_type"], 0),
+        "feed_completeness": source["feed_completeness_pct"],
+        "security": source["ssl_grade_score"],
+        "geo_relevance": source["geo_relevance_pct"],
+    }
+    return sum(scores[key] * WEIGHTS[key] for key in WEIGHTS)
 ```
 
 ---
@@ -319,7 +316,7 @@ GOOGLE_NEWS_RSS = 'https://news.google.com/rss/search?q=site:{domain}&hl={lang}&
 
 ## 6. Database Schema
 
-All discovered sources and their ingestion metadata are inserted into the following schema. The schema is designed to be database-agnostic (PostgreSQL, MySQL, SQLite compatible).
+All discovered sources and their ingestion metadata are inserted into the following PostgreSQL schema.
 
 ### 6.1 `news_sources` Table
 
@@ -449,10 +446,10 @@ def is_scraping_allowed(domain: str, path: str, user_agent: str = '*') -> bool:
 
 ### 7.3 Copyright & Reproduction Rules
 
-- The agent collects **only**: article title, URL, publication date, author name, source name, category/tags, and brief description/lede (typically included in RSS/API fields)
-- Full article body text is **never** stored — only metadata and the canonical URL
-- All collected data is attributed to the source with the original URL preserved
-- Content is used for indexing and news alerting only, not republishing
+- **During discovery**, the agent collects only: source domain, name, homepage URL, feed URLs, geographic metadata, and quality scores. No article content is fetched during the discovery phase.
+- **During daily ingestion** (handled by the fetching pipeline, not discovery), the app stores article metadata (title, URL, pubDate, author, description) and full article text **when the source provides it openly** via RSS `<content:encoded>` or API response. Full text is only stored from open publishers — never extracted from behind paywalls.
+- All stored content is attributed to the original source with canonical URL preserved
+- Content is rewritten as a reading aid, not republished verbatim — every article links to the original
 
 ### 7.4 Rate Limiting
 
@@ -489,69 +486,96 @@ Once sources are in the database, the daily ingestion pipeline consumes them on 
 
 ### 8.1 Polling Schedule
 
-```javascript
-const POLL_SCHEDULES = {
-  // Sources publishing >50 articles/day
-  high_frequency: {
-    cron: '*/15 * * * *',   // Every 15 minutes
-    query: 'SELECT * FROM source_feeds WHERE avg_articles_per_day > 50'
-  },
-  // Sources publishing 5–50 articles/day
-  medium_frequency: {
-    cron: '0 * * * *',      // Every hour
-    query: 'SELECT * FROM source_feeds WHERE avg_articles_per_day BETWEEN 5 AND 50'
-  },
-  // Sources publishing <5 articles/day
-  low_frequency: {
-    cron: '0 6,12,18 * * *', // 3× per day
-    query: 'SELECT * FROM source_feeds WHERE avg_articles_per_day < 5'
-  },
-  // Health check for all active feeds
-  health_check: {
-    cron: '0 0 * * *',      // Daily at midnight
-    action: 'verify_feed_still_active'
-  }
-};
+```python
+from apscheduler.schedulers.background import BackgroundScheduler
+from apscheduler.triggers.cron import CronTrigger
+
+POLL_SCHEDULES = {
+    # Sources publishing >50 articles/day
+    "high_frequency": {
+        "cron": "*/15 * * * *",  # Every 15 minutes
+        "query": "SELECT * FROM source_feeds WHERE avg_articles_per_day > 50",
+    },
+    # Sources publishing 5–50 articles/day
+    "medium_frequency": {
+        "cron": "0 * * * *",  # Every hour
+        "query": "SELECT * FROM source_feeds WHERE avg_articles_per_day BETWEEN 5 AND 50",
+    },
+    # Sources publishing <5 articles/day
+    "low_frequency": {
+        "cron": "0 6,12,18 * * *",  # 3x per day
+        "query": "SELECT * FROM source_feeds WHERE avg_articles_per_day < 5",
+    },
+    # Health check for all active feeds
+    "health_check": {
+        "cron": "0 0 * * *",  # Daily at midnight
+        "action": "verify_feed_still_active",
+    },
+}
+
+
+def register_poll_jobs(scheduler: BackgroundScheduler) -> None:
+    for tier, config in POLL_SCHEDULES.items():
+        if "action" in config:
+            scheduler.add_job(verify_feed_health, CronTrigger.from_crontab(config["cron"]))
+        else:
+            scheduler.add_job(
+                poll_feeds_tier,
+                CronTrigger.from_crontab(config["cron"]),
+                args=[config["query"]],
+                id=f"poll_{tier}",
+            )
 ```
 
 ### 8.2 Feed Fetch & Parse Flow
 
-```javascript
-async function ingestFeed(feed) {
-  // 1. Rate limit check
-  await rateLimiter.wait(feed.domain);
+```python
+import feedparser
+import httpx
 
-  // 2. Conditional GET (use ETag / Last-Modified to avoid re-processing)
-  const headers = {};
-  if (feed.last_etag)      headers['If-None-Match']     = feed.last_etag;
-  if (feed.last_modified)  headers['If-Modified-Since'] = feed.last_modified;
+from app.db import articles as articles_db
 
-  const resp = await fetch(feed.feed_url, { headers });
-  if (resp.status === 304) return { new_items: 0, status: 'not_modified' };
 
-  // 3. Parse based on feed type
-  const items = await parseFeed(resp, feed.feed_type);
+def ingest_feed(feed: dict) -> dict:
+    """Fetch a single feed and store new articles."""
+    # 1. Rate limit check
+    rate_limiter.wait(feed["domain"])
 
-  // 4. Deduplicate against last_item_guid + DB check
-  const newItems = items.filter(item =>
-    item.guid !== feed.last_item_guid &&
-    !await db.exists('articles', { source_id: feed.source_id, url: item.link })
-  );
+    # 2. Conditional GET (use ETag / Last-Modified to avoid re-processing)
+    headers: dict[str, str] = {}
+    if feed.get("last_etag"):
+        headers["If-None-Match"] = feed["last_etag"]
+    if feed.get("last_modified"):
+        headers["If-Modified-Since"] = feed["last_modified"]
 
-  // 5. Store ONLY metadata (no full text)
-  await db.insertMany('articles', newItems.map(item => ({
-    source_id:    feed.source_id,
-    title:        item.title,
-    url:          item.link,
-    published_at: item.pubDate,
-    author:       item.author,
-    description:  item.description?.substring(0, 500),  // Max 500 chars
-    categories:   item.categories,
-    guid:         item.guid,
-  })));
+    resp = httpx.get(feed["feed_url"], headers=headers, timeout=15)
+    if resp.status_code == 304:
+        return {"new_items": 0, "status": "not_modified"}
 
-  return { new_items: newItems.length, status: 'ok' };
-}
+    # 3. Parse feed
+    parsed = feedparser.parse(resp.text)
+
+    # 4. Deduplicate against last_item_guid + DB check
+    new_items = [
+        entry for entry in parsed.entries
+        if entry.get("id") != feed.get("last_item_guid")
+        and not articles_db.exists_by_source_and_url(feed["source_id"], entry.link)
+    ]
+
+    # 5. Store article metadata + full text when available
+    for item in new_items:
+        full_text = item.get("content", [{}])[0].get("value") if item.get("content") else None
+        articles_db.insert({
+            "source_id": feed["source_id"],
+            "title": item.get("title", ""),
+            "url": item.link,
+            "published_at": item.get("published"),
+            "raw_text": (item.get("summary") or "")[:500],
+            "full_text": full_text,
+            "guid": item.get("id"),
+        })
+
+    return {"new_items": len(new_items), "status": "ok"}
 ```
 
 ### 8.3 Failure Handling & Circuit Breaker
@@ -578,60 +602,69 @@ CIRCUIT_BREAKER_THRESHOLDS = {
 
 ### 9.1 Agent Pseudocode
 
-```javascript
-async function discoverNewsSources(location) {
-  const run_id = generateRunId();
-  log.start(run_id, location);
+```python
+import asyncio
+import uuid
+import logging
+from typing import Any
 
-  // PHASE 1: Reference databases
-  const candidates_p1 = await Promise.all([
-    queryNewsAPI(location),
-    queryABYZDirectory(location),
-    queryGDELT(location),
-    queryW3Newspapers(location),
-  ]).then(results => results.flat());
+logger = logging.getLogger(__name__)
 
-  // PHASE 2: Web search discovery
-  const candidates_p2 = [];
-  for (const query of generateSearchQueries(location)) {
-    const results = await searchEngine.search(query);
-    candidates_p2.push(...extractDomains(results));
-    await sleep(1500); // Rate limiting
-  }
 
-  // PHASE 3: TLD scan (only for 'full' depth)
-  const candidates_p3 = location.discovery_depth === 'full'
-    ? await scanCountryTLD(location.country_code)
-    : [];
+async def discover_news_sources(location: dict) -> None:
+    run_id = uuid.uuid4()
+    logger.info("Discovery run %s started for %s", run_id, location)
 
-  // Deduplicate
-  const all_candidates = dedup([...candidates_p1, ...candidates_p2, ...candidates_p3]);
+    # PHASE 1: Reference databases (parallel)
+    phase1_results = await asyncio.gather(
+        query_newsapi(location),
+        query_abyz_directory(location),
+        query_gdelt(location),
+        query_w3newspapers(location),
+    )
+    candidates_p1 = [src for batch in phase1_results for src in batch]
 
-  // PHASE 4: Validate & score each candidate
-  const validated = [];
-  for (const candidate of all_candidates) {
-    const result = await validateSource(candidate);  // robots.txt + ToS + freq check
-    await logDiscovery(run_id, result);
-    if (result.passed) validated.push(result);
-  }
+    # PHASE 2: Web search discovery
+    candidates_p2: list[dict[str, Any]] = []
+    for query in generate_search_queries(location):
+        results = await search_engine.search(query)
+        candidates_p2.extend(extract_domains(results))
+        await asyncio.sleep(1.5)  # Rate limiting
 
-  // PHASE 5: Detect feeds + calculate quality scores
-  for (const source of validated) {
-    source.feeds         = await detectFeeds(source);
-    source.quality_score = calculateQualityScore(source);
-  }
+    # PHASE 3: TLD scan (only for 'full' depth)
+    candidates_p3: list[dict[str, Any]] = []
+    if location.get("discovery_depth") == "full":
+        candidates_p3 = await scan_country_tld(location["country_code"])
 
-  // PHASE 6: Upsert into database
-  await db.upsertSources(validated);
-  log.complete(run_id, { total: all_candidates.length, inserted: validated.length });
-}
+    # Deduplicate
+    all_candidates = deduplicate(candidates_p1 + candidates_p2 + candidates_p3)
+
+    # PHASE 4: Validate & score each candidate
+    validated: list[dict[str, Any]] = []
+    for candidate in all_candidates:
+        result = await validate_source(candidate)
+        await log_discovery(run_id, result)
+        if result["passed"]:
+            validated.append(result)
+
+    # PHASE 5: Detect feeds + calculate quality scores
+    for source in validated:
+        source["feeds"] = await detect_feeds(source)
+        source["quality_score"] = calculate_quality_score(source)
+
+    # PHASE 6: Upsert into database
+    await db.upsert_sources(validated)
+    logger.info(
+        "Discovery run %s complete: %d candidates, %d inserted",
+        run_id, len(all_candidates), len(validated),
+    )
 ```
 
 ### 9.2 Required Environment Variables
 
 | Variable | Required | Description |
 |---|---|---|
-| `DATABASE_URL` | Yes | PostgreSQL/MySQL connection string |
+| `DATABASE_URL` | Yes | PostgreSQL connection string (e.g. `postgresql://news:pass@db:5432/news`) |
 | `BING_SEARCH_API_KEY` | Recommended | Microsoft Bing Search v7 API key |
 | `SERPAPI_KEY` | Optional | SerpAPI key for Google result fallback |
 | `NEWSAPI_KEY` | Recommended | NewsAPI.org key for source directory queries |

@@ -6,20 +6,20 @@ Canonical phased plan for the minimum viable product. This document replaces sca
 
 ## MVP Scope Summary
 
-| Phase | Deliverable           | Outcome                                                            |
-| ----- | --------------------- | ------------------------------------------------------------------ |
-| 1     | News source discovery | Populated catalog of validated feeds                               |
-| 2     | Fetching pipeline     | Articles stored with metadata + full text when available           |
-| 3     | Processing & storage  | LLM rewrites (3-line summary + full simplified) cached per profile |
-| 4     | Platform              | Auth, profile config, feed UI, daily digest                        |
+| Phase | Deliverable | Outcome |
+| --- | --- | --- |
+| 1 | News source discovery | Populated catalog of validated feeds |
+| 2 | Fetching pipeline | Articles stored on a schedule with full text when available |
+| 3 | Processing & storage | LLM rewrites (summary + full simplified) cached per profile hash |
+| 4 | Platform | Auth, multi-user profiles, feed UI, daily digest |
 
 ---
 
 ## Phase 1 — News Source Discovery
 
-**Goal:** Obtain a catalog of news sources for the target region via automated discovery.
+**Goal:** Obtain a catalog of news sources for the target region via automated discovery or manual seeding.
 
-**Reference:** `agents/news_source_discovery_agent.md`
+**Reference:** `docs/news_source_discovery_agent.md`
 
 ### Tasks
 
@@ -38,7 +38,7 @@ Canonical phased plan for the minimum viable product. This document replaces sca
    - Use for display ranking and ingestion priority
 
 4. **Output**
-   - Populate `news_sources` and `source_feeds` tables (SQLite-compatible schema)
+   - Populate `news_sources` and `source_feeds` tables (PostgreSQL)
    - For MVP: start with `quick` or `standard` depth for one region (e.g. Catalonia)
    - Initial priority: Open Catalan/Spanish publishers (RTVE, CCMA/3Cat, Vilaweb, El Crític, NacióDigital) — can be seeded manually if discovery is deferred
 
@@ -57,14 +57,14 @@ Canonical phased plan for the minimum viable product. This document replaces sca
 ### Tasks
 
 1. **Scheduled fetcher**
-   - APScheduler jobs: poll feeds per `poll_interval_minutes` (or tiered: high/medium/low frequency)
+   - APScheduler jobs: poll feeds per tiered frequency (high/medium/low based on `avg_articles_per_day`)
    - Respect rate limits, `If-None-Match` / `If-Modified-Since` for conditional GET
    - Parse RSS/Atom via `feedparser`; normalise to `RawArticle` schema
 
 2. **Full-text extraction**
-   - Prefer full content from RSS when available (open publishers)
+   - Store full content from RSS when available (open publishers with `full_text: true`)
    - Fallback: RSS description/lede only (no paywall bypass)
-   - Store `raw_text` and `full_text` (or equivalent) in `articles` table
+   - Store both `raw_text` and `full_text` in the `articles` table
 
 3. **Deduplication**
    - Match on `guid` or `(source_id, url)` before insert
@@ -82,64 +82,66 @@ Canonical phased plan for the minimum viable product. This document replaces sca
 
 ## Phase 3 — Processing & Storage
 
-**Goal:** Rewrite articles via LLM per user profile, cache results.
+**Goal:** Rewrite articles via LLM per user profile, cache results on a schedule.
 
 ### Tasks
 
 1. **LLM rewriter**
    - Load user profile (language, rewrite_tone, filter_negative)
-   - Build prompt from `llm/prompts/` template
+   - Build prompt from `app/llm/prompts/` template
    - Output: 3-line summary + full simplified article
    - Store in `rewrites` keyed by `(article_id, profile_hash)`
 
-2. **Processing trigger**
-   - On first open of the day: fetch + rewrite pipeline
-   - Process articles one at a time (or batched per config)
-   - HTMX polling for progress: "3 of 5 articles ready"
-   - Cache in SQLite; no re-processing on subsequent opens
+2. **Scheduled rewriting**
+   - APScheduler daily job (configurable time, default 6am)
+   - Collect all active users and their unique profile hashes
+   - For each profile hash: rewrite today's articles not yet cached
+   - Two users with the same language/tone/filter settings share cached rewrites
 
 3. **Profile hash**
-   - Cache invalidation when profile changes (location, language, sources, topics, negative filter, rewrite tone)
+   - Hash includes only rewrite-affecting fields: `language`, `rewrite_tone`, `filter_negative`
+   - Hash does NOT include: selected sources, selected topics, location
+   - Changing source selections does not invalidate existing rewrites
 
 4. **Daily digest**
-   - "5 things today" (or configurable): select top N articles for the day
-   - Process digest on first open; store in digest table or derived from articles + rewrites
+   - Select top N articles for the day per user (filtered by their source/topic selections)
+   - Digest is per-user but rewrites are per-profile-hash
 
 ### Output
 
-- `rewrites` table with `summary`, `full_text` per article per profile
-- Digest view or table for the day’s curated list
+- `rewrites` table with `summary`, `full_text` per article per profile hash
+- Digest derived from articles + user source/topic selections + cached rewrites
 
 ---
 
 ## Phase 4 — Platform
 
-**Goal:** Web app with user accounts, configuration, and accessible feed UI.
+**Goal:** Web app with multi-user accounts, configuration, and accessible feed UI.
 
-End users and caregivers always access the platform, never the codebase. Flow: **create account → configuration page → see content**.
+End users and caregivers always access the platform, never the codebase. Flow: **register → configuration page → see content**.
 
 ### Tasks
 
 1. **Authentication**
-   - User account creation (email + password, or equivalent)
-   - Both end user and caregiver access the platform with the same account
+   - User registration (email + password)
+   - Multi-user: each account has its own profile, source selections, and topic selections
    - Session-based; no OAuth for MVP
    - Unauthenticated users redirect to login
 
 2. **Profile configuration**
-   - Configuration page (after signup or first login): location, language, sources (all selected by default), topics (all selected), negative news filter, rewrite tone
+   - Setup wizard (after registration): location, language, sources (all selected by default), topics (all selected), negative news filter, rewrite tone
    - Settings page: same fields, editable anytime
-   - Stored in SQLite: `user_profile`, `user_sources`, `user_topics`
+   - Stored in PostgreSQL: `user_profiles`, `user_sources`, `user_topics`
 
-3. **Initial feed**
-   - Main view: list of today’s articles (from digest or full set)
+3. **Feed view**
+   - Main view: today's articles filtered by user's source/topic selections
    - 3-line summary per article, expandable to full simplified text on tap
    - One-article-at-a-time mode (no infinite scroll)
    - Large touch targets, high contrast, large font
 
 4. **Daily digest**
-   - "5 things today" as the default view when opening the app
-   - Optional: soft notification "You have 5 new articles" (browser notification or in-app badge)
+   - Top N articles as the default view when opening the app
+   - Optional: in-app badge "You have N new articles"
 
 5. **UI requirements**
    - Clean, ad-free
@@ -150,78 +152,61 @@ End users and caregivers always access the platform, never the codebase. Flow: *
 
 - Large font, high contrast mode
 - Large touch targets throughout
-- Text-to-speech per article (browser Web Speech API)
+- Text-to-speech per article (browser Web Speech API; hidden when not supported)
 - Configurable detail level: headline → summary → full simplified article
 
 ---
 
 ## What the MVP Includes
 
-| Component                                               | Status |
-| ------------------------------------------------------- | ------ |
-| News source discovery (agent or manual seed)            | ✅     |
-| Scheduled fetching from all sources                     | ✅     |
-| Processing & storage (LLM rewrite, cache)               | ✅     |
-| Authentication (user account creation)                  | ✅     |
-| Profile configuration (setup wizard + settings)         | ✅     |
-| Initial feed (3-line summary, expandable)               | ✅     |
-| Daily digest ("5 things today")                         | ✅     |
-| Clean, ad-free UI                                       | ✅     |
-| Accessibility (large fonts, TTS, one-article-at-a-time) | ✅     |
+| Component | Status |
+| --- | --- |
+| News source discovery (agent or manual seed) | ✅ |
+| Scheduled fetching from all sources | ✅ |
+| Scheduled rewriting (LLM rewrite, cache per profile hash) | ✅ |
+| Multi-user authentication | ✅ |
+| Profile configuration (setup wizard + settings) | ✅ |
+| Feed view (3-line summary, expandable) | ✅ |
+| Daily digest (top N articles) | ✅ |
+| Clean, ad-free UI | ✅ |
+| Accessibility (large fonts, TTS when supported, one-article-at-a-time) | ✅ |
 
 ---
 
 ## What the MVP Excludes (for now)
 
-- Multi-user / multi-tenant (multiple accounts per deployment)
 - OAuth or social login
 - Paywalled content bypass
 - Native mobile app
 - Social or sharing features
+- Local LLM (Ollama) — supported via provider interface, not the MVP default
 
 ---
 
 ## Suggested Implementation Order
 
-1. **Phase 1** — Discovery or manual seed → `news_sources` + `source_feeds` (or `sources.yaml`)
-2. **Phase 2** — Fetcher + scheduler → `articles` populated
-3. **Phase 4 (partial)** — Auth, setup wizard, profile storage (no feed yet)
-4. **Phase 3** — LLM rewriter + processing pipeline
+1. **Phase 4 (auth + setup)** — User registration, login, setup wizard, profile storage
+2. **Phase 1** — Discovery or manual seed → `news_sources` + `source_feeds` (or `sources.yaml`)
+3. **Phase 2** — Fetcher + scheduler → `articles` populated on schedule
+4. **Phase 3** — LLM rewriter + scheduled rewrite pipeline
 5. **Phase 4 (complete)** — Feed UI, digest, expandable articles, TTS
+
+Rationale: auth and profile storage come first because everything else depends on having users with profiles. The feed UI can be built incrementally as the pipeline behind it comes online.
 
 ---
 
 ## Database Schema Alignment
 
-The discovery agent doc defines `news_sources`, `source_feeds`, `source_discovery_log`. Adapt for SQLite:
+The discovery agent doc defines `news_sources`, `source_feeds`, `source_discovery_log`. All use PostgreSQL-native types. The main app schema in `docs/ARCHITECTURE.md` defines `users`, `user_profiles`, `articles`, `rewrites`, etc.
 
-- Use `TEXT` for UUIDs or `INTEGER PRIMARY KEY`
-- Use `JSON` or `TEXT` for arrays (e.g. `languages`)
-- Ensure `articles` table links to `source_id` from `news_sources`
-
-The existing `app/db` schema (`articles`, `rewrites`, `user_profile`, etc.) should be extended to reference `news_sources` when discovery is used, or kept separate if using `sources.yaml` only for MVP.
-
----
-
-## Should the MVP Include Something Else?
-
-**Consider adding:**
-
-- **Soft daily notification** — "You have 5 new articles" (browser notification or in-app badge). Low effort, high value for reminding the user to check the digest.
-- **High-contrast / dark mode toggle** — Already implied by "high contrast mode" in accessibility; ensure it's in the profile so the user (or caregiver) can set it once.
-
-**Consider deferring:**
-
-- **Caregiver remote config** — Both access the platform; the caregiver can configure from any device by logging in. No separate feature needed.
-- **Multi-language source mixing** — Start with one language (e.g. Catalan); add language selection later.
-
-**Already covered:** TTS, one-article-at-a-time, negative news filter, rewrite tone — all are core to the target user and should stay in MVP.
+When discovery is integrated, `articles.source_id` references `news_sources.id`. When using manual `sources.yaml` seeding only, `source_id` is the string ID from the YAML file.
 
 ---
 
 ## Success Criteria
 
-- User or caregiver creates an account, completes the configuration page, and sees a feed of 5 rewritten articles
-- End user can open the platform, read 3-line summaries, expand to full content, use TTS
+- A user registers, completes the setup wizard, and sees a feed of rewritten articles on their next visit
+- Content is ready when the user opens the app (no loading screens, no waiting for LLM calls)
+- End user can read 3-line summaries, expand to full content, use TTS (when browser supports it)
+- Multiple users can have independent profiles and see different content based on their selections
 - No ads, no clutter, every article links to original source
-- Processing is on-demand: first open of the day triggers fetch + rewrite; subsequent opens use cache

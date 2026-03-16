@@ -21,7 +21,7 @@ The initial target is a person with Parkinson's disease, or a comparable motor o
 - Benefits from large fonts, high contrast, and minimal visual noise
 - May rely on text-to-speech rather than sustained reading
 
-Critically, **neither the end user nor the caregiver ever accesses the codebase**. Both access the platform (web app) only. Their only requirement is to create a user account. The caregiver typically completes the initial configuration; the end user reads the content. This shapes every decision about onboarding, profile management, and configuration.
+**Neither the end user nor the caregiver ever accesses the codebase.** Both access the platform (web app) only. Their only requirement is to create a user account. The caregiver typically completes the initial configuration; the end user reads the content. This shapes every decision about onboarding, profile management, and configuration.
 
 ---
 
@@ -43,27 +43,28 @@ Refer to `docs/MVP_PLAN.md` for the canonical phased plan: discovery, fetching, 
 
 - Large font, high contrast mode
 - Large touch targets throughout — every interactive element must be usable with imprecise motor control
-- Text-to-speech per article
+- Text-to-speech per article (browser Web Speech API, graceful degradation — if the browser does not support it, the TTS button is hidden rather than broken)
 - One-article-at-a-time mode, no infinite scroll
 - Configurable detail level: headline → summary → full simplified article
 
 ### Caregiver-facing
 
-- Remote profile configuration (location, sources, topics, language, negative news filter, rewrite tone) without requiring the end user to touch settings
-- Soft daily notification: "You have 5 new articles"
+- Profile configuration (location, sources, topics, language, negative news filter, rewrite tone) — the caregiver logs into the same account from any device and adjusts settings
+- Soft daily notification: "You have N new articles"
 - Account management designed to be set up once and left alone
 
 ---
 
-## Tech Stack
+## Tech Stack (Summary)
+
+See `docs/TECH_STACK.md` for full details, project structure, dependencies, Docker setup, and key commands.
 
 - **Backend:** Python 3.12+ with Flask
-- **Database:** SQLite (single file, no server required)
-- **LLM:** Ollama (local, default) — abstracted behind a provider interface
+- **Database:** PostgreSQL 16
+- **LLM:** External APIs (Anthropic, OpenAI, Gemini) via provider interface
 - **Frontend:** Plain HTML + CSS + HTMX
-- **Templating:** Jinja2 (Flask built-in)
-- **Scheduling:** APScheduler (embedded in Flask app, no separate cron required)
-- **Packaging:** Docker + docker-compose (single `docker-compose up` to run everything)
+- **Scheduling:** APScheduler (fetch + rewrite on a schedule, content ready when user opens app)
+- **Packaging:** Docker + docker-compose
 
 ---
 
@@ -73,55 +74,10 @@ These are hard rules, not preferences:
 
 - **Flask routes return HTML only.** Never return JSON to the frontend. Every endpoint renders and returns a Jinja2 template partial. This is HATEOAS — the server owns all state and rendering.
 - **HTMX is the only frontend dependency.** No JavaScript frameworks. No build step. No npm. HTMX is loaded via a single CDN script tag.
-- **LLM calls are always abstracted.** Never call Ollama, OpenAI, or Anthropic directly from a route. Always go through the provider interface in `llm/provider.py`.
-- **Processing is on-demand, per session.** Articles are fetched and rewritten when the user opens the app for the first time that day. Results are cached in SQLite. A user who doesn't open the app pays nothing.
-- **Config is never hardcoded.** YAML files define the catalog of available sources/topics and app-level settings. User preferences (location, selected sources, selected topics, filter toggle, rewrite tone, language) live in SQLite, set via the web UI.
-
----
-
-## Project Structure
-
-```
-/
-├── app/
-│   ├── routes/          # Flask blueprints — one per domain area
-│   ├── templates/       # Jinja2 templates and partials
-│   │   └── partials/    # HTMX fragment templates
-│   ├── llm/
-│   │   ├── provider.py  # Abstract LLM interface
-│   │   └── prompts/     # Prompt templates (plain text files)
-│   ├── feed/            # RSS fetching and normalisation
-│   ├── db/              # SQLite access layer
-│   └── tts/             # Text-to-speech helpers
-├── config/
-│   ├── sources.yaml     # Catalog of available RSS feeds and API sources (user selections in SQLite)
-│   └── app.yaml         # App-level config (port, LLM provider, etc.)
-├── CLAUDE.md
-├── ARCHITECTURE.md
-├── docker-compose.yml
-└── Dockerfile
-```
-
----
-
-## Key Commands
-
-```bash
-# Run the app locally (no Docker)
-flask run
-
-# Run with Docker (recommended)
-docker-compose up
-
-# Run tests
-pytest
-
-# Lint
-ruff check .
-
-# Format
-ruff format .
-```
+- **LLM calls are always abstracted.** Never call Anthropic, OpenAI, or Gemini directly from a route. Always go through the provider interface in `app/llm/provider.py`.
+- **Fetching and rewriting run on a schedule.** APScheduler fetches feeds on configured intervals and rewrites articles for active users daily. When a user opens the app, content is already ready. No on-demand LLM calls during page load.
+- **Config is never hardcoded.** YAML files define the catalog of available sources/topics and app-level settings. User preferences (location, selected sources, selected topics, filter toggle, rewrite tone, language) live in PostgreSQL, set via the web UI.
+- **Multi-user from the start.** The schema, auth, and caching all support multiple independent user accounts.
 
 ---
 
@@ -131,8 +87,9 @@ ruff format .
 - Flask routes use blueprints — never register routes directly on the app object
 - Template partials (for HTMX responses) live in `templates/partials/` and follow the naming convention `{resource}_{action}.html` (e.g. `article_expanded.html`)
 - Never put business logic in routes — routes call services, services do the work
-- SQLite access goes through the db layer, never raw SQL in routes or services
+- Database access goes through the db layer (`app/db/`), never raw SQL in routes or services
 - Every config value has a documented default in `app.yaml`
+- API keys and secrets live in `.env`, never committed to the repo
 
 ---
 
@@ -142,13 +99,17 @@ ruff format .
 - **Adding JavaScript.** HTMX attributes on HTML elements handle all interactivity. There is no `static/js/` directory.
 - **Calling the LLM directly.** Always use `from app.llm.provider import get_provider` and call through the interface.
 - **Hardcoding source URLs or prompts.** These live in config files.
-- **Putting user preferences in YAML files.** User profile settings live in SQLite, set through the setup wizard. Only the source catalog and app-level config belong in YAML.
+- **Putting user preferences in YAML files.** User profile settings live in PostgreSQL, set through the setup wizard. Only the source catalog and app-level config belong in YAML.
+- **Using SQLite.** This project uses PostgreSQL. Always use `psycopg2` or the db layer, never `sqlite3`.
+- **Making LLM calls during request handling.** Fetching and rewriting happen on a schedule via APScheduler. Routes serve pre-cached content from the database.
 
 ---
 
 ## Content Sourcing
 
 RSS + open publishers are the primary source. Full article text is required for meaningful simplification — RSS-level text is the fallback for paywalled outlets, not the target. Open Catalan and Spanish publishers (RTVE, CCMA/3Cat, Vilaweb, El Crític, NacióDigital) are the initial priority and provide full content without legal risk.
+
+Full article text is stored in the database when available from open publishers. For paywalled sources, only the RSS description/lede is stored.
 
 No User-Agent spoofing. No paywalled content bypass. Every article links to the original source.
 
@@ -168,7 +129,7 @@ For automated news source discovery (finding feeds by location, validation, qual
 
 - **Accessibility is a constraint, not a feature.** Every UI decision is evaluated against the primary user's motor and cognitive profile first.
 - **Caregiver setup, user operation.** The caregiver creates the account and configures via the web UI; daily use requires none.
-- **Config-driven throughout.** App config (source catalog, LLM prompts, server settings) lives in YAML. User preferences live in SQLite, set via the setup wizard and settings page.
+- **Config-driven throughout.** App config (source catalog, LLM prompts, server settings) lives in YAML. User preferences live in PostgreSQL, set via the setup wizard and settings page.
 - **Self-hosted must be genuinely usable.** Whoever deploys (e.g. a family member) should be able to run and maintain it without ongoing help. End users and caregivers using the platform never touch deployment.
 
 ---

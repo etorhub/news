@@ -1,5 +1,5 @@
 ---
-description: Core architecture rules for the Flask + HTMX + SQLite stack. Apply to all Python and HTML files.
+description: Core architecture rules for the Flask + HTMX + PostgreSQL stack. Apply to all Python and HTML files.
 globs: ["**/*.py", "**/*.html", "**/*.yaml"]
 ---
 
@@ -20,7 +20,7 @@ def articles():
 ```python
 @bp.route("/articles")
 def articles():
-    articles = article_service.get_today()
+    articles = article_service.get_today(current_user.id)
     return render_template("partials/article_list.html", articles=articles)
 ```
 
@@ -37,6 +37,8 @@ HTMX swaps HTML fragments into the DOM. The server owns all state and all render
 
 HTMX attributes handle all interactivity. There is no `static/js/` directory and no JS files should be created. If you find yourself reaching for JavaScript, use an HTMX attribute instead.
 
+The only exception: a small inline feature-detection snippet for Web Speech API (TTS), which hides TTS controls when the browser doesn't support it.
+
 **Wrong:**
 ```html
 <button onclick="expandArticle(42)">Read more</button>
@@ -44,7 +46,7 @@ HTMX attributes handle all interactivity. There is no `static/js/` directory and
 
 **Correct:**
 ```html
-<button hx-post="/articles/42/expand"
+<button hx-get="/articles/42/expand"
         hx-target="#article-42"
         hx-swap="outerHTML">Read more</button>
 ```
@@ -54,14 +56,20 @@ HTMX attributes handle all interactivity. There is no `static/js/` directory and
 - Routes use blueprints. Never register routes directly on the `app` object.
 - Routes are thin: they parse the request, call a service, return a template. No business logic in routes.
 - Services live in `app/services/` and contain all business logic.
-- The db layer in `app/db/` is the only place that touches SQLite.
+- The db layer in `app/db/` is the only place that touches PostgreSQL.
+
+## No LLM calls during request handling
+
+Fetching and rewriting run on a schedule via APScheduler. Routes serve pre-cached content from PostgreSQL. Never call the LLM provider from a route or template context.
 
 ## Configuration
 
 No hardcoded values. App config (source catalog, LLM settings, server settings) lives in `config/*.yaml`. The app reads it at startup via `app/config.py`.
 
-User preferences (location, selected sources, selected topics, filter toggle, rewrite tone, language) are never stored in YAML. They live in SQLite and are managed through the setup wizard and settings page.
+User preferences (location, selected sources, selected topics, filter toggle, rewrite tone, language) are never stored in YAML. They live in PostgreSQL and are managed through the setup wizard and settings page.
+
+API keys and secrets live in `.env`, never committed to the repo.
 
 ## Docker
 
-The app runs via `docker-compose up`. This starts both the Flask app and Ollama. Do not assume any other services are running.
+The app runs via `docker-compose up`. This starts both the Flask app and PostgreSQL. Do not assume any other services are running.

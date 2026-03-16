@@ -1,24 +1,39 @@
-## TECH STACK
+# Tech Stack
 
-- **Backend:** Python 3.12+ with Flask
-- **Database:** SQLite (single file, no server required)
-- **LLM:** Ollama (local, default) — abstracted behind a provider interface
-- **Frontend:** Plain HTML + CSS + HTMX
-- **Templating:** Jinja2 (Flask built-in)
-- **Scheduling:** APScheduler (embedded in Flask app, no separate cron required)
-- **Packaging:** Docker + docker-compose (single `docker-compose up` to run everything)
+Technology choices for the Accessible News Aggregator, with rationale.
 
 ---
 
-## Architecture Constraints
+## Core Stack
 
-These are hard rules, not preferences:
+| Layer | Technology | Why |
+| --- | --- | --- |
+| Backend | Python 3.12+ with Flask | Lightweight, well-understood, Jinja2 built-in |
+| Database | PostgreSQL 16 | Robust, multi-user, JSONB support, wide hosting availability |
+| LLM | External APIs (Anthropic, OpenAI, Gemini) via provider interface | No local GPU required, production-grade reliability, easy setup |
+| Frontend | Plain HTML + CSS + HTMX | No build step, no JS framework, server-rendered throughout |
+| Templating | Jinja2 (Flask built-in) | Tight Flask integration, partial rendering for HTMX |
+| Scheduling | APScheduler (embedded in Flask process) | No external cron or task queue; fetching and rewriting run on a schedule |
+| Packaging | Docker + docker-compose | Single `docker-compose up` runs everything |
 
-- **Flask routes return HTML only.** Never return JSON to the frontend. Every endpoint renders and returns a Jinja2 template partial. This is HATEOAS — the server owns all state and rendering.
-- **HTMX is the only frontend dependency.** No JavaScript frameworks. No build step. No npm. HTMX is loaded via a single CDN script tag.
-- **LLM calls are always abstracted.** Never call Ollama, OpenAI, or Anthropic directly from a route. Always go through the provider interface in `llm/provider.py`.
-- **Processing is on-demand, per session.** Articles are fetched and rewritten when the user opens the app for the first time that day. Results are cached in SQLite. A user who doesn't open the app pays nothing.
-- **Config is never hardcoded.** YAML files define the catalog of available sources/topics and app-level settings. User preferences (location, selected sources, selected topics, filter toggle, rewrite tone, language) live in SQLite, set via the web UI.
+---
+
+## Python Dependencies
+
+| Package | Purpose |
+| --- | --- |
+| Flask | Web framework |
+| psycopg2-binary | PostgreSQL driver |
+| APScheduler | Background job scheduling (fetch + rewrite) |
+| feedparser | RSS/Atom feed parsing |
+| httpx | HTTP client for feed fetching and LLM API calls |
+| anthropic | Anthropic Claude API client |
+| openai | OpenAI API client |
+| google-generativeai | Google Gemini API client |
+| python-dotenv | Load `.env` for API keys |
+| bcrypt | Password hashing |
+| ruff | Linting and formatting |
+| pytest | Testing |
 
 ---
 
@@ -27,22 +42,31 @@ These are hard rules, not preferences:
 ```
 /
 ├── app/
-│   ├── routes/          # Flask blueprints — one per domain area
-│   ├── templates/       # Jinja2 templates and partials
-│   │   └── partials/    # HTMX fragment templates
+│   ├── __init__.py          # Flask app factory
+│   ├── config.py            # Loads config/*.yaml
+│   ├── routes/              # Flask blueprints — one per domain area
+│   ├── services/            # Business logic — routes call services
+│   ├── templates/           # Jinja2 templates
+│   │   └── partials/        # HTMX fragment templates
 │   ├── llm/
-│   │   ├── provider.py  # Abstract LLM interface
-│   │   └── prompts/     # Prompt templates (plain text files)
-│   ├── feed/            # RSS fetching and normalisation
-│   ├── db/              # SQLite access layer
-│   └── tts/             # Text-to-speech helpers
+│   │   ├── provider.py      # Abstract LLM interface + factory
+│   │   ├── providers/       # Anthropic, OpenAI, Gemini implementations
+│   │   └── prompts/         # Prompt templates (plain .txt files)
+│   ├── feed/                # RSS fetching and normalisation
+│   ├── db/                  # PostgreSQL access layer
+│   └── tts/                 # Text-to-speech helpers (browser API prep)
 ├── config/
-│   ├── sources.yaml     # Catalog of available RSS feeds and API sources (user selections in SQLite)
-│   └── app.yaml         # App-level config (port, LLM provider, etc.)
-├── CLAUDE.md
-├── ARCHITECTURE.md
+│   ├── sources.yaml         # Catalog of available RSS feeds and API sources
+│   └── app.yaml             # App-level config (LLM provider, schedule, etc.)
+├── tests/                   # pytest test suite
+├── docs/                    # Project documentation
+├── .cursor/rules/           # Cursor IDE rules
+├── CLAUDE.md                # AI assistant context
+├── README.md
 ├── docker-compose.yml
-└── Dockerfile
+├── Dockerfile
+├── requirements.txt
+└── .env.example             # Template for API keys and secrets
 ```
 
 ---
@@ -68,23 +92,54 @@ ruff format .
 
 ---
 
-## Coding Rules
+## Docker Composition
 
-- Use Python type hints throughout
-- Flask routes use blueprints — never register routes directly on the app object
-- Template partials (for HTMX responses) live in `templates/partials/` and follow the naming convention `{resource}_{action}.html` (e.g. `article_expanded.html`)
-- Never put business logic in routes — routes call services, services do the work
-- SQLite access goes through the db layer, never raw SQL in routes or services
-- Every config value has a documented default in `app.yaml`
+Two services: the Flask app and PostgreSQL.
+
+```yaml
+# docker-compose.yml (simplified)
+services:
+  app:
+    build: .
+    ports:
+      - "5000:5000"
+    depends_on:
+      - db
+    env_file:
+      - .env
+    volumes:
+      - ./config:/app/config
+
+  db:
+    image: postgres:16-alpine
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    environment:
+      - POSTGRES_DB=news
+      - POSTGRES_USER=news
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
+
+volumes:
+  pgdata:
+```
+
+The `.env` file contains API keys and the database password. An `.env.example` template is provided in the repo.
 
 ---
 
-## What Claude Gets Wrong on This Stack
+## LLM Provider Interface
 
-- **Returning JSON from Flask routes.** Every route must return `render_template(...)` or `render_template_string(...)`. If you find yourself writing `jsonify`, stop.
-- **Adding JavaScript.** HTMX attributes on HTML elements handle all interactivity. There is no `static/js/` directory.
-- **Calling the LLM directly.** Always use `from app.llm.provider import get_provider` and call through the interface.
-- **Hardcoding source URLs or prompts.** These live in config files.
-- **Putting user preferences in YAML files.** User profile settings live in SQLite, set through the setup wizard. Only the source catalog and app-level config belong in YAML.
+The app never calls an LLM SDK directly. All LLM access goes through `app/llm/provider.py`, which defines an abstract `LLMProvider` class. Concrete implementations exist for Anthropic, OpenAI, and Gemini. The active provider is selected from `config/app.yaml`.
+
+This makes it straightforward to add new providers (including local ones like Ollama for self-hosters who prefer it).
 
 ---
+
+## Scheduling Model
+
+APScheduler runs two types of background jobs inside the Flask process:
+
+1. **Fetch jobs** — poll feeds per their configured interval (high/medium/low frequency tiers). Articles are stored centrally in the `articles` table with full text when available.
+2. **Rewrite jobs** — run at a configurable daily time (default: early morning). For each active user, rewrite new articles that haven't been cached yet for their profile.
+
+When a user opens the app, content is already ready. No waiting.

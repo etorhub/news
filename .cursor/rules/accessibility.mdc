@@ -1,6 +1,6 @@
 ---
 description: Accessibility rules for all HTML templates and CSS. Non-negotiable. Apply to every UI change.
-globs: ["**/*.html", "**/*.css"]
+globs: ['**/*.html', '**/*.css']
 ---
 
 # Accessibility Rules
@@ -12,14 +12,17 @@ These are hard constraints, not suggestions. The primary user has Parkinson's di
 Every interactive element — buttons, links, toggles — must have a minimum tap target of 48x48px. Use padding rather than fixed height so text scales correctly.
 
 **Wrong:**
+
 ```html
 <a href="/articles/42">Read more</a>
 ```
 
 **Correct:**
+
 ```html
 <a href="/articles/42" class="article-link">Read more</a>
 ```
+
 ```css
 .article-link {
   display: inline-block;
@@ -48,7 +51,7 @@ Every interactive element — buttons, links, toggles — must have a minimum ta
 
 - Minimum contrast ratio: 4.5:1 for body text (WCAG AA)
 - Target: 7:1 for high contrast mode (WCAG AAA)
-- High contrast mode must be togglable and the preference must persist
+- High contrast mode must be togglable and the preference must persist (stored in user profile)
 
 ## Semantics
 
@@ -63,6 +66,7 @@ Every interactive element — buttons, links, toggles — must have a minimum ta
 - TTS uses the browser Web Speech API — no library, no external service
 - TTS controls (play, pause, stop) are large and always visible when active
 - The currently spoken sentence should be visually highlighted
+- **Graceful degradation:** if the browser does not support the Web Speech API, TTS controls must be hidden entirely (feature detection via `window.speechSynthesis`). The app must remain fully usable without TTS.
 
 ## Setup wizard
 
