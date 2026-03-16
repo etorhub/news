@@ -122,6 +122,9 @@ See [docs/TECH_STACK.md](docs/TECH_STACK.md) for full details.
 
 | Document                                                                   | Description                                                                                                                           |
 | -------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------- |
+| [CONTRIBUTING.md](CONTRIBUTING.md)                                         | How to contribute — setup, code standards, commits, PRs                                                                                |
+| [CODE_OF_CONDUCT.md](CODE_OF_CONDUCT.md)                                   | Community standards and enforcement                                                                                                   |
+| [SECURITY.md](SECURITY.md)                                                 | Security policy and vulnerability reporting                                                                                           |
 | [CLAUDE.md](CLAUDE.md)                                                     | AI assistant context (Claude Code) — coding rules, architecture constraints, design principles                                        |
 | [.cursor/rules/](.cursor/rules/)                                           | Cursor IDE rules — same context via `project-context.mdc` (always apply) plus architecture, accessibility, LLM, news-source-discovery |
 | [docs/TECH_STACK.md](docs/TECH_STACK.md)                                   | Tech stack, project structure, dependencies, Docker setup                                                                             |
