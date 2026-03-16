@@ -138,7 +138,7 @@
           {% if u.created_at %}{{ u.created_at.strftime('%Y-%m-%d') if u.created_at else '—' }}{% else %}—{% endif %}
         </td>
         <td style="padding: 0.5rem; border: 1px solid var(--border);">
-          {% if u.last_login_at %}{{ u.last_login_at.strftime('%Y-%m-%d %H:%M') if u.last_login_at else '—' }}{% else %}—{% endif %}
+          {{ u.last_login_at|naturaltime }}
         </td>
         <td style="padding: 0.5rem; border: 1px solid var(--border);">{{ 'Yes' if u.is_active else 'No' }}</td>
         <td style="padding: 0.5rem; border: 1px solid var(--border);">{{ 'Yes' if u.is_admin else 'No' }}</td>

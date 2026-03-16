@@ -1,8 +1,10 @@
 """Flask application factory."""
 
 import os
+from datetime import datetime
 from pathlib import Path
 
+import humanize
 from dotenv import load_dotenv
 from flask import Flask, Response, redirect, request, session, url_for
 
@@ -53,6 +55,13 @@ def create_app(config_path: str | Path | None = None) -> Flask:
     def health() -> str:
         """Health check endpoint. Returns HTML per project rules."""
         return "<!DOCTYPE html><html><body><p>ok</p></body></html>"
+
+    @app.template_filter("naturaltime")
+    def naturaltime_filter(dt: datetime | None) -> str:
+        """Format datetime as relative time (e.g. '5 minutes ago', '2 days ago')."""
+        if dt is None:
+            return "—"
+        return humanize.naturaltime(dt)
 
     app.register_blueprint(auth_bp)
     app.register_blueprint(setup_bp)
