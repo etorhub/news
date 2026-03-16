@@ -1,5 +1,6 @@
 """LLM rewrite orchestration. Runs on schedule or via manual trigger after settings save."""
 
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 from typing import Any
@@ -8,7 +9,7 @@ from app.config import load_config
 from app.db import clusters as db_clusters
 from app.db import users as db_users
 from app.llm.prompts import load_prompt
-from app.llm.provider import get_provider
+from app.llm.provider import LLMProvider, get_provider
 from app.services import profile_service
 
 
@@ -92,6 +93,8 @@ def rewrite_cluster(
     articles: list[dict[str, Any]],
     profile: dict[str, Any],
     config: dict[str, Any],
+    *,
+    provider: LLMProvider | None = None,
 ) -> bool:
     """Rewrite a cluster (merge + adapt all articles) and store. Returns True on success."""
     articles_text = _build_articles_text(articles)
@@ -111,6 +114,7 @@ def rewrite_cluster(
     profile_hash = profile_service.compute_profile_hash(profile)
     processing = config.get("processing", {})
     summary_sentences = processing.get("summary_sentences", 3)
+    max_tokens = processing.get("rewrite_max_tokens", 2000)
     language = (profile.get("language") or "ca").strip() or "ca"
     prompt_template = load_prompt("rewrite_cluster")
     prompt = prompt_template.format(
@@ -124,9 +128,10 @@ def rewrite_cluster(
         summary_sentences=summary_sentences,
     )
 
-    try:
+    if provider is None:
         provider = get_provider(config)
-        response = provider.complete(prompt, max_tokens=3000)
+    try:
+        response = provider.complete(prompt, max_tokens=max_tokens)
         title, summary, full_text = _parse_cluster_llm_response(response)
         db_clusters.insert_cluster_rewrite(
             cluster_id=cluster_id,
@@ -151,40 +156,88 @@ def rewrite_cluster(
         return False
 
 
+def _rewrite_one(
+    cluster_id: str,
+    articles: list[dict[str, Any]],
+    profile: dict[str, Any],
+    config: dict[str, Any],
+    provider: LLMProvider | None,
+) -> bool:
+    """Single-cluster rewrite for use in parallel executor."""
+    return rewrite_cluster(
+        cluster_id=cluster_id,
+        articles=articles,
+        profile=profile,
+        config=config,
+        provider=provider,
+    )
+
+
 def run_rewrite_batch(config: dict[str, Any]) -> RewriteReport:
     """Process today's clusters for all distinct rewrite profiles."""
     processing = config.get("processing", {})
     window_hours = processing.get("cluster_window_hours", 24)
     since = datetime.now(UTC) - timedelta(hours=window_hours)
-    batch_size = config.get("schedule", {}).get("rewrite_batch_size", 10)
+    schedule_cfg = config.get("schedule", {})
+    batch_size = schedule_cfg.get("rewrite_batch_size", 10)
+    parallel_workers = schedule_cfg.get("rewrite_parallel_workers", 2)
 
     profiles = db_users.get_distinct_rewrite_profiles()
     clusters_attempted = 0
     clusters_succeeded = 0
     clusters_failed = 0
 
+    # Share provider across calls to avoid repeated model loads (local LLM)
+    provider = get_provider(config)
+
     for profile in profiles:
-        profile_hash = profile_service.compute_profile_hash(profile)
         clusters = db_clusters.get_clusters_needing_rewrite(
-            profile_hash=profile_hash,
+            profile_hash=profile_service.compute_profile_hash(profile),
             since=since,
             limit=batch_size,
         )
+        work: list[tuple[str, list[dict[str, Any]]]] = []
         for row in clusters:
             cluster_id = row["cluster_id"]
             articles = db_clusters.get_articles_in_cluster(cluster_id)
-            if not articles:
-                continue
-            clusters_attempted += 1
-            if rewrite_cluster(
-                cluster_id=cluster_id,
-                articles=articles,
-                profile=profile,
-                config=config,
-            ):
-                clusters_succeeded += 1
-            else:
-                clusters_failed += 1
+            if articles:
+                work.append((cluster_id, articles))
+
+        if not work:
+            continue
+
+        if parallel_workers > 1:
+            with ThreadPoolExecutor(max_workers=parallel_workers) as executor:
+                futures = {
+                    executor.submit(
+                        _rewrite_one,
+                        cluster_id,
+                        articles,
+                        profile,
+                        config,
+                        provider,
+                    ): cluster_id
+                    for cluster_id, articles in work
+                }
+                for future in as_completed(futures):
+                    clusters_attempted += 1
+                    if future.result():
+                        clusters_succeeded += 1
+                    else:
+                        clusters_failed += 1
+        else:
+            for cluster_id, articles in work:
+                clusters_attempted += 1
+                if rewrite_cluster(
+                    cluster_id=cluster_id,
+                    articles=articles,
+                    profile=profile,
+                    config=config,
+                    provider=provider,
+                ):
+                    clusters_succeeded += 1
+                else:
+                    clusters_failed += 1
 
     return RewriteReport(
         profiles_processed=len(profiles),
@@ -211,7 +264,9 @@ def run_rewrite_for_user(
     processing = cfg.get("processing", {})
     window_hours = processing.get("cluster_window_hours", 24)
     since = datetime.now(UTC) - timedelta(hours=window_hours)
-    batch_size = cfg.get("schedule", {}).get("rewrite_batch_size", 10)
+    schedule_cfg = cfg.get("schedule", {})
+    batch_size = schedule_cfg.get("rewrite_batch_size", 10)
+    parallel_workers = schedule_cfg.get("rewrite_parallel_workers", 2)
 
     profile_hash = profile_service.compute_profile_hash(profile)
     clusters = db_clusters.get_clusters_needing_rewrite(
@@ -219,25 +274,50 @@ def run_rewrite_for_user(
         since=since,
         limit=batch_size,
     )
+    work: list[tuple[str, list[dict[str, Any]]]] = []
+    for row in clusters:
+        cluster_id = row["cluster_id"]
+        articles = db_clusters.get_articles_in_cluster(cluster_id)
+        if articles:
+            work.append((cluster_id, articles))
+
     clusters_attempted = 0
     clusters_succeeded = 0
     clusters_failed = 0
 
-    for row in clusters:
-        cluster_id = row["cluster_id"]
-        articles = db_clusters.get_articles_in_cluster(cluster_id)
-        if not articles:
-            continue
-        clusters_attempted += 1
-        if rewrite_cluster(
-            cluster_id=cluster_id,
-            articles=articles,
-            profile=profile,
-            config=cfg,
-        ):
-            clusters_succeeded += 1
-        else:
-            clusters_failed += 1
+    provider = get_provider(cfg)
+    if parallel_workers > 1 and work:
+        with ThreadPoolExecutor(max_workers=parallel_workers) as executor:
+            futures = {
+                executor.submit(
+                    _rewrite_one,
+                    cluster_id,
+                    articles,
+                    profile,
+                    cfg,
+                    provider,
+                ): cluster_id
+                for cluster_id, articles in work
+            }
+            for future in as_completed(futures):
+                clusters_attempted += 1
+                if future.result():
+                    clusters_succeeded += 1
+                else:
+                    clusters_failed += 1
+    else:
+        for cluster_id, articles in work:
+            clusters_attempted += 1
+            if rewrite_cluster(
+                cluster_id=cluster_id,
+                articles=articles,
+                profile=profile,
+                config=cfg,
+                provider=provider,
+            ):
+                clusters_succeeded += 1
+            else:
+                clusters_failed += 1
 
     return RewriteReport(
         profiles_processed=1,
