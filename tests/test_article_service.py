@@ -66,6 +66,7 @@ def test_get_feed_multi_source_ranks_above_singleton() -> None:
             "processing": {"cluster_window_hours": 24, "articles_per_day": 10},
             "relevance": {"min_sources": 2},
         }
+        mock_db.get_read_cluster_ids.return_value = set()
         mock_db.get_clusters_with_articles_in_window.return_value = [
             {"cluster_id": "c-singleton"},
             {"cluster_id": "c-multi"},
@@ -122,6 +123,7 @@ def test_get_feed_backfill_when_few_multi_source() -> None:
             "processing": {"cluster_window_hours": 24, "articles_per_day": 3},
             "relevance": {"min_sources": 2},
         }
+        mock_db.get_read_cluster_ids.return_value = set()
         mock_db.get_clusters_with_articles_in_window.return_value = [
             {"cluster_id": "c-multi"},
             {"cluster_id": "c-s1"},
@@ -170,6 +172,7 @@ def test_get_feed_min_sources_one_disables_filter() -> None:
             "processing": {"cluster_window_hours": 24, "articles_per_day": 10},
             "relevance": {"min_sources": 1},
         }
+        mock_db.get_read_cluster_ids.return_value = set()
         mock_db.get_clusters_with_articles_in_window.return_value = [
             {"cluster_id": "c1"},
         ]
@@ -182,3 +185,41 @@ def test_get_feed_min_sources_one_disables_filter() -> None:
 
         assert len(feed) == 1
         assert feed[0]["id"] == "c1"
+
+
+def test_get_feed_excludes_read_clusters() -> None:
+    """Clusters marked as read are excluded from the feed."""
+    now = datetime.now(UTC)
+    art = {"id": "a1", "source_id": "s1", "published_at": now, "url": "u1", "title": "T"}
+    cluster = {"cluster_id": "c1", "articles": [art]}
+
+    sources = {"s1": {"id": "s1", "name": "Source 1", "topics": ["politics"]}}
+
+    with (
+        patch("app.services.article_service.profile_service") as mock_ps,
+        patch("app.services.article_service.load_sources") as mock_load_sources,
+        patch("app.services.article_service.load_config") as mock_load_config,
+        patch("app.services.article_service.db_clusters") as mock_db,
+    ):
+        mock_ps.get_profile_with_selections.return_value = {
+            "source_ids": ["s1"],
+            "topic_ids": ["politics"],
+        }
+        mock_ps.compute_profile_hash.return_value = "hash1"
+        mock_load_sources.return_value = list(sources.values())
+        mock_load_config.return_value = {
+            "processing": {"cluster_window_hours": 24, "articles_per_day": 10},
+            "relevance": {"min_sources": 1},
+        }
+        mock_db.get_read_cluster_ids.return_value = {"c1"}
+        mock_db.get_clusters_with_articles_in_window.return_value = [
+            {"cluster_id": "c1"},
+        ]
+        mock_db.get_articles_in_cluster.return_value = cluster["articles"]
+        mock_db.get_cluster_rewrites.return_value = {
+            "c1": {"title": "Title", "summary": "", "full_text": "Text"},
+        }
+
+        feed, _ = get_feed(user_id=1)
+
+        assert len(feed) == 0

@@ -34,7 +34,7 @@ processing:
   summary_sentences: 3
   # Max tokens for rewrite output. Lower = faster local inference (default 2000).
   rewrite_max_tokens: 2000
-  cluster_window_hours: 24
+  cluster_window_hours: 72
   cluster_similarity_threshold: 0.82
   embed_batch_size: 50
 

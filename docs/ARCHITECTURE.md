@@ -12,6 +12,20 @@ The system has no client-side rendering. Flask renders all HTML server-side via 
 
 A five-stage pipeline runs on a background schedule (APScheduler): fetch feeds → enrich (extract full text) → embed → cluster → rewrite. When a user opens the app, content is already ready.
 
+### Pipeline Flow Diagram
+
+![Pipeline flow: News Sources → Fetch → Enrich → Embed → Cluster → Rewrite → PostgreSQL](pipeline-flow-diagram.png)
+
+| Stage | Component | What it does |
+|-------|-----------|--------------|
+| 1. Fetch | `app/feed/` | Fetch RSS feeds, parse XML, deduplicate, insert raw articles |
+| 2. Enrich | `app/extraction/` | Trafilatura extracts full text from article URLs; updates `articles` |
+| 3. Embed | `app/llm/embeddings.py` | Ollama (nomic-embed-text) embeds each article; stores vectors |
+| 4. Cluster | `app/clustering/` | Cosine similarity + Union-Find groups related articles into clusters |
+| 5. Rewrite | `app/services/rewrite_service.py` | LLM merges cluster articles into one accessible article per profile |
+
+The worker runs on a schedule (fetch every 60 min; enrich at :05; cluster at :15; rewrite daily at 06:00). On-demand rewrites (after setup or settings save) are queued in `rewrite_requests` and processed by the same rewrite stage.
+
 ---
 
 ## Request Lifecycle
@@ -159,147 +173,6 @@ templates/
     ├── setup_sources.html  # Source selection section for setup
     └── setup_topics.html   # Topic selection section for setup
 ```
-
----
-
-## Database Schema
-
-PostgreSQL 16. Multi-user from the start.
-
-```sql
-CREATE TABLE users (
-    id SERIAL PRIMARY KEY,
-    email TEXT NOT NULL UNIQUE,
-    password_hash TEXT NOT NULL,
-    is_active BOOLEAN NOT NULL DEFAULT TRUE,
-    is_admin BOOLEAN NOT NULL DEFAULT FALSE,
-    created_at TIMESTAMPTZ DEFAULT NOW(),
-    last_login_at TIMESTAMPTZ
-);
-
-CREATE TABLE user_profiles (
-    user_id INTEGER PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
-    location TEXT,
-    language TEXT NOT NULL DEFAULT 'ca',
-    filter_negative BOOLEAN NOT NULL DEFAULT FALSE,
-    rewrite_tone TEXT NOT NULL DEFAULT 'Short sentences. Simple vocabulary. No jargon.',
-    high_contrast BOOLEAN NOT NULL DEFAULT FALSE,
-    created_at TIMESTAMPTZ DEFAULT NOW(),
-    updated_at TIMESTAMPTZ DEFAULT NOW()
-);
-
-CREATE TABLE user_sources (
-    user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
-    source_id TEXT,
-    enabled BOOLEAN NOT NULL DEFAULT TRUE,
-    PRIMARY KEY (user_id, source_id)
-);
-
-CREATE TABLE user_topics (
-    user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
-    topic_id TEXT,
-    enabled BOOLEAN NOT NULL DEFAULT TRUE,
-    PRIMARY KEY (user_id, topic_id)
-);
-
-CREATE TABLE articles (
-    id TEXT PRIMARY KEY,
-    title TEXT NOT NULL,
-    url TEXT NOT NULL,
-    source_id TEXT NOT NULL,
-    published_at TIMESTAMPTZ,
-    raw_text TEXT,
-    full_text TEXT,
-    fetched_at TIMESTAMPTZ DEFAULT NOW(),
-    guid TEXT,
-    embedding JSONB,
-    extraction_status TEXT DEFAULT 'pending',
-    extraction_method TEXT,
-    extracted_at TIMESTAMPTZ
-);
-
-CREATE TABLE clusters (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    created_at TIMESTAMPTZ DEFAULT NOW()
-);
-
-CREATE TABLE cluster_articles (
-    cluster_id UUID REFERENCES clusters(id) ON DELETE CASCADE,
-    article_id TEXT REFERENCES articles(id) ON DELETE CASCADE,
-    position INTEGER DEFAULT 0,
-    PRIMARY KEY (cluster_id, article_id)
-);
-
-CREATE TABLE cluster_rewrites (
-    cluster_id UUID REFERENCES clusters(id) ON DELETE CASCADE,
-    profile_hash TEXT NOT NULL,
-    title TEXT,
-    summary TEXT,
-    full_text TEXT,
-    rewrite_failed BOOLEAN DEFAULT FALSE,
-    error_message TEXT,
-    created_at TIMESTAMPTZ DEFAULT NOW(),
-    PRIMARY KEY (cluster_id, profile_hash)
-);
-
-CREATE TABLE rewrite_requests (
-    id SERIAL PRIMARY KEY,
-    user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
-    status TEXT NOT NULL DEFAULT 'pending',
-    created_at TIMESTAMPTZ DEFAULT NOW(),
-    started_at TIMESTAMPTZ,
-    completed_at TIMESTAMPTZ,
-    error_message TEXT
-);
-
-CREATE INDEX idx_articles_source ON articles(source_id);
-CREATE INDEX idx_articles_published ON articles(published_at DESC);
-CREATE INDEX idx_cluster_rewrites_hash ON cluster_rewrites(profile_hash);
-
--- Admin dashboard: job run history (see docs/ADMIN_DASHBOARD.md)
-CREATE TABLE job_runs (
-    id SERIAL PRIMARY KEY,
-    job_name TEXT NOT NULL,
-    started_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-    finished_at TIMESTAMPTZ,
-    duration_ms INTEGER,
-    status TEXT NOT NULL DEFAULT 'running',
-    result JSONB,
-    error_message TEXT
-);
-CREATE INDEX idx_job_runs_job_name_started_at ON job_runs(job_name, started_at);
-```
-
-The `news_sources`, `source_feeds`, and `source_discovery_log` tables are defined in migration 002. See `docs/news_source_discovery_agent.md` for the full discovery schema.
-
-### Source tables
-
-`articles.source_id` is a text FK whose referent depends on the deployment mode:
-
-- **With discovery pipeline:** references `news_sources.id` (UUID cast to text). The full `news_sources`, `source_feeds`, and `source_discovery_log` tables are defined in `docs/news_source_discovery_agent.md` and are the canonical source catalog when the discovery pipeline is active.
-- **Manual seed only (MVP shortcut):** `source_id` is the string `id` field from `config/sources.yaml`. No `news_sources` table is required; the YAML catalog is the source of truth.
-
-Both modes use the same `articles` schema. The fetching layer (`app/feed/`) handles the difference. When integrating the discovery pipeline, migrate `source_id` values to UUIDs and add the FK constraint.
-
-### Profile hash
-
-The cache key for a rewrite is `sha256(json(profile_rewrite_fields))`. The hash includes **only fields that affect the rewrite output**, serialised as a canonical JSON object with sorted keys:
-
-```python
-import hashlib, json
-
-def compute_profile_hash(profile: dict) -> str:
-    fields = {
-        "language": profile["language"],
-        "rewrite_tone": profile["rewrite_tone"],
-        "filter_negative": profile["filter_negative"],
-    }
-    return hashlib.sha256(
-        json.dumps(fields, sort_keys=True).encode()
-    ).hexdigest()
-```
-
-It does **not** include source selections, topic selections, or location. Changing which sources you follow does not invalidate existing rewrites. Two users with identical language, tone, and filter settings share cached rewrites.
 
 ---
 

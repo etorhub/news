@@ -17,7 +17,12 @@
       <a href="{{ article.sources[0].url }}" target="_blank" rel="noopener">Read original</a>
     {% endif %}
     <button type="button" class="btn tts-only" aria-label="Read aloud"
-      onclick="speak({{ (article.title + '. ' + (article.full_text or '')) | tojson }})">Listen</button>
+      onclick='speak({{ (article.title + ". " + (article.full_text or "")) | tojson }})'>Listen</button>
+    <button type="button" class="btn"
+      hx-post="{{ url_for('reader.mark_read', cluster_id=article.id) }}"
+      hx-target="#article-{{ article.id }}"
+      hx-swap="outerHTML"
+      aria-label="Mark as read">Done</button>
   </p>
 </article>
 {% endif %}

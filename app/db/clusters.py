@@ -201,3 +201,84 @@ def cluster_exists(cluster_id: str) -> bool:
             return cur.fetchone() is not None
     finally:
         return_connection(conn)
+
+
+def mark_cluster_read(user_id: int, cluster_id: str) -> None:
+    """Mark a cluster as read for a user. Idempotent."""
+    conn = get_connection()
+    try:
+        with conn.cursor() as cur:
+            cur.execute(
+                """
+                INSERT INTO user_read_clusters (user_id, cluster_id)
+                VALUES (%s, %s::uuid)
+                ON CONFLICT (user_id, cluster_id) DO NOTHING
+                """,
+                (user_id, cluster_id),
+            )
+        conn.commit()
+    finally:
+        return_connection(conn)
+
+
+def is_cluster_read(user_id: int, cluster_id: str) -> bool:
+    """Return True if the user has marked this cluster as read."""
+    conn = get_connection()
+    try:
+        with conn.cursor() as cur:
+            cur.execute(
+                """
+                SELECT 1 FROM user_read_clusters
+                WHERE user_id = %s AND cluster_id = %s::uuid
+                """,
+                (user_id, cluster_id),
+            )
+            return cur.fetchone() is not None
+    finally:
+        return_connection(conn)
+
+
+def get_read_cluster_ids(user_id: int) -> set[str]:
+    """Return set of cluster_id strings the user has marked as read."""
+    conn = get_connection()
+    try:
+        with conn.cursor() as cur:
+            cur.execute(
+                """
+                SELECT cluster_id::text FROM user_read_clusters
+                WHERE user_id = %s
+                """,
+                (user_id,),
+            )
+            return {row[0] for row in cur.fetchall()}
+    finally:
+        return_connection(conn)
+
+
+def get_read_clusters_with_rewrites(
+    user_id: int,
+    profile_hash: str,
+    limit: int = 50,
+    offset: int = 0,
+) -> list[dict[str, Any]]:
+    """Return read clusters with rewrites for archive, ordered by read_at DESC."""
+    conn = get_connection()
+    try:
+        with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
+            cur.execute(
+                """
+                SELECT urc.cluster_id::text, urc.read_at,
+                       cr.title, cr.summary, cr.full_text
+                FROM user_read_clusters urc
+                JOIN cluster_rewrites cr ON cr.cluster_id = urc.cluster_id
+                    AND cr.profile_hash = %s
+                    AND cr.title IS NOT NULL AND cr.full_text IS NOT NULL
+                WHERE urc.user_id = %s
+                ORDER BY urc.read_at DESC
+                LIMIT %s OFFSET %s
+                """,
+                (profile_hash, user_id, limit, offset),
+            )
+            return [dict(row) for row in cur.fetchall()]
+    finally:
+        return_connection(conn)

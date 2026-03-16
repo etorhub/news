@@ -33,11 +33,15 @@ def get_feed(user_id: int) -> tuple[list[dict[str, Any]], bool]:
 
     since = datetime.now(UTC) - timedelta(hours=window_hours)
     cluster_rows = db_clusters.get_clusters_with_articles_in_window(since)
+    read_ids = db_clusters.get_read_cluster_ids(user_id)
 
     # Filter clusters: keep only if >=1 article matches user's sources and topics
+    # Exclude clusters the user has marked as read
     visible_clusters: list[dict[str, Any]] = []
     for row in cluster_rows:
         cluster_id = row["cluster_id"]
+        if cluster_id in read_ids:
+            continue
         articles = db_clusters.get_articles_in_cluster(cluster_id)
         for art in articles:
             sid = art["source_id"]
@@ -147,3 +151,49 @@ def get_expanded_cluster(cluster_id: str, profile_hash: str) -> dict[str, Any] |
         "full_text": full_text,
         "sources": sources_list,
     }
+
+
+def mark_cluster_read(user_id: int, cluster_id: str) -> None:
+    """Mark a cluster as read for a user."""
+    db_clusters.mark_cluster_read(user_id, cluster_id)
+
+
+def get_read_feed(user_id: int) -> list[dict[str, Any]]:
+    """Return read clusters for the archive, ordered by read_at DESC.
+
+    Each item has: id, title, summary, full_text, sources, read_at.
+    """
+    profile = profile_service.get_profile_with_selections(user_id)
+    if not profile:
+        return []
+    profile_hash = profile_service.compute_profile_hash(profile)
+    sources = {s["id"]: s for s in load_sources()}
+
+    rows = db_clusters.get_read_clusters_with_rewrites(
+        user_id, profile_hash, limit=50, offset=0
+    )
+    result: list[dict[str, Any]] = []
+    for row in rows:
+        cluster_id = row["cluster_id"]
+        articles = db_clusters.get_articles_in_cluster(cluster_id)
+        sources_list = []
+        for art in articles:
+            src = sources.get(art["source_id"], {})
+            sources_list.append(
+                {
+                    "source_name": src.get("name", art["source_id"]),
+                    "url": art["url"],
+                    "title": art.get("title", ""),
+                }
+            )
+        result.append(
+            {
+                "id": cluster_id,
+                "title": row["title"] or "",
+                "summary": row.get("summary") or "",
+                "full_text": row.get("full_text") or "",
+                "sources": sources_list,
+                "read_at": row["read_at"],
+            }
+        )
+    return result

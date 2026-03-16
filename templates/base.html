@@ -114,6 +114,7 @@
     {% if session.get('user_id') %}
       <div>
         <a href="{{ url_for('reader.index') }}">Feed</a>
+        <a href="{{ url_for('reader.archive') }}">Archive</a>
         <a href="{{ url_for('settings.settings_page') }}">Settings</a>
         {% if is_admin %}<a href="{{ url_for('admin.dashboard') }}">Admin</a>{% endif %}
       </div>
