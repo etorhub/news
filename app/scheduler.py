@@ -20,6 +20,7 @@ logger = logging.getLogger(__name__)
 
 def _run_fetch_job() -> None:
     """Scheduled job: fetch all due feeds."""
+    logger.info("Starting fetch_feeds job")
     job_id = admin_db.insert_job_run("fetch_feeds")
     try:
         config = load_config()
@@ -39,6 +40,7 @@ def _run_fetch_job() -> None:
 
 def _run_enrichment_job() -> None:
     """Scheduled job: extract full article content for pending articles."""
+    logger.info("Starting enrich_articles job")
     job_id = admin_db.insert_job_run("enrich_articles")
     try:
         config = load_config()
@@ -58,6 +60,7 @@ def _run_enrichment_job() -> None:
 
 def _run_cluster_job() -> None:
     """Scheduled job: embed and cluster today's articles."""
+    logger.info("Starting cluster_articles job")
     job_id = admin_db.insert_job_run("cluster_articles")
     try:
         config = load_config()
@@ -76,6 +79,7 @@ def _run_cluster_job() -> None:
 
 def _run_rewrite_job() -> None:
     """Scheduled job: rewrite today's articles for all profile hashes."""
+    logger.info("Starting rewrite_articles job")
     job_id = admin_db.insert_job_run("rewrite_articles")
     try:
         config = load_config()
@@ -101,6 +105,12 @@ def main() -> None:
         from dotenv import load_dotenv
 
         load_dotenv()
+
+    logging.basicConfig(
+        level=logging.INFO,
+        format="%(asctime)s %(levelname)s %(name)s: %(message)s",
+        datefmt="%Y-%m-%d %H:%M:%S",
+    )
 
     config = load_config()
     interval_min = config.get("schedule", {}).get("fetch_interval_minutes", 60)
@@ -133,6 +143,13 @@ def main() -> None:
         id="rewrite_articles",
     )
 
+    logger.info(
+        "Scheduler started: fetch every %d min, enrichment=%s, cluster=%s, rewrite=%s",
+        interval_min,
+        enrichment_cron,
+        cluster_cron,
+        rewrite_cron,
+    )
     with contextlib.suppress(KeyboardInterrupt, SystemExit):
         scheduler.start()
 

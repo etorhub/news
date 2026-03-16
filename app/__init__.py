@@ -9,8 +9,12 @@ from dotenv import load_dotenv
 from flask import Flask, Response, redirect, request, session, url_for
 
 from app.cli import (
+    cluster_articles_cmd,
+    enrich_articles_cmd,
     fetch_feeds_cmd,
     make_admin,
+    rewrite_articles_cmd,
+    run_pipeline_cmd,
     score_sources_cmd,
     seed_sources,
     show_rewrite_failures,
@@ -83,6 +87,10 @@ def create_app(config_path: str | Path | None = None) -> Flask:
     app.cli.add_command(validate_feeds_cmd)
     app.cli.add_command(score_sources_cmd)
     app.cli.add_command(fetch_feeds_cmd)
+    app.cli.add_command(enrich_articles_cmd)
+    app.cli.add_command(cluster_articles_cmd)
+    app.cli.add_command(rewrite_articles_cmd)
+    app.cli.add_command(run_pipeline_cmd)
     app.cli.add_command(make_admin)
     app.cli.add_command(show_rewrite_failures)
 
