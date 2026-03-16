@@ -8,6 +8,7 @@ from apscheduler.triggers.cron import CronTrigger
 from apscheduler.triggers.interval import IntervalTrigger
 
 from app.config import load_config
+from app.clustering.service import run_cluster_and_embed
 from app.feed.orchestrator import fetch_all_due_feeds
 from app.services.rewrite_service import run_rewrite_batch
 
@@ -30,17 +31,32 @@ def _run_fetch_job() -> None:
         logger.exception("Fetch job failed")
 
 
+def _run_cluster_job() -> None:
+    """Scheduled job: embed and cluster today's articles."""
+    try:
+        config = load_config()
+        report = run_cluster_and_embed(config)
+        logger.info(
+            "Cluster run: embedded=%d clustered=%d clusters_created=%d",
+            report.articles_embedded,
+            report.articles_clustered,
+            report.clusters_created,
+        )
+    except Exception:
+        logger.exception("Cluster job failed")
+
+
 def _run_rewrite_job() -> None:
     """Scheduled job: rewrite today's articles for all profile hashes."""
     try:
         config = load_config()
         report = run_rewrite_batch(config)
         logger.info(
-            "Rewrite run: profiles=%d attempted=%d ok=%d failed=%d",
+            "Rewrite run: profiles=%d clusters_attempted=%d ok=%d failed=%d",
             report.profiles_processed,
-            report.articles_attempted,
-            report.articles_succeeded,
-            report.articles_failed,
+            report.clusters_attempted,
+            report.clusters_succeeded,
+            report.clusters_failed,
         )
     except Exception:
         logger.exception("Rewrite job failed")
@@ -63,6 +79,13 @@ def main() -> None:
         _run_fetch_job,
         trigger=IntervalTrigger(minutes=interval_min),
         id="fetch_feeds",
+    )
+
+    cluster_cron = config.get("schedule", {}).get("cluster_cron", "5 * * * *")
+    scheduler.add_job(
+        _run_cluster_job,
+        trigger=CronTrigger.from_crontab(cluster_cron),
+        id="cluster_articles",
     )
 
     rewrite_cron = config.get("schedule", {}).get("rewrite_cron", "0 6 * * *")

@@ -1,0 +1,23 @@
+Merge and rewrite these news articles about the same event for accessibility. The reader has motor or cognitive difficulties and benefits from simple language, short sentences, and clear structure.
+
+## Instructions
+- Output in {language} (BCP 47 language tag).
+- Tone and style: {rewrite_tone}
+- Preserve factual accuracy. Never add information not present in the sources.
+- Filter negative news: {filter_negative}. When true, omit or soften distressing content.
+- Produce ONE unified article. Combine facts from all sources. Avoid repetition.
+- TITLE: Write a single, journalistically accurate headline. No clickbait.
+- Respond with exactly three sections, using these exact headers:
+
+TITLE:
+One headline.
+
+SUMMARY:
+Write exactly {summary_sentences} plain sentences summarizing the combined article.
+
+FULL:
+Write the full article in simplified form. Short sentences. Simple vocabulary. No jargon. One idea per sentence.
+
+## Articles
+
+{articles_text}

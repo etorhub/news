@@ -3,10 +3,19 @@
 {% elif article %}
 <article>
   <h2 style="font-size: var(--font-article);">{{ article.title }}</h2>
-  <p><small>{{ article.source_name }}</small></p>
+  <p><small>
+    {% if article.sources %}
+      Sources:
+      {% for src in article.sources %}
+        <a href="{{ src.url }}" target="_blank" rel="noopener">{{ src.source_name }}{% if src.title %}: {{ src.title }}{% endif %}</a>{% if not loop.last %}<br>{% endif %}
+      {% endfor %}
+    {% endif %}
+  </small></p>
   <div style="font-size: var(--font-article); white-space: pre-wrap;">{{ article.full_text }}</div>
   <p>
-    <a href="{{ article.url }}" target="_blank" rel="noopener">Read original</a>
+    {% if article.sources %}
+      <a href="{{ article.sources[0].url }}" target="_blank" rel="noopener">Read original</a>
+    {% endif %}
     <button type="button" class="btn tts-only" aria-label="Read aloud"
       onclick="speak({{ (article.title + '. ' + (article.full_text or '')) | tojson }})">Listen</button>
   </p>

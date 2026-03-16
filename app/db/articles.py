@@ -80,6 +80,129 @@ def article_exists(source_id: str, url: str) -> bool:
         return_connection(conn)
 
 
+def update_article_embedding(article_id: str, embedding: list[float]) -> None:
+    """Store embedding for an article. Embedding is stored as JSONB."""
+    import json
+
+    conn = get_connection()
+    try:
+        with conn.cursor() as cur:
+            cur.execute(
+                "UPDATE articles SET embedding = %s::jsonb WHERE id = %s",
+                (json.dumps(embedding), article_id),
+            )
+        conn.commit()
+    finally:
+        return_connection(conn)
+
+
+def get_recent_articles_without_embedding(
+    since: datetime,
+    limit: int | None = None,
+) -> list[dict[str, Any]]:
+    """Return articles since given time that have no embedding yet."""
+    conn = get_connection()
+    try:
+        with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
+            cur.execute(
+                """
+                SELECT * FROM articles
+                WHERE published_at >= %s AND embedding IS NULL
+                ORDER BY published_at DESC
+                """,
+                (since,),
+            )
+            rows = cur.fetchall()
+            if limit is not None:
+                rows = rows[:limit]
+            return [dict(row) for row in rows]
+    finally:
+        return_connection(conn)
+
+
+def get_recent_articles_with_embedding(
+    since: datetime,
+) -> list[dict[str, Any]]:
+    """Return articles since given time that have embeddings, for clustering."""
+    conn = get_connection()
+    try:
+        with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
+            cur.execute(
+                """
+                SELECT * FROM articles
+                WHERE published_at >= %s AND embedding IS NOT NULL
+                ORDER BY published_at DESC
+                """,
+                (since,),
+            )
+            return [dict(row) for row in cur.fetchall()]
+    finally:
+        return_connection(conn)
+
+
+def get_articles_with_embedding_not_in_cluster(since: datetime) -> list[dict[str, Any]]:
+    """Return articles in window with embeddings that are not yet in any cluster."""
+    return _get_articles_not_in_cluster(since, require_embedding=True)
+
+
+def get_articles_not_in_cluster(since: datetime) -> list[dict[str, Any]]:
+    """Return articles in window that are not yet in any cluster (with or without embedding)."""
+    return _get_articles_not_in_cluster(since, require_embedding=False)
+
+
+def _get_articles_not_in_cluster(
+    since: datetime,
+    require_embedding: bool = True,
+) -> list[dict[str, Any]]:
+    """Return articles in window not in a cluster. Optionally require embedding."""
+    conn = get_connection()
+    try:
+        with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
+            if require_embedding:
+                cur.execute(
+                    """
+                    SELECT a.* FROM articles a
+                    LEFT JOIN cluster_articles ca ON ca.article_id = a.id
+                    WHERE a.published_at >= %s
+                      AND a.embedding IS NOT NULL
+                      AND ca.article_id IS NULL
+                    ORDER BY a.published_at DESC
+                    """,
+                    (since,),
+                )
+            else:
+                cur.execute(
+                    """
+                    SELECT a.* FROM articles a
+                    LEFT JOIN cluster_articles ca ON ca.article_id = a.id
+                    WHERE a.published_at >= %s
+                      AND ca.article_id IS NULL
+                    ORDER BY a.published_at DESC
+                    """,
+                    (since,),
+                )
+            return [dict(row) for row in cur.fetchall()]
+    finally:
+        return_connection(conn)
+
+
+def get_articles_by_ids(article_ids: list[str]) -> list[dict[str, Any]]:
+    """Return articles by id list, preserving order where possible."""
+    if not article_ids:
+        return []
+    conn = get_connection()
+    try:
+        with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
+            cur.execute(
+                "SELECT * FROM articles WHERE id = ANY(%s)",
+                (article_ids,),
+            )
+            by_id = {row["id"]: dict(row) for row in cur.fetchall()}
+            return [by_id[aid] for aid in article_ids if aid in by_id]
+    finally:
+        return_connection(conn)
+
+
 def get_recent_articles(
     since: datetime,
     source_id: str | None = None,

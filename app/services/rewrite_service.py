@@ -1,10 +1,10 @@
 """LLM rewrite orchestration. Runs on schedule, never during request handling."""
 
 from dataclasses import dataclass
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from typing import Any
 
-from app.db import rewrites as db_rewrites
+from app.db import clusters as db_clusters
 from app.db import users as db_users
 from app.llm.prompts import load_prompt
 from app.llm.provider import LLMProviderError, get_provider
@@ -16,44 +16,72 @@ class RewriteReport:
     """Summary of a rewrite batch run."""
 
     profiles_processed: int
-    articles_attempted: int
-    articles_succeeded: int
-    articles_failed: int
+    clusters_attempted: int
+    clusters_succeeded: int
+    clusters_failed: int
 
 
-def _parse_llm_response(text: str) -> tuple[str, str]:
-    """Parse LLM output into (summary, full_text). Raises ValueError on bad format."""
+def _parse_cluster_llm_response(text: str) -> tuple[str, str, str]:
+    """Parse LLM output into (title, summary, full_text). Raises ValueError on bad format."""
+    title_marker = "TITLE:"
     summary_marker = "SUMMARY:"
     full_marker = "FULL:"
-    if summary_marker not in text or full_marker not in text:
-        raise ValueError("Response missing SUMMARY: or FULL: sections")
+    if title_marker not in text or summary_marker not in text or full_marker not in text:
+        raise ValueError("Response missing TITLE:, SUMMARY:, or FULL: sections")
+
     parts = text.split(full_marker, 1)
     if len(parts) != 2:
         raise ValueError("Response missing FULL: section")
-    summary_part = parts[0]
-    full_part = parts[1].strip()
-    if summary_marker in summary_part:
-        summary_part = summary_part.split(summary_marker, 1)[1]
-    summary = summary_part.strip()
-    if not summary or not full_part:
-        raise ValueError("Empty SUMMARY or FULL section")
-    return (summary, full_part)
+    header_part = parts[0]
+    full_text = parts[1].strip()
+
+    title = ""
+    if title_marker in header_part:
+        title_section = header_part.split(title_marker, 1)[1]
+        if summary_marker in title_section:
+            title_section = title_section.split(summary_marker, 1)[0]
+        title = title_section.strip()
+
+    summary = ""
+    if summary_marker in header_part:
+        summary_section = header_part.split(summary_marker, 1)[1]
+        if full_marker in summary_section:
+            summary_section = summary_section.split(full_marker, 1)[0]
+        summary = summary_section.strip()
+
+    if not title or not summary or not full_text:
+        raise ValueError("Empty TITLE, SUMMARY, or FULL section")
+    return (title, summary, full_text)
 
 
-def rewrite_one(
-    article_id: str,
-    article: dict[str, Any],
+def _build_articles_text(articles: list[dict[str, Any]]) -> str:
+    """Build concatenated text of all articles for the prompt."""
+    blocks = []
+    for i, art in enumerate(articles, 1):
+        title = (art.get("title") or "").strip()
+        full = (art.get("full_text") or "").strip()
+        raw = (art.get("raw_text") or "").strip()
+        text = full or raw
+        if not text:
+            continue
+        blocks.append(f"[Source {i}: {title}]\n\n{text}")
+    return "\n\n---\n\n".join(blocks) if blocks else ""
+
+
+def rewrite_cluster(
+    cluster_id: str,
+    articles: list[dict[str, Any]],
     profile: dict[str, Any],
     config: dict[str, Any],
 ) -> bool:
-    """Rewrite one article and store. Returns True on success, False on failure."""
-    article_text = (article.get("full_text") or "").strip() or (
-        article.get("raw_text") or ""
-    ).strip()
-    if not article_text:
-        db_rewrites.insert_rewrite(
-            article_id=article_id,
-            profile_hash=profile_service.compute_profile_hash(profile),
+    """Rewrite a cluster (merge + adapt all articles) and store. Returns True on success."""
+    articles_text = _build_articles_text(articles)
+    if not articles_text:
+        profile_hash = profile_service.compute_profile_hash(profile)
+        db_clusters.insert_cluster_rewrite(
+            cluster_id=cluster_id,
+            profile_hash=profile_hash,
+            title=None,
             summary=None,
             full_text=None,
             rewrite_failed=True,
@@ -63,9 +91,9 @@ def rewrite_one(
     profile_hash = profile_service.compute_profile_hash(profile)
     processing = config.get("processing", {})
     summary_sentences = processing.get("summary_sentences", 3)
-    prompt_template = load_prompt("rewrite_article")
+    prompt_template = load_prompt("rewrite_cluster")
     prompt = prompt_template.format(
-        article_text=article_text,
+        articles_text=articles_text,
         language=profile.get("language", "ca"),
         rewrite_tone=profile.get(
             "rewrite_tone",
@@ -77,20 +105,22 @@ def rewrite_one(
 
     try:
         provider = get_provider(config)
-        response = provider.complete(prompt, max_tokens=2000)
-        summary, full_text = _parse_llm_response(response)
-        db_rewrites.insert_rewrite(
-            article_id=article_id,
+        response = provider.complete(prompt, max_tokens=3000)
+        title, summary, full_text = _parse_cluster_llm_response(response)
+        db_clusters.insert_cluster_rewrite(
+            cluster_id=cluster_id,
             profile_hash=profile_hash,
+            title=title,
             summary=summary,
             full_text=full_text,
             rewrite_failed=False,
         )
         return True
     except (LLMProviderError, ValueError):
-        db_rewrites.insert_rewrite(
-            article_id=article_id,
+        db_clusters.insert_cluster_rewrite(
+            cluster_id=cluster_id,
             profile_hash=profile_hash,
+            title=None,
             summary=None,
             full_text=None,
             rewrite_failed=True,
@@ -99,37 +129,43 @@ def rewrite_one(
 
 
 def run_rewrite_batch(config: dict[str, Any]) -> RewriteReport:
-    """Process today's articles for all distinct rewrite profiles."""
-    today_start = datetime.now(UTC).replace(hour=0, minute=0, second=0, microsecond=0)
+    """Process today's clusters for all distinct rewrite profiles."""
+    processing = config.get("processing", {})
+    window_hours = processing.get("cluster_window_hours", 24)
+    since = datetime.now(UTC) - timedelta(hours=window_hours)
     batch_size = config.get("schedule", {}).get("rewrite_batch_size", 10)
 
     profiles = db_users.get_distinct_rewrite_profiles()
-    articles_attempted = 0
-    articles_succeeded = 0
-    articles_failed = 0
+    clusters_attempted = 0
+    clusters_succeeded = 0
+    clusters_failed = 0
 
     for profile in profiles:
         profile_hash = profile_service.compute_profile_hash(profile)
-        articles = db_rewrites.get_articles_needing_rewrite(
+        clusters = db_clusters.get_clusters_needing_rewrite(
             profile_hash=profile_hash,
-            since=today_start,
+            since=since,
             limit=batch_size,
         )
-        for article in articles:
-            articles_attempted += 1
-            if rewrite_one(
-                article_id=article["id"],
-                article=article,
+        for row in clusters:
+            cluster_id = row["cluster_id"]
+            articles = db_clusters.get_articles_in_cluster(cluster_id)
+            if not articles:
+                continue
+            clusters_attempted += 1
+            if rewrite_cluster(
+                cluster_id=cluster_id,
+                articles=articles,
                 profile=profile,
                 config=config,
             ):
-                articles_succeeded += 1
+                clusters_succeeded += 1
             else:
-                articles_failed += 1
+                clusters_failed += 1
 
     return RewriteReport(
         profiles_processed=len(profiles),
-        articles_attempted=articles_attempted,
-        articles_succeeded=articles_succeeded,
-        articles_failed=articles_failed,
+        clusters_attempted=clusters_attempted,
+        clusters_succeeded=clusters_succeeded,
+        clusters_failed=clusters_failed,
     )

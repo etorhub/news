@@ -1,4 +1,5 @@
 # Multi-stage build for Accessible News Aggregator
+# Note: sentence-transformers adds ~1.5 GB (PyTorch CPU) to image size
 # Builder stage
 FROM python:3.12-slim AS builder
 

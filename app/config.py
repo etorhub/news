@@ -10,8 +10,13 @@ DEFAULTS: dict[str, Any] = {
         "provider": "anthropic",
         "model": "claude-sonnet-4-20250514",
     },
+    "embeddings": {
+        "provider": "local",
+        "model": "paraphrase-multilingual-MiniLM-L12-v2",
+    },
     "schedule": {
         "fetch_interval_minutes": 60,
+        "cluster_cron": "5 * * * *",
         "rewrite_cron": "0 6 * * *",
         "rewrite_batch_size": 10,
         "fetcher": {
@@ -23,6 +28,9 @@ DEFAULTS: dict[str, Any] = {
     "processing": {
         "articles_per_day": 10,
         "summary_sentences": 3,
+        "cluster_window_hours": 24,
+        "cluster_similarity_threshold": 0.82,
+        "embed_batch_size": 50,
     },
     "server": {
         "port": 5000,
