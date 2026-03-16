@@ -4,10 +4,12 @@ import contextlib
 import logging
 
 from apscheduler.schedulers.blocking import BlockingScheduler
+from apscheduler.triggers.cron import CronTrigger
 from apscheduler.triggers.interval import IntervalTrigger
 
 from app.config import load_config
 from app.feed.orchestrator import fetch_all_due_feeds
+from app.services.rewrite_service import run_rewrite_batch
 
 logger = logging.getLogger(__name__)
 
@@ -28,6 +30,22 @@ def _run_fetch_job() -> None:
         logger.exception("Fetch job failed")
 
 
+def _run_rewrite_job() -> None:
+    """Scheduled job: rewrite today's articles for all profile hashes."""
+    try:
+        config = load_config()
+        report = run_rewrite_batch(config)
+        logger.info(
+            "Rewrite run: profiles=%d attempted=%d ok=%d failed=%d",
+            report.profiles_processed,
+            report.articles_attempted,
+            report.articles_succeeded,
+            report.articles_failed,
+        )
+    except Exception:
+        logger.exception("Rewrite job failed")
+
+
 def main() -> None:
     """Start the scheduler with fetch job."""
     import os
@@ -45,6 +63,13 @@ def main() -> None:
         _run_fetch_job,
         trigger=IntervalTrigger(minutes=interval_min),
         id="fetch_feeds",
+    )
+
+    rewrite_cron = config.get("schedule", {}).get("rewrite_cron", "0 6 * * *")
+    scheduler.add_job(
+        _run_rewrite_job,
+        trigger=CronTrigger.from_crontab(rewrite_cron),
+        id="rewrite_articles",
     )
 
     with contextlib.suppress(KeyboardInterrupt, SystemExit):
