@@ -76,12 +76,15 @@ def create_app(config_path: str | Path | None = None) -> Flask:
 
     @app.context_processor
     def inject_admin_flag():  # type: ignore[no-untyped-def]
-        """Inject is_admin for nav link."""
+        """Inject is_admin and current_user_email for nav."""
         user_id = session.get("user_id")
         if not user_id:
-            return {"is_admin": False}
+            return {"is_admin": False, "current_user_email": None}
         user = db_users.get_user_by_id(user_id)
-        return {"is_admin": user.get("is_admin", False) if user else False}
+        return {
+            "is_admin": user.get("is_admin", False) if user else False,
+            "current_user_email": user.get("email") if user else None,
+        }
 
     app.cli.add_command(seed_sources)
     app.cli.add_command(validate_feeds_cmd)

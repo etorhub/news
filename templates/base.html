@@ -73,12 +73,23 @@
       margin-bottom: 2rem;
       padding-bottom: 1rem;
       border-bottom: 2px solid var(--border);
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      justify-content: space-between;
+      gap: 1rem;
     }
     nav a, nav form {
       display: inline-block;
       margin-right: 1rem;
       min-height: var(--touch-min);
       line-height: var(--touch-min);
+    }
+    nav .nav-right {
+      display: flex;
+      align-items: center;
+      gap: 1rem;
+      margin-left: auto;
     }
     .tts-only { display: none; }
     body.tts-available .tts-only { display: inline-block; }
@@ -101,15 +112,22 @@
 <body class="{% if profile and profile.high_contrast %}high-contrast {% endif %}{% if request and request.cookies.get('tts_available') %}tts-available{% endif %}">
   <nav>
     {% if session.get('user_id') %}
-      <a href="{{ url_for('reader.index') }}">Feed</a>
-      <a href="{{ url_for('settings.settings_page') }}">Settings</a>
-      {% if is_admin %}<a href="{{ url_for('admin.dashboard') }}">Admin</a>{% endif %}
-      <form method="post" action="{{ url_for('auth.logout') }}" style="display:inline;">
-        <button type="submit">Log out</button>
-      </form>
+      <div>
+        <a href="{{ url_for('reader.index') }}">Feed</a>
+        <a href="{{ url_for('settings.settings_page') }}">Settings</a>
+        {% if is_admin %}<a href="{{ url_for('admin.dashboard') }}">Admin</a>{% endif %}
+      </div>
+      <div class="nav-right">
+        {% if current_user_email %}<span>{{ current_user_email }}</span>{% endif %}
+        <form method="post" action="{{ url_for('auth.logout') }}" style="display:inline;">
+          <button type="submit">Log out</button>
+        </form>
+      </div>
     {% else %}
-      <a href="{{ url_for('auth.login') }}">Log in</a>
-      <a href="{{ url_for('auth.register') }}">Register</a>
+      <div>
+        <a href="{{ url_for('auth.login') }}">Log in</a>
+        <a href="{{ url_for('auth.register') }}">Register</a>
+      </div>
     {% endif %}
   </nav>
   <main>
