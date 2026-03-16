@@ -4,7 +4,6 @@ from datetime import UTC, datetime, timedelta
 from typing import Any
 
 from app.config import load_config, load_sources
-from app.db import articles as db_articles
 from app.db import clusters as db_clusters
 from app.services import profile_service
 
@@ -73,6 +72,10 @@ def get_feed(user_id: int) -> list[dict[str, Any]]:
         articles = cluster_data["articles"]
         rw = rewrites_map.get(cluster_id)
 
+        # Only show clusters that have an LLM rewrite; never show raw source content
+        if not rw or not rw.get("title") or not rw.get("full_text"):
+            continue
+
         sources_list = []
         for art in articles:
             src = sources.get(art["source_id"], {})
@@ -84,28 +87,12 @@ def get_feed(user_id: int) -> list[dict[str, Any]]:
                 }
             )
 
-        title = rw["title"] if rw and rw.get("title") else (articles[0].get("title", "") if articles else "")
-        summary = (
-            rw["summary"]
-            if rw and rw.get("summary")
-            else (articles[0].get("raw_text", "") if articles else "")
-        )
-        full_text = (
-            rw["full_text"]
-            if rw and rw.get("full_text")
-            else (
-                articles[0].get("full_text") or articles[0].get("raw_text", "")
-                if articles
-                else ""
-            )
-        )
-
         result.append(
             {
                 "id": cluster_id,
-                "title": title,
-                "summary": summary,
-                "full_text": full_text,
+                "title": rw["title"],
+                "summary": rw.get("summary") or "",
+                "full_text": rw["full_text"],
                 "sources": sources_list,
                 "profile_hash": profile_hash,
             }
@@ -133,20 +120,15 @@ def get_expanded_cluster(cluster_id: str, profile_hash: str) -> dict[str, Any] |
                 "title": art.get("title", ""),
             }
         )
-    title = (
-        rw["title"]
-        if rw and rw.get("title")
-        else (articles[0].get("title", "") if articles else "")
-    )
-    full_text = (
-        rw["full_text"]
-        if rw and rw.get("full_text")
-        else (
-            articles[0].get("full_text") or articles[0].get("raw_text", "")
-            if articles
-            else ""
-        )
-    )
+
+    # Never show raw source content; use rewrite or "being prepared" placeholder
+    if rw and rw.get("full_text"):
+        title = rw.get("title") or "Article"
+        full_text = rw["full_text"]
+    else:
+        title = "Article"
+        full_text = "This article is being prepared. Please try again shortly."
+
     return {
         "id": cluster_id,
         "title": title,

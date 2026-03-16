@@ -8,8 +8,9 @@ embeddings:
 
 schedule:
   fetch_interval_minutes: 60
-  enrichment_cron: "10 * * * *"   # Hourly at 10 min past (after fetch)
-  cluster_cron: "5 * * * *"   # Hourly at 5 min past (after fetch)
+  # Pipeline order: fetch -> enrichment -> cluster -> rewrite
+  enrichment_cron: "5 * * * *"   # Hourly at :05 (after fetch at :00)
+  cluster_cron: "15 * * * *"    # Hourly at :15 (after enrichment)
   rewrite_cron: "0 6 * * *"   # Daily at 6am
   rewrite_batch_size: 10
   fetcher:

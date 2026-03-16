@@ -1,9 +1,10 @@
-"""LLM rewrite orchestration. Runs on schedule, never during request handling."""
+"""LLM rewrite orchestration. Runs on schedule or via manual trigger after settings save."""
 
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 from typing import Any
 
+from app.config import load_config
 from app.db import clusters as db_clusters
 from app.db import users as db_users
 from app.llm.prompts import load_prompt
@@ -26,7 +27,11 @@ def _parse_cluster_llm_response(text: str) -> tuple[str, str, str]:
     title_marker = "TITLE:"
     summary_marker = "SUMMARY:"
     full_marker = "FULL:"
-    if title_marker not in text or summary_marker not in text or full_marker not in text:
+    if (
+        title_marker not in text
+        or summary_marker not in text
+        or full_marker not in text
+    ):
         raise ValueError("Response missing TITLE:, SUMMARY:, or FULL: sections")
 
     parts = text.split(full_marker, 1)
@@ -165,6 +170,59 @@ def run_rewrite_batch(config: dict[str, Any]) -> RewriteReport:
 
     return RewriteReport(
         profiles_processed=len(profiles),
+        clusters_attempted=clusters_attempted,
+        clusters_succeeded=clusters_succeeded,
+        clusters_failed=clusters_failed,
+    )
+
+
+def run_rewrite_for_user(
+    user_id: int, config: dict[str, Any] | None = None
+) -> RewriteReport:
+    """Process clusters needing rewrite for a single user's profile. Used after setup/settings save."""
+    cfg = config or load_config()
+    profile = db_users.get_profile(user_id)
+    if not profile:
+        return RewriteReport(
+            profiles_processed=0,
+            clusters_attempted=0,
+            clusters_succeeded=0,
+            clusters_failed=0,
+        )
+
+    processing = cfg.get("processing", {})
+    window_hours = processing.get("cluster_window_hours", 24)
+    since = datetime.now(UTC) - timedelta(hours=window_hours)
+    batch_size = cfg.get("schedule", {}).get("rewrite_batch_size", 10)
+
+    profile_hash = profile_service.compute_profile_hash(profile)
+    clusters = db_clusters.get_clusters_needing_rewrite(
+        profile_hash=profile_hash,
+        since=since,
+        limit=batch_size,
+    )
+    clusters_attempted = 0
+    clusters_succeeded = 0
+    clusters_failed = 0
+
+    for row in clusters:
+        cluster_id = row["cluster_id"]
+        articles = db_clusters.get_articles_in_cluster(cluster_id)
+        if not articles:
+            continue
+        clusters_attempted += 1
+        if rewrite_cluster(
+            cluster_id=cluster_id,
+            articles=articles,
+            profile=profile,
+            config=cfg,
+        ):
+            clusters_succeeded += 1
+        else:
+            clusters_failed += 1
+
+    return RewriteReport(
+        profiles_processed=1,
         clusters_attempted=clusters_attempted,
         clusters_succeeded=clusters_succeeded,
         clusters_failed=clusters_failed,

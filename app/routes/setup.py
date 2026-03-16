@@ -1,11 +1,20 @@
 """Setup wizard: initial configuration after registration."""
 
+import threading
 from typing import Any
 
-from flask import Blueprint, redirect, render_template, request, session, url_for
+from flask import (
+    Blueprint,
+    current_app,
+    redirect,
+    render_template,
+    request,
+    session,
+    url_for,
+)
 
 from app.config import load_sources
-from app.services import profile_service
+from app.services import profile_service, rewrite_service
 
 setup_bp = Blueprint("setup", __name__, url_prefix="/setup")
 
@@ -77,4 +86,15 @@ def setup_page() -> Any:
         "high_contrast": high_contrast,
     }
     profile_service.save_setup(user_id, form_data, source_ids, topic_ids)
+
+    def _run_rewrite_with_app(app: Any, uid: int) -> None:
+        with app.app_context():
+            rewrite_service.run_rewrite_for_user(uid)
+
+    app = current_app._get_current_object()
+    threading.Thread(
+        target=lambda: _run_rewrite_with_app(app, user_id),
+        daemon=True,
+    ).start()
+
     return redirect(url_for("reader.index"))
