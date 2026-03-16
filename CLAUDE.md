@@ -53,6 +53,10 @@ Refer to `docs/MVP_PLAN.md` for the canonical phased plan: discovery, fetching, 
 - Soft daily notification: "You have N new articles"
 - Account management designed to be set up once and left alone
 
+### Operator-facing
+
+- Admin dashboard at `/admin` — pipeline monitoring, job history, feed health, user activity, incidents. Access via `flask make-admin <email>`. See `docs/ADMIN_DASHBOARD.md`.
+
 ---
 
 ## Tech Stack (Summary)
