@@ -1,5 +1,6 @@
 """LLM rewrite orchestration. Runs on schedule or via manual trigger after settings save."""
 
+import re
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
@@ -35,35 +36,29 @@ def _strip_markdown_bold(text: str) -> str:
 
 def _parse_cluster_llm_response(text: str) -> tuple[str, str, str]:
     """Parse LLM output into (title, summary, full_text). Raises ValueError on bad format."""
-    title_marker = "TITLE:"
-    summary_marker = "SUMMARY:"
-    full_marker = "FULL:"
-    if (
-        title_marker not in text
-        or summary_marker not in text
-        or full_marker not in text
-    ):
+    # Case-insensitive markers (small models may output "Title:" or "Título:" etc.)
+    if not re.search(r"TITLE\s*:", text, re.I):
+        raise ValueError("Response missing TITLE:, SUMMARY:, or FULL: sections")
+    if not re.search(r"SUMMARY\s*:", text, re.I):
+        raise ValueError("Response missing TITLE:, SUMMARY:, or FULL: sections")
+    if not re.search(r"FULL\s*:", text, re.I):
         raise ValueError("Response missing TITLE:, SUMMARY:, or FULL: sections")
 
-    parts = text.split(full_marker, 1)
+    parts = re.split(r"FULL\s*:", text, maxsplit=1, flags=re.I)
     if len(parts) != 2:
         raise ValueError("Response missing FULL: section")
     header_part = parts[0]
     full_text = parts[1].strip()
 
     title = ""
-    if title_marker in header_part:
-        title_section = header_part.split(title_marker, 1)[1]
-        if summary_marker in title_section:
-            title_section = title_section.split(summary_marker, 1)[0]
-        title = title_section.strip()
+    title_match = re.search(r"TITLE\s*:(.*?)(?=SUMMARY\s*:|$)", header_part, re.I | re.DOTALL)
+    if title_match:
+        title = title_match.group(1).strip()
 
     summary = ""
-    if summary_marker in header_part:
-        summary_section = header_part.split(summary_marker, 1)[1]
-        if full_marker in summary_section:
-            summary_section = summary_section.split(full_marker, 1)[0]
-        summary = summary_section.strip()
+    summary_match = re.search(r"SUMMARY\s*:(.*?)(?=FULL\s*:|$)", header_part, re.I | re.DOTALL)
+    if summary_match:
+        summary = summary_match.group(1).strip()
 
     if not title or not summary or not full_text:
         raise ValueError("Empty TITLE, SUMMARY, or FULL section")
@@ -186,9 +181,7 @@ def run_rewrite_batch(config: dict[str, Any]) -> RewriteReport:
     clusters_attempted = 0
     clusters_succeeded = 0
     clusters_failed = 0
-
-    # Share provider across calls to avoid repeated model loads (local LLM)
-    provider = get_provider(config)
+    provider: LLMProvider | None = None
 
     for profile in profiles:
         clusters = db_clusters.get_clusters_needing_rewrite(
@@ -205,6 +198,12 @@ def run_rewrite_batch(config: dict[str, Any]) -> RewriteReport:
 
         if not work:
             continue
+
+        # Share provider across calls. Eager-load in main thread to avoid
+        # deadlock when workers load concurrently (local LLM).
+        if provider is None:
+            provider = get_provider(config)
+            provider.warm_up()
 
         if parallel_workers > 1:
             with ThreadPoolExecutor(max_workers=parallel_workers) as executor:
@@ -285,8 +284,19 @@ def run_rewrite_for_user(
     clusters_succeeded = 0
     clusters_failed = 0
 
+    if not work:
+        return RewriteReport(
+            profiles_processed=1,
+            clusters_attempted=0,
+            clusters_succeeded=0,
+            clusters_failed=0,
+        )
+
+    # Eager-load in main thread to avoid deadlock when workers load concurrently.
     provider = get_provider(cfg)
-    if parallel_workers > 1 and work:
+    provider.warm_up()
+
+    if parallel_workers > 1:
         with ThreadPoolExecutor(max_workers=parallel_workers) as executor:
             futures = {
                 executor.submit(

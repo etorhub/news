@@ -234,7 +234,9 @@ def test_run_rewrite_batch_counts() -> None:
         patch("app.services.rewrite_service.db_users") as mock_users,
         patch("app.services.rewrite_service.db_clusters") as mock_clusters,
         patch("app.services.rewrite_service.rewrite_cluster") as mock_rewrite,
+        patch("app.services.rewrite_service.get_provider") as mock_get,
     ):
+        mock_get.return_value = MagicMock()
         mock_users.get_distinct_rewrite_profiles.return_value = [
             {
                 "language": "ca",

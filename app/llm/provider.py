@@ -13,6 +13,10 @@ class LLMProviderError(Exception):
 class LLMProvider(ABC):
     """Abstract base for LLM providers."""
 
+    def warm_up(self) -> None:
+        """Pre-load resources (e.g. local model weights) before parallel use. No-op for API providers."""
+        pass
+
     @abstractmethod
     def complete(self, prompt: str, max_tokens: int = 1000) -> str:
         """Send prompt to the model and return the generated text."""
@@ -134,14 +138,29 @@ class LocalLLMProvider(LLMProvider):
         self._model: Any = None
         self._tokenizer: Any = None
 
+    def warm_up(self) -> None:
+        """Load model and tokenizer in the current thread before parallel dispatch."""
+        self._get_model_and_tokenizer()
+
     def _get_model_and_tokenizer(self) -> tuple[Any, Any]:
         """Lazy-load the model and tokenizer on first use."""
         if self._model is None:
+            import torch
+
             from transformers import AutoModelForCausalLM, AutoTokenizer
 
             self._tokenizer = AutoTokenizer.from_pretrained(self._model_name)
-            self._model = AutoModelForCausalLM.from_pretrained(self._model_name)
+            # On CPU, use float32 to avoid "mat1 and mat2 must have the same dtype"
+            # (BFloat16) and "Cannot copy out of meta tensor" (low_cpu_mem_usage).
+            load_kwargs: dict[str, Any] = {}
+            if self._device == "cpu":
+                load_kwargs["torch_dtype"] = torch.float32
+                load_kwargs["low_cpu_mem_usage"] = False
+            self._model = AutoModelForCausalLM.from_pretrained(
+                self._model_name, **load_kwargs
+            )
             self._model.to(self._device)
+
         return self._model, self._tokenizer
 
     def complete(self, prompt: str, max_tokens: int = 1000) -> str:
@@ -206,8 +225,8 @@ def get_provider(config: dict[str, Any] | None = None) -> LLMProvider:
     if config is None:
         config = load_config()
     llm = config.get("llm", {})
-    provider_name = (llm.get("provider") or "anthropic").lower()
-    model = llm.get("model") or "claude-sonnet-4-20250514"
+    provider_name = (llm.get("provider") or "local").lower()
+    model = llm.get("model") or "Qwen/Qwen2.5-1.5B-Instruct"
     api_key = llm.get("api_key")
 
     if provider_name == "anthropic":
