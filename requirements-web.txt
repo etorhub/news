@@ -1,0 +1,10 @@
+# Web container only. Excludes ML/LLM/processing deps (see requirements.txt for worker).
+flask
+psycopg2-binary
+python-dotenv
+bcrypt
+alembic
+sqlalchemy
+gunicorn
+PyYAML
+humanize

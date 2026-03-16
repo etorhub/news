@@ -1,4 +1,25 @@
 services:
+  ollama:
+    image: ollama/ollama
+    volumes:
+      - ollama_data:/root/.ollama
+    healthcheck:
+      test: ["CMD", "ollama", "list"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+
+  ollama-init:
+    image: ollama/ollama
+    depends_on:
+      ollama:
+        condition: service_healthy
+    environment:
+      OLLAMA_HOST: http://ollama:11434
+    entrypoint: ["sh", "-c", "ollama pull qwen2.5:7b && ollama pull nomic-embed-text"]
+    restart: "no"
+
   db:
     image: postgres:16-alpine
     volumes:
@@ -14,7 +35,9 @@ services:
       retries: 5
 
   web:
-    build: .
+    build:
+      context: .
+      target: web
     ports:
       - "5000:5000"
     depends_on:
@@ -28,21 +51,27 @@ services:
     volumes:
       - ./config:/app/config
     command: >
-      sh -c "alembic upgrade head && gunicorn -b 0.0.0.0:5000 app:create_app"
+      sh -c "alembic upgrade head && gunicorn -b 0.0.0.0:5000 app:application"
 
-  scheduler:
-    build: .
+  worker:
+    build:
+      context: .
+      target: worker
     depends_on:
       db:
         condition: service_healthy
+      ollama-init:
+        condition: service_completed_successfully
     env_file:
       - .env
     environment:
       DATABASE_URL: postgresql://news:${POSTGRES_PASSWORD}@db:5432/news
       POSTGRES_HOST: db
+      OLLAMA_HOST: http://ollama:11434
     volumes:
       - ./config:/app/config
     command: python -m app.scheduler
 
 volumes:
   pgdata:
+  ollama_data:

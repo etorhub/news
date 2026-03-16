@@ -5,152 +5,84 @@ from unittest.mock import MagicMock, patch
 import pytest
 
 from app.llm.provider import (
-    AnthropicProvider,
-    GeminiProvider,
     LLMProviderError,
-    LocalLLMProvider,
-    OpenAIProvider,
+    OllamaProvider,
     get_provider,
 )
 
 
-def test_get_provider_anthropic() -> None:
-    """get_provider returns AnthropicProvider for anthropic config."""
-    config = {"llm": {"provider": "anthropic", "model": "claude-sonnet-4-20250514"}}
+def test_get_provider_ollama() -> None:
+    """get_provider returns OllamaProvider for ollama config."""
+    config = {"llm": {"provider": "ollama", "model": "qwen2.5:7b"}}
     provider = get_provider(config)
-    assert isinstance(provider, AnthropicProvider)
-    assert provider._model == "claude-sonnet-4-20250514"
+    assert isinstance(provider, OllamaProvider)
+    assert provider._model == "qwen2.5:7b"
+    assert provider._host == "http://ollama:11434"
 
 
-def test_get_provider_openai() -> None:
-    """get_provider returns OpenAIProvider for openai config."""
-    config = {"llm": {"provider": "openai", "model": "gpt-4o"}}
+def test_get_provider_ollama_with_host() -> None:
+    """get_provider uses host from config when set."""
+    config = {"llm": {"model": "qwen2.5:7b", "host": "http://localhost:11434"}}
     provider = get_provider(config)
-    assert isinstance(provider, OpenAIProvider)
-    assert provider._model == "gpt-4o"
+    assert isinstance(provider, OllamaProvider)
+    assert provider._host == "http://localhost:11434"
 
 
-def test_get_provider_gemini() -> None:
-    """get_provider returns GeminiProvider for gemini config."""
-    config = {"llm": {"provider": "gemini", "model": "gemini-1.5-flash"}}
+def test_get_provider_defaults() -> None:
+    """get_provider uses defaults when config minimal."""
+    config = {}
     provider = get_provider(config)
-    assert isinstance(provider, GeminiProvider)
-    assert provider._model == "gemini-1.5-flash"
+    assert isinstance(provider, OllamaProvider)
+    assert provider._model == "qwen2.5:7b"
+    assert provider._host == "http://ollama:11434"
 
 
-def test_get_provider_local() -> None:
-    """get_provider returns LocalLLMProvider for local config."""
-    config = {"llm": {"provider": "local", "model": "Qwen/Qwen2.5-1.5B-Instruct"}}
-    provider = get_provider(config)
-    assert isinstance(provider, LocalLLMProvider)
-    assert provider._model_name == "Qwen/Qwen2.5-1.5B-Instruct"
-    assert provider._device == "cpu"
-
-
-def test_get_provider_local_with_model_path() -> None:
-    """get_provider uses model_path when set for air-gapped loading."""
-    config = {
-        "llm": {
-            "provider": "local",
-            "model": "Qwen/Qwen2.5-1.5B-Instruct",
-            "model_path": "/path/to/local/model",
-        }
+def test_ollama_provider_complete() -> None:
+    """OllamaProvider.complete returns content from mocked client."""
+    mock_response = {
+        "message": {"content": "TITLE:\nTest\n\nSUMMARY:\nOne. Two.\n\nFULL:\nText."}
     }
-    provider = get_provider(config)
-    assert isinstance(provider, LocalLLMProvider)
-    assert provider._model_name == "/path/to/local/model"
-
-
-def test_get_provider_unknown_raises() -> None:
-    """get_provider raises LLMProviderError for unknown provider."""
-    config = {"llm": {"provider": "unknown"}}
-    with pytest.raises(LLMProviderError, match="Unknown LLM provider"):
-        get_provider(config)
-
-
-def test_get_provider_defaults_to_local() -> None:
-    """get_provider defaults to local when provider not specified."""
-    config = {"llm": {"model": "Qwen/Qwen2.5-1.5B-Instruct"}}
-    provider = get_provider(config)
-    assert isinstance(provider, LocalLLMProvider)
-
-
-def test_anthropic_provider_raises_on_missing_key(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    """AnthropicProvider.complete raises LLMProviderError when API key not set."""
-    monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
-    provider = AnthropicProvider(model="claude-sonnet-4-20250514", api_key=None)
-    with pytest.raises(LLMProviderError, match="ANTHROPIC_API_KEY not set"):
-        provider.complete("Hello")
-
-
-def test_anthropic_provider_raises_on_api_error(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    """AnthropicProvider.complete raises LLMProviderError on API failure."""
-    monkeypatch.setenv("ANTHROPIC_API_KEY", "test-key")
-
-    def failing_create(*args: object, **kwargs: object) -> None:
-        raise Exception("Server error")
-
     mock_client = MagicMock()
-    mock_client.messages.create = failing_create
+    mock_client.chat.return_value = mock_response
 
-    with patch("anthropic.Anthropic", return_value=mock_client):
-        provider = AnthropicProvider(model="claude-sonnet", api_key="test")
-        with pytest.raises(LLMProviderError, match="Server error"):
+    with patch("ollama.Client") as mock_client_class:
+        mock_client_class.return_value = mock_client
+        provider = OllamaProvider(model="qwen2.5:7b", host="http://localhost:11434")
+        result = provider.complete("Rewrite this", max_tokens=100)
+
+    assert result == "TITLE:\nTest\n\nSUMMARY:\nOne. Two.\n\nFULL:\nText."
+    mock_client.chat.assert_called_once_with(
+        model="qwen2.5:7b",
+        messages=[{"role": "user", "content": "Rewrite this"}],
+        options={"num_predict": 100},
+    )
+
+
+def test_ollama_provider_raises_on_empty_response() -> None:
+    """OllamaProvider.complete raises LLMProviderError when response has no content."""
+    mock_client = MagicMock()
+    mock_client.chat.return_value = {"message": {}}
+
+    with patch("ollama.Client") as mock_client_class:
+        mock_client_class.return_value = mock_client
+        provider = OllamaProvider(model="qwen2.5:7b")
+        with pytest.raises(LLMProviderError, match="Empty response"):
             provider.complete("Hello")
 
 
-def test_local_provider_complete() -> None:
-    """LocalLLMProvider.complete returns decoded text from mocked model."""
-    import torch
+def test_ollama_provider_raises_on_error() -> None:
+    """OllamaProvider.complete raises LLMProviderError on client failure."""
+    mock_client = MagicMock()
+    mock_client.chat.side_effect = Exception("Connection refused")
 
-    mock_tokenizer = MagicMock()
-    mock_tokenizer.apply_chat_template.side_effect = Exception("No chat template")
-    mock_tokenizer.eos_token_id = 2
-
-    # tokenizer(prompt, ...) returns BatchEncoding with input_ids
-    input_ids = torch.zeros(1, 5, dtype=torch.long)
-    mock_tokenizer.return_value = MagicMock(input_ids=input_ids)
-    expected = "TITLE:\nTest\n\nSUMMARY:\nOne. Two.\n\nFULL:\nText."
-    mock_tokenizer.decode.return_value = expected
-
-    mock_model = MagicMock()
-    mock_model.config.max_position_embeddings = 2048
-    full_output = torch.zeros(1, 15, dtype=torch.long)
-
-    def generate_side_effect(*args: object, **kwargs: object) -> torch.Tensor:
-        return full_output
-
-    mock_model.generate = MagicMock(side_effect=generate_side_effect)
-
-    def mock_get_model_and_tokenizer(self: object) -> tuple[MagicMock, MagicMock]:
-        return mock_model, mock_tokenizer
-
-    provider = LocalLLMProvider(model="test-model", model_path=None, device="cpu")
-    with patch.object(
-        LocalLLMProvider,
-        "_get_model_and_tokenizer",
-        mock_get_model_and_tokenizer,
-    ):
-        result = provider.complete("Rewrite this", max_tokens=10)
-
-    assert result == expected
-
-
-def test_local_provider_raises_on_error() -> None:
-    """LocalLLMProvider.complete raises LLMProviderError on inference failure."""
-
-    def raise_oom(self: object) -> None:
-        raise Exception("Out of memory")
-
-    provider = LocalLLMProvider(model="test-model", device="cpu")
-    with patch.object(
-        LocalLLMProvider,
-        "_get_model_and_tokenizer",
-        raise_oom,
-    ):
-        with pytest.raises(LLMProviderError, match="Out of memory"):
+    with patch("ollama.Client") as mock_client_class:
+        mock_client_class.return_value = mock_client
+        provider = OllamaProvider(model="qwen2.5:7b")
+        with pytest.raises(LLMProviderError, match="Connection refused"):
             provider.complete("Hello")
+
+
+def test_ollama_provider_warm_up_noop() -> None:
+    """OllamaProvider.warm_up is a no-op (Ollama handles loading)."""
+    provider = OllamaProvider(model="qwen2.5:7b")
+    provider.warm_up()  # Should not raise

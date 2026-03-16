@@ -29,7 +29,7 @@ Canonical phased plan for the minimum viable product. This document replaces sca
    - `Dockerfile` — Multi-stage build (builder + runtime). Python 3.12-slim base.
    - `docker-compose.yml` — Production-like defaults (three services: `db`, `web`, `scheduler`).
    - `docker-compose.override.yml` — Dev overrides: bind mounts for live reload, `flask run --debug`, exposed ports.
-   - `.env.example` — Template for `POSTGRES_PASSWORD`, `SECRET_KEY`, LLM API keys.
+   - `.env.example` — Template for `POSTGRES_PASSWORD`, `SECRET_KEY` (no LLM API keys; Ollama runs local).
 
 2. **Python tooling (lint, format, type check, test)**
    - Single config: `pyproject.toml`.
@@ -227,7 +227,7 @@ End users and caregivers always access the platform, never the codebase. Flow: *
 - Paywalled content bypass
 - Native mobile app
 - Social or sharing features
-- Local LLM (Ollama) — supported via provider interface, not the MVP default
+- Cloud LLM APIs (Anthropic, OpenAI, Gemini) — Ollama is the only supported provider
 
 ---
 

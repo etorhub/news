@@ -6,7 +6,7 @@ Technical reference for the Accessible News Aggregator. Update this document whe
 
 ## System Overview
 
-A Flask web application that fetches news from RSS feeds and open publisher APIs on a schedule, rewrites each article via an external LLM to match a reader's accessibility profile, and presents the result in a clean, accessible reader interface.
+A Flask web application that fetches news from RSS feeds and open publisher APIs on a schedule, rewrites each article via Ollama (local LLM) to match a reader's accessibility profile, and presents the result in a clean, accessible reader interface.
 
 The system has no client-side rendering. Flask renders all HTML server-side via Jinja2. HTMX makes targeted requests to Flask routes and swaps HTML fragments into the page. PostgreSQL stores user accounts, fetched articles, rewritten content, and all configuration.
 
@@ -79,16 +79,11 @@ A `RawArticle` has: `id`, `title`, `url`, `source`, `published_at`, `raw_text` (
 
 ### `app/llm/`
 
-The LLM abstraction layer. Nothing outside this directory calls an LLM SDK directly.
+The LLM abstraction layer. Nothing outside this directory calls Ollama directly.
 
-- `provider.py` — `LLMProvider` abstract base class and provider factory
-- `embeddings.py` — `EmbeddingProvider` for article clustering; local sentence-transformers
-- `providers/anthropic.py` — Anthropic Claude implementation
-- `providers/openai.py` — OpenAI implementation
-- `providers/gemini.py` — Google Gemini implementation
+- `provider.py` — `LLMProvider` abstract base class and `OllamaProvider` implementation
+- `embeddings.py` — `EmbeddingProvider` for article clustering; Ollama (nomic-embed-text)
 - `prompts/` — prompt template files (`.txt`)
-- `rewriter.py` — orchestrates the rewrite: loads profile, builds prompt, calls provider, returns `RewrittenArticle`
-- `scheduler.py` — APScheduler job definitions for daily rewrite cycle
 
 ### `app/services/`
 
@@ -265,12 +260,14 @@ All config lives in `config/`. The app reads it at startup. No config is hardcod
 
 ```yaml
 llm:
-  provider: anthropic        # anthropic | openai | gemini
-  model: claude-sonnet-4-20250514
+  provider: ollama
+  model: qwen2.5:7b
+  host: http://ollama:11434
 
 embeddings:
-  provider: local            # sentence-transformers
-  model: paraphrase-multilingual-MiniLM-L12-v2
+  provider: ollama
+  model: nomic-embed-text
+  host: http://ollama:11434
 
 schedule:
   fetch_interval_minutes: 60
@@ -412,4 +409,4 @@ If APScheduler is started inside a Gunicorn process, every worker spawns its own
 - Not a scraper. It uses RSS and official APIs.
 - Not a republisher. Every article links to and credits the original source.
 - Not a single-page application. There is no client-side routing.
-- Not a local-only tool. It uses external LLM APIs (Anthropic, OpenAI, Gemini) — an internet connection and API key are required.
+- Not cloud-dependent for LLM. It uses Ollama (local) — no API key required; runs fully offline after models are pulled.

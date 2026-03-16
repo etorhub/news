@@ -223,9 +223,8 @@ def run_rewrite_batch(config: dict[str, Any]) -> RewriteReport:
         # Share provider across calls. Eager-load in main thread to avoid
         # deadlock when workers load concurrently (local LLM).
         if provider is None:
-            logger.info("run_rewrite_batch: loading provider and warming up (may take minutes)")
+            logger.info("run_rewrite_batch: loading provider")
             provider = get_provider(config)
-            provider.warm_up()
             logger.info("run_rewrite_batch: provider ready, processing %d clusters", len(work))
 
         if parallel_workers > 1:
@@ -338,7 +337,6 @@ def run_rewrite_for_user(
 
     logger.info("run_rewrite_for_user: work=%d clusters, loading provider", len(work))
     provider = get_provider(cfg)
-    provider.warm_up()
     logger.info("run_rewrite_for_user: provider ready")
 
     if parallel_workers > 1:

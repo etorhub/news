@@ -3,16 +3,13 @@ name = "accessible-news-aggregator"
 version = "0.1.0"
 requires-python = ">=3.12"
 dependencies = [
-    "accelerate",
+    "ollama",
     "flask",
     "trafilatura",
     "psycopg2-binary",
     "apscheduler",
     "feedparser",
     "httpx",
-    "anthropic",
-    "openai",
-    "google-generativeai",
     "python-dotenv",
     "bcrypt",
     "alembic",

@@ -65,11 +65,11 @@ See `docs/TECH_STACK.md` for full details, project structure, dependencies, Dock
 
 - **Backend:** Python 3.12+ with Flask
 - **Database:** PostgreSQL 16
-- **LLM:** External APIs (Anthropic, OpenAI, Gemini) via provider interface
-- **Embeddings:** Local sentence-transformers for article clustering (no API key)
+- **LLM:** Ollama (local, no API key) via provider interface — text generation and embeddings
+- **Embeddings:** Ollama (nomic-embed-text) for article clustering
 - **Frontend:** Plain HTML + CSS + HTMX
 - **Scheduling:** APScheduler (fetch + rewrite on a schedule, content ready when user opens app)
-- **Packaging:** Docker + docker-compose (db, web, scheduler services)
+- **Packaging:** Docker + docker-compose (db, web, worker, ollama). Web uses slim image; worker uses ollama client; ollama runs models in dedicated container.
 - **Dev tooling:** Ruff (lint/format), Mypy (type check), Pytest, Lefthook (git hooks), Commitizen (conventional commits)
 
 ---
@@ -80,7 +80,7 @@ These are hard rules, not preferences:
 
 - **Flask routes return HTML only.** Never return JSON to the frontend. Every endpoint renders and returns a Jinja2 template partial. This is HATEOAS — the server owns all state and rendering.
 - **HTMX is the only frontend dependency.** No JavaScript frameworks. No build step. No npm. HTMX is loaded via a single CDN script tag. The only permitted JavaScript is a small inline `<script>` block in `base.html` for the Web Speech API (TTS feature detection and playback). No external JS files, no JS libraries beyond HTMX.
-- **LLM calls are always abstracted.** Never call Anthropic, OpenAI, or Gemini directly from a route. Always go through the provider interface in `app/llm/provider.py`.
+- **LLM calls are always abstracted.** Never call Ollama directly from a route. Always go through the provider interface in `app/llm/provider.py`.
 - **Fetching and rewriting run on a schedule.** APScheduler fetches feeds on configured intervals and rewrites articles for active users daily. When a user opens the app, content is already ready. No on-demand LLM calls during page load.
 - **Config is never hardcoded.** YAML files define the catalog of available sources/topics and app-level settings. User preferences (location, selected sources, selected topics, filter toggle, rewrite tone, language) live in PostgreSQL, set via the web UI.
 - **Multi-user from the start.** The schema, auth, and caching all support multiple independent user accounts.
@@ -104,11 +104,11 @@ These are hard rules, not preferences:
 
 - **Returning JSON from Flask routes.** Every route must return `render_template(...)` or `render_template_string(...)`. If you find yourself writing `jsonify`, stop.
 - **Adding JavaScript frameworks or files.** HTMX attributes on HTML elements handle all interactivity. There is no `static/js/` directory and no external JS libraries. The only permitted JavaScript is a small inline `<script>` in `base.html` for the Web Speech API (TTS). Do not add JS for anything else.
-- **Calling the LLM directly.** Always use `from app.llm.provider import get_provider` and call through the interface.
+- **Calling Ollama directly.** Always use `from app.llm.provider import get_provider` and call through the interface.
 - **Hardcoding source URLs or prompts.** These live in config files.
 - **Putting user preferences in YAML files.** User profile settings live in PostgreSQL, set through the setup wizard. Only the source catalog and app-level config belong in YAML.
 - **Using SQLite.** This project uses PostgreSQL. Always use `psycopg2` or the db layer, never `sqlite3`.
-- **Making LLM calls during request handling.** Fetching and rewriting happen on a schedule via APScheduler. Routes serve pre-cached content from the database.
+- **Making LLM calls during request handling.** The web container never imports or runs LLM/ML code. On-demand rewrites (after setup/settings save) are queued in `rewrite_requests` and processed by the worker. Routes serve pre-cached content from the database.
 
 ---
 

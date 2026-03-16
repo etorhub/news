@@ -1,15 +1,11 @@
 # Runtime
-sentence-transformers
-accelerate
+ollama
 flask
 psycopg2-binary
 apscheduler
 feedparser
 trafilatura
 httpx
-anthropic
-openai
-google-generativeai
 python-dotenv
 bcrypt
 alembic

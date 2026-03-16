@@ -7,13 +7,14 @@ import yaml
 
 DEFAULTS: dict[str, Any] = {
     "llm": {
-        "provider": "anthropic",
-        "model": "claude-sonnet-4-20250514",
-        "device": "cpu",
+        "provider": "ollama",
+        "model": "qwen2.5:7b",
+        "host": "http://ollama:11434",
     },
     "embeddings": {
-        "provider": "local",
-        "model": "paraphrase-multilingual-MiniLM-L12-v2",
+        "provider": "ollama",
+        "model": "nomic-embed-text",
+        "host": "http://ollama:11434",
     },
     "extraction": {
         "enabled": True,
@@ -28,6 +29,7 @@ DEFAULTS: dict[str, Any] = {
         "cluster_cron": "5 * * * *",
         "rewrite_cron": "0 6 * * *",
         "rewrite_batch_size": 10,
+        "rewrite_parallel_workers": 1,
         "fetcher": {
             "circuit_breaker_threshold": 5,
             "request_timeout_seconds": 30,

@@ -1,5 +1,6 @@
 """Embedding provider abstraction. Used for article clustering."""
 
+import os
 from abc import ABC, abstractmethod
 from typing import Any
 
@@ -17,27 +18,29 @@ class EmbeddingProvider(ABC):
         ...
 
 
-class LocalEmbeddingProvider(EmbeddingProvider):
-    """Local embeddings via sentence-transformers. No API key required."""
+class OllamaEmbeddingProvider(EmbeddingProvider):
+    """Embeddings via Ollama. No API key. Runs locally or in a dedicated container."""
 
-    def __init__(self, model: str = "paraphrase-multilingual-MiniLM-L12-v2") -> None:
-        self._model_name = model
-        self._model: Any = None
-
-    def _get_model(self) -> Any:
-        """Lazy-load the model on first use."""
-        if self._model is None:
-            from sentence_transformers import SentenceTransformer
-
-            self._model = SentenceTransformer(self._model_name)
-        return self._model
+    def __init__(
+        self, model: str = "nomic-embed-text", host: str = "http://ollama:11434"
+    ) -> None:
+        self._model = model
+        self._host = host
 
     def embed(self, text: str) -> list[float]:
+        import ollama
+
         try:
-            model = self._get_model()
-            # sentence-transformers truncates to model max length internally
-            vector = model.encode(text[:8000], convert_to_numpy=True)
-            return vector.tolist()
+            client = ollama.Client(host=self._host)
+            response = client.embed(model=self._model, input=text[:8000])
+            embeddings = (
+                response.get("embeddings")
+                if isinstance(response, dict)
+                else getattr(response, "embeddings", None)
+            )
+            if not embeddings:
+                raise EmbeddingProviderError("Empty response from Ollama embeddings")
+            return list(embeddings[0])
         except Exception as e:
             if isinstance(e, EmbeddingProviderError):
                 raise
@@ -45,10 +48,11 @@ class LocalEmbeddingProvider(EmbeddingProvider):
 
 
 def get_embedding_provider(config: dict[str, Any] | None = None) -> EmbeddingProvider:
-    """Return the configured embedding provider (local sentence-transformers)."""
+    """Return the configured embedding provider (Ollama)."""
     from app.config import load_config
 
     cfg = config or load_config()
     embeddings_cfg = cfg.get("embeddings", {})
-    model = embeddings_cfg.get("model") or "paraphrase-multilingual-MiniLM-L12-v2"
-    return LocalEmbeddingProvider(model=model)
+    model = embeddings_cfg.get("model") or "nomic-embed-text"
+    host = embeddings_cfg.get("host") or os.environ.get("OLLAMA_HOST") or "http://ollama:11434"
+    return OllamaEmbeddingProvider(model=model, host=host)

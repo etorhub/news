@@ -7,17 +7,16 @@ globs: ['app/llm/**/*.py', 'app/services/**/*.py']
 
 ## Always use the provider interface
 
-Never call Anthropic, OpenAI, Gemini, or any LLM SDK directly from a route or service. Always go through the provider interface.
+Never call Ollama or any LLM SDK directly from a route or service. Always go through the provider interface.
 
 **Wrong:**
 
 ```python
-import anthropic
+import ollama
 
 def rewrite_article(text):
-    client = anthropic.Anthropic()
-    response = client.messages.create(model="claude-sonnet-4-20250514", ...)
-    return response.content[0].text
+    response = ollama.chat(model="qwen2.5:7b", messages=[{"role": "user", "content": text}])
+    return response["message"]["content"]
 ```
 
 **Correct:**
@@ -41,7 +40,7 @@ class LLMProvider(ABC):
         ...
 ```
 
-Concrete implementations: `AnthropicProvider`, `OpenAIProvider`, `GeminiProvider`, `LocalLLMProvider`. The active provider is selected from `config/app.yaml` at startup. Never instantiate a provider directly outside of the provider factory.
+The only implementation is `OllamaProvider`, which connects to the Ollama service. Config in `config/app.yaml`: `llm.model`, `llm.host`. Never instantiate a provider directly outside of the provider factory.
 
 ## Prompts live in files, not code
 

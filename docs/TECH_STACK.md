@@ -10,10 +10,10 @@ Technology choices for the Accessible News Aggregator, with rationale.
 | --- | --- | --- |
 | Backend | Python 3.12+ with Flask | Lightweight, well-understood, Jinja2 built-in |
 | Database | PostgreSQL 16 | Robust, multi-user, JSONB support, wide hosting availability |
-| LLM | External APIs (Anthropic, OpenAI, Gemini) or local (transformers + PyTorch) via provider interface | Cloud for reliability; local for privacy/air-gapped, no API key |
+| LLM | Ollama (local) via provider interface | Local inference, no API key; text generation (qwen2.5:7b) and embeddings (nomic-embed-text) |
 | Frontend | Plain HTML + CSS + HTMX | No build step, no JS framework, server-rendered throughout |
 | Templating | Jinja2 (Flask built-in) | Tight Flask integration, partial rendering for HTMX |
-| Scheduling | APScheduler (embedded in Flask process) | No external cron or task queue; fetching and rewriting run on a schedule |
+| Scheduling | APScheduler in dedicated worker container | Web and worker run as separate containers; web has zero ML/LLM deps |
 | Packaging | Docker + docker-compose | Single `docker-compose up` runs everything |
 
 ---
@@ -26,14 +26,9 @@ Technology choices for the Accessible News Aggregator, with rationale.
 | psycopg2-binary | PostgreSQL driver |
 | APScheduler | Background job scheduling (fetch + rewrite) |
 | feedparser | RSS/Atom feed parsing |
-| httpx | HTTP client for feed fetching and LLM API calls |
-| anthropic | Anthropic Claude API client |
-| openai | OpenAI API client |
-| google-generativeai | Google Gemini API client |
-| sentence-transformers | Local embeddings for article clustering (default) |
-| transformers | Hugging Face models (used by sentence-transformers and local LLM) |
-| accelerate | Device handling and model loading for local LLM |
-| python-dotenv | Load `.env` for API keys |
+| httpx | HTTP client for feed fetching |
+| ollama | Ollama Python client (LLM chat + embeddings) |
+| python-dotenv | Load `.env` for secrets |
 | bcrypt | Password hashing |
 | alembic | Database migrations |
 | ruff | Linting and formatting |
@@ -55,9 +50,8 @@ Technology choices for the Accessible News Aggregator, with rationale.
 │   ├── templates/           # Jinja2 templates
 │   │   └── partials/        # HTMX fragment templates
 │   ├── llm/
-│   │   ├── provider.py      # Abstract LLM interface + factory
-│   │   ├── embeddings.py   # Embedding provider (local sentence-transformers)
-│   │   ├── providers/       # Anthropic, OpenAI, Gemini implementations
+│   │   ├── provider.py      # Abstract LLM interface + OllamaProvider
+│   │   ├── embeddings.py    # Embedding provider (Ollama nomic-embed-text)
 │   │   └── prompts/         # Prompt templates (plain .txt files)
 │   ├── feed/                # RSS fetching and normalisation
 │   └── db/                  # PostgreSQL access layer (includes admin queries)
@@ -76,9 +70,10 @@ Technology choices for the Accessible News Aggregator, with rationale.
 ├── lefthook.yml             # Git hooks (pre-commit, pre-push, commit-msg)
 ├── docker-compose.yml
 ├── docker-compose.override.yml  # Dev overrides (bind mounts, flask run --debug)
-├── Dockerfile
-├── requirements.txt
-└── .env.example             # Template for API keys and secrets
+├── Dockerfile                   # Multi-target: web (slim), worker (full)
+├── requirements.txt            # Worker: feedparser, trafilatura, ollama, etc.
+├── requirements-web.txt       # Web: slim deps only (no ollama, no feed processing)
+└── .env.example                # Template for secrets (no LLM API keys needed)
 ```
 
 ---
@@ -94,6 +89,10 @@ docker-compose up
 
 # Grant admin access to a user (for /admin dashboard)
 flask make-admin user@example.com
+
+# Pipeline commands (run in worker container)
+docker compose exec worker python -m app.worker_cli fetch-feeds
+docker compose exec worker python -m app.worker_cli run-pipeline
 
 # Install git hooks (run after cloning)
 lefthook install
@@ -123,78 +122,126 @@ Operators can access `/admin` to monitor ingestion pipelines, job history, feed 
 
 ## Docker Composition
 
-Three services: PostgreSQL, the Flask web app, and the APScheduler process.
+Four services: PostgreSQL, Ollama (LLM/embeddings), the Flask web app (slim image), and the worker (feed processing + ollama client).
+
+- **ollama** — Runs Ollama server. Models (qwen2.5:7b, nomic-embed-text) are pulled on first start via `ollama-init`. Use `docker-compose.gpu.yml` for GPU acceleration.
+- **web** — Gunicorn serves the Flask app. Uses `requirements-web.txt` (no ollama, no feed processing). Runs `alembic upgrade head` on startup, then Gunicorn.
+- **worker** — Runs APScheduler (`python -m app.scheduler`) for scheduled jobs and polls the `rewrite_requests` queue for on-demand rewrites. Uses `requirements.txt` (includes ollama Python client). Connects to ollama service for LLM and embeddings. Processing CLI commands run here: `docker compose exec worker python -m app.worker_cli fetch-feeds`, etc.
 
 ```yaml
 # docker-compose.yml (simplified)
 services:
+  ollama:
+    image: ollama/ollama
+    volumes:
+      - ollama_data:/root/.ollama
+    # ...
+
   db:
     image: postgres:16-alpine
-    volumes:
-      - pgdata:/var/lib/postgresql/data
-    environment:
-      - POSTGRES_DB=news
-      - POSTGRES_USER=news
-      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U news"]
-      interval: 5s
-      timeout: 5s
-      retries: 5
+    # ...
 
   web:
-    build: .
+    build:
+      context: .
+      target: web
     ports:
       - "5000:5000"
-    depends_on:
-      db:
-        condition: service_healthy
-    env_file:
-      - .env
-    volumes:
-      - ./config:/app/config
-    command: gunicorn -b 0.0.0.0:5000 "app:create_app()"
+    command: sh -c "alembic upgrade head && gunicorn -b 0.0.0.0:5000 app:application"
 
-  scheduler:
-    build: .
+  worker:
+    build:
+      context: .
+      target: worker
     depends_on:
-      db:
-        condition: service_healthy
-    env_file:
-      - .env
-    volumes:
-      - ./config:/app/config
+      ollama-init:
+        condition: service_completed_successfully
+    environment:
+      OLLAMA_HOST: http://ollama:11434
     command: python -m app.scheduler
-
-volumes:
-  pgdata:
+    # ...
 ```
 
-`docker-compose.override.yml` provides dev overrides: bind mounts for live reload, `flask run --debug` for the web service, exposed ports. The `.env` file contains API keys and the database password. An `.env.example` template is provided in the repo.
+`docker-compose.override.yml` provides dev overrides: bind mounts for live reload, `flask run --debug` for the web service, exposed ports. The `.env` file contains the database password. No LLM API keys required. An `.env.example` template is provided in the repo.
 
 **Dev tools:** Lefthook (git hooks) is a standalone binary; install via your package manager or from [lefthook.dev](https://lefthook.dev). Run `lefthook install` after cloning.
+
+### GPU troubleshooting (Ollama using CPU instead of GPU)
+
+If Ollama uses high CPU but negligible GPU utilization:
+
+1. **Verify GPU inside container:**
+   ```bash
+   docker compose -f docker-compose.yml -f docker-compose.gpu.yml exec ollama nvidia-smi
+   ```
+   If this fails, the GPU is not passed to the container.
+
+2. **Check Ollama logs for GPU detection:**
+   ```bash
+   docker compose -f docker-compose.yml -f docker-compose.gpu.yml logs ollama
+   ```
+   Look for "Nvidia GPU" or "CUDA" — or errors like "no compatible GPUs", "cudart", "libcuda".
+
+3. **WSL2 + Docker Desktop:** Add the NVIDIA runtime to Docker Engine (Settings → Docker Engine):
+   ```json
+   "runtimes": {
+     "nvidia": {
+       "path": "nvidia-container-runtime",
+       "runtimeArgs": []
+     }
+   }
+   ```
+   Then restart Docker Desktop.
+
+4. **NVIDIA Container Toolkit:** On Linux/WSL2, install:
+   ```bash
+   curl -fsSL https://nvidia.github.io/libnvidia-container/gpgkey | sudo gpg --dearmor -o /usr/share/keyrings/nvidia-container-toolkit-keyring.gpg
+   curl -s -L https://nvidia.github.io/libnvidia-container/stable/deb/nvidia-container-toolkit.list | \
+     sed 's#deb https://#deb [signed-by=/usr/share/keyrings/nvidia-container-toolkit-keyring.gpg] https://#g' | \
+     sudo tee /etc/apt/sources.list.d/nvidia-container-toolkit.list
+   sudo apt-get update && sudo apt-get install -y nvidia-container-toolkit
+   sudo nvidia-ctk runtime configure
+   ```
+
+5. **Recreate with GPU override:**
+   ```bash
+   docker compose -f docker-compose.yml -f docker-compose.gpu.yml down ollama
+   docker compose -f docker-compose.yml -f docker-compose.gpu.yml up -d
+   ```
 
 ---
 
 ## LLM Provider Interface
 
-The app never calls an LLM SDK directly. All LLM access goes through `app/llm/provider.py`, which defines an abstract `LLMProvider` class. Concrete implementations exist for Anthropic, OpenAI, Gemini, and **local** (Hugging Face transformers + PyTorch). The active provider is selected from `config/app.yaml`.
-
-For `provider: local`, no API key is required. Models run in-process via `transformers` and PyTorch. Use `model` (Hugging Face model ID) or `model_path` (local directory for air-gapped use). Default model: `Qwen/Qwen2.5-1.5B-Instruct`.
+The app never calls Ollama directly. All LLM access goes through `app/llm/provider.py`, which defines an abstract `LLMProvider` class. The only implementation is `OllamaProvider`, which connects to the Ollama service via HTTP. Config in `config/app.yaml`: `llm.model` (default: `qwen2.5:7b`), `llm.host` (default: `http://ollama:11434`). No API key required.
 
 ## Embedding Provider
 
-Article clustering uses embeddings for similarity via **local** `sentence-transformers` (`paraphrase-multilingual-MiniLM-L12-v2`) — no API key, runs on CPU.
+Article clustering uses embeddings for similarity via **Ollama** (`nomic-embed-text`). Config: `embeddings.model`, `embeddings.host`. No API key required.
 
 ---
 
 ## Scheduling Model
 
-APScheduler runs in the dedicated `scheduler` container only (`python -m app.scheduler`). It is never started inside the `web` container. Running APScheduler inside Gunicorn causes every worker to spawn its own scheduler, executing every job N times.
+APScheduler runs in the dedicated `worker` container only (`python -m app.scheduler`). It is never started inside the `web` container. The web container has zero imports from `app/llm/`, `app/feed/`, `app/extraction/`, or `app/clustering/` — it is a thin HTTP layer.
 
-Two types of background jobs:
+Background jobs in the worker:
 
-1. **Fetch jobs** — poll feeds per their configured interval (high/medium/low frequency tiers). Articles are stored centrally in the `articles` table with full text when available.
+1. **Fetch jobs** — poll feeds per their configured interval. Articles are stored centrally in the `articles` table.
 2. **Rewrite jobs** — run at a configurable daily time (default: early morning). For each active user, rewrite new articles that haven't been cached yet for their profile.
+3. **Rewrite request poller** — every 60 seconds, claims pending rows from the `rewrite_requests` table. When a user saves setup/settings with regeneration-affecting changes, the web route inserts a row; the worker picks it up and runs `run_rewrite_for_user`. No LLM calls in the web process.
 
 When a user opens the app, content is already ready. No waiting.
+
+### CLI Commands
+
+| Command | Where | Purpose |
+| --- | --- | --- |
+| `flask seed-sources` | Web container | Seed sources from config (lightweight) |
+| `flask make-admin <email>` | Web container | Grant admin access |
+| `flask show-rewrite-failures` | Web container | List recent rewrite failures (DB read) |
+| `python -m app.worker_cli fetch-feeds` | Worker container | Run feed fetcher once |
+| `python -m app.worker_cli enrich-articles` | Worker container | Run enrichment once |
+| `python -m app.worker_cli cluster-articles` | Worker container | Run clustering once |
+| `python -m app.worker_cli rewrite-articles` | Worker container | Run rewrite batch once |
+| `python -m app.worker_cli run-pipeline` | Worker container | Full pipeline: seed → fetch → enrich → cluster → rewrite |
