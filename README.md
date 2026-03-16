@@ -1,5 +1,13 @@
 # Accessible News Aggregator
 
+[![License: AGPL-3.0](https://img.shields.io/badge/License-AGPL--3.0-blue.svg)](https://opensource.org/licenses/AGPL-3.0)
+[![Python 3.12+](https://img.shields.io/badge/python-3.12+-3776ab?logo=python&logoColor=white)](https://www.python.org/)
+[![Flask](https://img.shields.io/badge/Flask-3.x-000000?logo=flask&logoColor=white)](https://flask.palletsprojects.com/)
+[![PostgreSQL 16](https://img.shields.io/badge/PostgreSQL-16-336791?logo=postgresql&logoColor=white)](https://www.postgresql.org/)
+[![Docker](https://img.shields.io/badge/Docker-Ready-2496ed?logo=docker&logoColor=white)](https://www.docker.com/)
+[![HTMX](https://img.shields.io/badge/HTMX-2.x-3d7fcf?logo=htmx&logoColor=white)](https://htmx.org/)
+[![Ollama](https://img.shields.io/badge/LLM-Ollama_local-000000)](https://ollama.ai/)
+
 A news reader built for people who struggle with the way news is currently delivered.
 
 Most news interfaces are designed for engagement, not comprehension. For people with motor or cognitive difficulties — Parkinson's disease being the origin case — they are actively hostile: cluttered layouts, small touch targets, dense sentences, and no way to control the pace or depth of information.
@@ -30,17 +38,16 @@ Neither the end user nor the caregiver ever touches the codebase. They access th
 ### Prerequisites
 
 - Docker and docker-compose
-- An API key for at least one LLM provider (Anthropic, OpenAI, or Gemini)
 
 ### Setup
 
 ```bash
-git clone https://github.com/your-org/news.git
-cd news
+git clone https://github.com/accessible-news/aggregator.git
+cd aggregator
 
-# Copy the environment template and fill in your API key
+# Copy the environment template and fill in values
 cp .env.example .env
-# Edit .env with your LLM API key and a database password
+# Edit .env: set POSTGRES_PASSWORD and SECRET_KEY (no LLM API key needed — uses local Ollama)
 
 # Start everything
 docker-compose up
@@ -58,32 +65,32 @@ Operators can monitor ingestion pipelines, job history, and system health at `/a
 A default admin account is created by migrations: **admin@admin.com** / **admin**. To grant admin to another user:
 
 ```bash
-flask make-admin your@email.com
+docker compose exec web flask make-admin your@email.com
 ```
 
 See [docs/ADMIN_DASHBOARD.md](docs/ADMIN_DASHBOARD.md) for full documentation.
 
 ### Running scheduler jobs manually
 
-The scheduler runs four jobs on a schedule: fetch feeds, enrich articles (extract full text), cluster articles (embed + group), and rewrite articles (LLM simplification). You can run any of them manually via Flask CLI:
+The scheduler runs four jobs on a schedule: fetch feeds, enrich articles (extract full text), cluster articles (embed + group), and rewrite articles (LLM simplification). You can run any of them manually:
 
-| Command                  | Description                                                                     |
-| ------------------------ | ------------------------------------------------------------------------------- |
-| `flask seed-sources`     | Load sources from config/sources.yaml into the database (run once before fetch) |
-| `flask fetch-feeds`      | Fetch all due RSS feeds                                                         |
-| `flask enrich-articles`  | Extract full article content for pending articles                               |
-| `flask cluster-articles` | Embed and cluster today's articles                                              |
-| `flask rewrite-articles` | Rewrite articles for all user profiles                                          |
-| `flask run-pipeline`     | Run the full pipeline once (seed → fetch → enrich → cluster → rewrite)          |
+| Command | Where | Description |
+| ------- | ----- | ----------- |
+| `flask seed-sources` | Web | Load sources from config/sources.yaml (run once before fetch) |
+| `python -m app.worker_cli fetch-feeds` | Worker | Fetch all due RSS feeds |
+| `python -m app.worker_cli enrich-articles` | Worker | Extract full article content for pending articles |
+| `python -m app.worker_cli cluster-articles` | Worker | Embed and cluster today's articles |
+| `python -m app.worker_cli rewrite-articles` | Worker | Rewrite articles for all user profiles |
+| `python -m app.worker_cli run-pipeline` | Worker | Full pipeline once (seed → fetch → enrich → cluster → rewrite) |
 
-Pipeline order matters: seed sources first (once), then fetch, enrich, cluster, rewrite. Use `flask run-pipeline` to run the full pipeline (seed is included).
+Pipeline order: seed sources first (once), then fetch, enrich, cluster, rewrite.
 
-With Docker, run commands inside the web container (which has the same codebase as the scheduler):
+With Docker:
 
 ```bash
 docker compose exec web flask seed-sources
-docker compose exec web flask fetch-feeds
-docker compose exec web flask run-pipeline
+docker compose exec worker python -m app.worker_cli fetch-feeds
+docker compose exec worker python -m app.worker_cli run-pipeline
 ```
 
 ### Running Locally (without Docker)
@@ -98,14 +105,14 @@ flask run
 
 ## Tech Stack
 
-| Layer      | Technology                                            |
-| ---------- | ----------------------------------------------------- |
-| Backend    | Python 3.12+ / Flask                                  |
-| Database   | PostgreSQL 16                                         |
-| LLM        | Anthropic, OpenAI, or Gemini (via provider interface) |
-| Frontend   | HTML + CSS + HTMX (no JavaScript frameworks)          |
-| Scheduling | APScheduler                                           |
-| Packaging  | Docker + docker-compose                               |
+| Layer      | Technology                                  |
+| ---------- | ------------------------------------------- |
+| Backend    | Python 3.12+ / Flask                        |
+| Database   | PostgreSQL 16                               |
+| LLM        | Ollama (local, no API key)                  |
+| Frontend   | HTML + CSS + HTMX (no JavaScript frameworks) |
+| Scheduling | APScheduler (worker container)               |
+| Packaging  | Docker + docker-compose                     |
 
 See [docs/TECH_STACK.md](docs/TECH_STACK.md) for full details.
 
