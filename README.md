@@ -53,7 +53,9 @@ The app starts at `http://localhost:5000`. Create an account, complete the setup
 
 ### Admin dashboard
 
-Operators can monitor ingestion pipelines, job history, and system health at `/admin`. Access requires admin privileges. Grant them with:
+Operators can monitor ingestion pipelines, job history, and system health at `/admin`. Access requires admin privileges.
+
+A default admin account is created by migrations: **admin@admin.com** / **admin**. To grant admin to another user:
 
 ```bash
 flask make-admin your@email.com
