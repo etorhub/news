@@ -4,7 +4,7 @@ from typing import Any
 
 from flask import Blueprint, redirect, render_template, request, session, url_for
 
-from app.config import load_config, load_sources
+from app.config import get_topic_info, load_config, load_sources
 from app.services import profile_service
 
 setup_bp = Blueprint("setup", __name__, url_prefix="/setup")
@@ -27,6 +27,11 @@ def _all_topics(sources: list[dict[str, Any]]) -> list[str]:
     return sorted(result)
 
 
+def _topic_infos(topic_ids: list[str], config: dict[str, Any]) -> list[dict[str, Any]]:
+    """Build list of {id, label, icon, emoji} for each topic."""
+    return [{"id": tid, **get_topic_info(tid, config)} for tid in topic_ids]
+
+
 @setup_bp.route("/", methods=["GET", "POST"])
 def setup_page() -> Any:
     """GET: show setup form. POST: save and redirect to /."""
@@ -43,10 +48,12 @@ def setup_page() -> Any:
             "languages",
             [{"id": "ca", "label": "Catalan"}, {"id": "es", "label": "Spanish"}, {"id": "en", "label": "English"}],
         )
+        topic_infos = _topic_infos(topics, config)
         return render_template(
             "setup.html",
             sources=sources,
             topics=topics,
+            topic_infos=topic_infos,
             style_options=PREFERRED_STYLE_OPTIONS,
             languages=languages,
         )

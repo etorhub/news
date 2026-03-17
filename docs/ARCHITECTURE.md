@@ -55,7 +55,7 @@ User opens app
 
 ### Feed sections (topic filtering)
 
-The main feed shows a section navigation bar built from the user's selected topics (from setup/settings). Each section has a label and emoji (configured in `config/app.yaml` under `topics`).
+The main feed shows a section navigation bar built from the user's selected topics (from setup/settings). Each section has a label and icon (configured in `config/app.yaml` under `topics`).
 
 ```
 User opens app
@@ -68,7 +68,7 @@ User opens app
 
 - **All** — shows every cluster matching the user's sources and topics.
 - **Section (e.g. Politics)** — shows only clusters where at least one article matches the topic (via RSS categories or the article's source topic list).
-- Topic labels and emojis are defined in `config/app.yaml` → `topics`. Keys must match topic IDs in `config/sources.yaml`.
+- Topic labels and icons are defined in `config/app.yaml` → `topics`. Keys must match topic IDs in `config/sources.yaml`.
 
 ### New user before first scheduled rewrite
 
@@ -274,21 +274,21 @@ server:
   port: 5000
   debug: false
 
-# Topic labels and emojis for feed section navigation. Keys must match topic ids in sources.
+# Topic labels, icons and emojis. Keys must match topic ids in sources.
 topics:
-  general: { label: General, emoji: "📰" }
-  politics: { label: Politics, emoji: "🏛️" }
-  society: { label: Society, emoji: "👥" }
-  culture: { label: Culture, emoji: "🎭" }
-  international: { label: International, emoji: "🌍" }
-  economy: { label: Economy, emoji: "📈" }
-  science: { label: Science, emoji: "🔬" }
-  sports: { label: Sports, emoji: "⚽" }
+  general: { label: General, icon: newspaper, emoji: "📰" }
+  politics: { label: Politics, icon: building, emoji: "🏛️" }
+  society: { label: Society, icon: users, emoji: "👥" }
+  culture: { label: Culture, icon: palette, emoji: "🎭" }
+  international: { label: International, icon: globe, emoji: "🌍" }
+  economy: { label: Economy, icon: trending-up, emoji: "📈" }
+  science: { label: Science, icon: flask, emoji: "🔬" }
+  sports: { label: Sports, icon: trophy, emoji: "⚽" }
 ```
 
 > **Note:** `SECRET_KEY` is loaded directly from the environment (`.env`) by the Flask app factory — not via `app.yaml`. YAML is for non-secret config only.
 
-**Topics config:** The `topics` block maps topic IDs (from `sources.yaml`) to display labels and emojis used in the feed section navigation. Add entries for any topic ID used by sources; `app.config.get_topic_info()` falls back to a generic label/emoji for unknown IDs.
+**Topics config:** The `topics` block maps topic IDs (from `sources.yaml`) to display labels and icons used in the feed section navigation. Add entries for any topic ID used by sources; `app.config.get_topic_info()` falls back to a generic label/icon for unknown IDs.
 
 ### `config/sources.yaml`
 

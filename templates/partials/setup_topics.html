@@ -1,9 +1,9 @@
-<div class="topic-grid" style="display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 1rem;">
-  {% for topic in topics %}
-  <label style="display: flex; align-items: center; gap: 0.5rem; min-height: 44px;">
-    <input type="checkbox" name="topics" value="{{ topic }}"
-      {% if not profile or topic in (profile.topic_ids or []) %}checked{% endif %}>
-    <span>{{ topic }}</span>
+<div class="topic-grid">
+  {% for t in topic_infos %}
+  <label class="topic-option">
+    <input type="checkbox" name="topics" value="{{ t.id }}"
+      {% if not profile or t.id in (profile.topic_ids or []) %}checked{% endif %}>
+    <span class="topic-option-label">{% with icon=t.icon %}{% include "partials/topic_icon.html" %}{% endwith %} {{ _(t.label) }}</span>
   </label>
   {% endfor %}
 </div>

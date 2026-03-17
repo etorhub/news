@@ -12,7 +12,7 @@ reader_bp = Blueprint("reader", __name__)
 
 
 def _sections_for_user(profile: dict[str, Any], config: dict[str, Any]) -> list[dict[str, Any]]:
-    """Build section list from user's topic_ids with labels and emojis."""
+    """Build section list from user's topic_ids with labels and icons."""
     topic_ids = profile.get("topic_ids", [])
     return [
         {"id": tid, **get_topic_info(tid, config)}

@@ -79,20 +79,19 @@ def load_config(config_path: str | Path | None = None) -> dict[str, Any]:
 
 
 def get_topic_info(topic_id: str, config: dict[str, Any] | None = None) -> dict[str, str]:
-    """Return {label, short, emoji} for a topic. Falls back to topic_id if not in config."""
+    """Return {label, icon, emoji} for a topic. Falls back to topic_id if not in config."""
     if config is None:
         config = load_config()
     topics_cfg = config.get("topics", {}) or {}
     info = topics_cfg.get(topic_id, {})
     if isinstance(info, dict):
         label = info.get("label", topic_id.replace("_", " ").title())
-        short = info.get("short", label[:3] if len(label) >= 3 else label)
         return {
             "label": label,
-            "short": short,
+            "icon": info.get("icon", "newspaper"),
             "emoji": info.get("emoji", "📄"),
         }
-    return {"label": str(topic_id), "short": str(topic_id)[:3], "emoji": "📄"}
+    return {"label": str(topic_id), "icon": "newspaper", "emoji": "📄"}
 
 
 def load_sources(sources_path: str | Path | None = None) -> list[dict[str, Any]]:
