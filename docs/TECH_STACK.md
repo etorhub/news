@@ -59,7 +59,7 @@ Technology choices for the Accessible News Aggregator, with rationale.
 │   ├── llm/
 │   │   ├── provider.py      # Abstract LLM interface + OllamaProvider
 │   │   ├── embeddings.py    # Embedding provider (Ollama nomic-embed-text)
-│   │   └── prompts/        # Prompt templates (plain .txt files)
+│   │   └── prompts/        # rewrite_cluster_neutral, simplify_article, translate_article
 │   ├── feed/                # RSS fetching (fetcher, parser, orchestrator)
 │   ├── extraction/          # Full-text extraction (extractor, trafilatura)
 │   ├── clustering/          # Article clustering by embedding similarity
@@ -236,7 +236,7 @@ If Ollama uses high CPU but negligible GPU utilization:
 
 ## LLM Provider Interface
 
-The app never calls Ollama directly. All LLM access goes through `app/llm/provider.py`, which defines an abstract `LLMProvider` class. The only implementation is `OllamaProvider`, which connects to the Ollama service via HTTP. Config in `config/app.yaml`: `llm.model` (default: `qwen2.5:7b`), `llm.host` (default: `http://ollama:11434`). No API key required.
+The app never calls Ollama directly. All LLM access goes through `app/llm/provider.py`, which defines an abstract `LLMProvider` class. The only implementation is `OllamaProvider`, which connects to the Ollama service via HTTP. Config in `config/app.yaml`: `llm.model` (default: `qwen2.5:7b`), `llm.host` (default: `http://ollama:11434`). Per-task models for the rewrite cascade: `rewrite_model`, `simplify_model`, `translate_model` (each falls back to `model` when unset). No API key required.
 
 ## Embedding Provider
 
@@ -253,7 +253,7 @@ Background jobs in the worker:
 1. **Fetch jobs** — poll feeds per their configured interval. Articles are stored in the `articles` table.
 2. **Enrichment jobs** — extract full article text from URLs (Trafilatura) for articles with `extraction_status = 'pending'`.
 3. **Cluster jobs** — embed articles (Ollama nomic-embed-text), cluster by cosine similarity, create cluster records.
-4. **Rewrite jobs** — run at a configurable daily time (default: 06:00). For each configured `(style, language)` variant, rewrite clusters that don't have a cached result in `cluster_rewrites`. Rewrites are shared across all users with the same variant — the LLM is never called twice for the same `(cluster_id, style, language)`.
+4. **Rewrite jobs** — run at a configurable daily time (default: 06:00). Uses a cascading pipeline: generate neutral English from sources, simplify to simple English, then translate both to other languages. Per-task models (`rewrite_model`, `simplify_model`, `translate_model`) can be tuned in config. Rewrites are stored in `story_rewrites` and shared across all users with the same `(style, language)` variant.
 
 When a user opens the app, content is already ready. No waiting.
 

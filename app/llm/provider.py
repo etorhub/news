@@ -65,11 +65,22 @@ class OllamaProvider(LLMProvider):
             raise LLMProviderError(str(e)) from e
 
 
-def get_provider(config: dict[str, Any] | None = None) -> LLMProvider:
-    """Return the configured LLM provider (Ollama)."""
+def get_provider(
+    config: dict[str, Any] | None = None,
+    task: str | None = None,
+) -> LLMProvider:
+    """Return the configured LLM provider (Ollama).
+
+    task: optional task name ('rewrite', 'simplify', 'translate').
+    Uses llm.{task}_model if set, otherwise falls back to llm.model.
+    """
     if config is None:
         config = load_config()
     llm = config.get("llm", {})
-    model = llm.get("model") or "qwen2.5:7b"
+    fallback_model = llm.get("model") or "qwen2.5:7b"
+    if task:
+        model = llm.get(f"{task}_model") or fallback_model
+    else:
+        model = fallback_model
     host = llm.get("host") or os.environ.get("OLLAMA_HOST") or "http://ollama:11434"
     return OllamaProvider(model=model, host=host)

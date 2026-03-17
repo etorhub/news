@@ -200,18 +200,19 @@ def test_rewrite_story_provider_error_stores_failed() -> None:
 def test_run_rewrite_batch_empty_variants() -> None:
     """run_rewrite_batch returns zero counts when no stories need rewrite."""
     with patch("app.services.rewrite_service.db_stories") as mock_stories:
-        mock_stories.get_stories_needing_rewrite.return_value = []
+        mock_stories.get_stories_needing_any_rewrite.return_value = []
         config = {
             "schedule": {"rewrite_batch_size": 10},
             "processing": {"cluster_window_hours": 24},
             "rewriting": {
+                "base_language": "en",
                 "styles": [{"id": "neutral"}, {"id": "simple"}],
-                "languages": [{"id": "ca"}, {"id": "es"}],
+                "languages": [{"id": "ca"}, {"id": "es"}, {"id": "en"}],
             },
         }
         report = run_rewrite_batch(config)
         assert report == RewriteReport(
-            variants_processed=4,
+            variants_processed=6,
             stories_attempted=0,
             stories_succeeded=0,
             stories_failed=0,
@@ -222,67 +223,70 @@ def test_run_rewrite_batch_counts() -> None:
     """run_rewrite_batch returns correct counts for mixed success/failure."""
     with (
         patch("app.services.rewrite_service.db_stories") as mock_stories,
-        patch("app.services.rewrite_service.rewrite_story") as mock_rewrite,
+        patch("app.services.rewrite_service._execute_cascading_rewrites") as mock_execute,
         patch("app.services.rewrite_service.get_provider") as mock_get,
     ):
         mock_get.return_value = MagicMock()
-        mock_stories.get_stories_needing_rewrite.side_effect = [
-            [{"story_id": "c1"}, {"story_id": "c2"}],
-            [],
-            [],
-            [],
+        mock_stories.get_stories_needing_any_rewrite.return_value = [
+            {"story_id": "c1", "needs_rewrite": True},
+            {"story_id": "c2", "needs_rewrite": True},
         ]
         mock_stories.get_articles_in_story.side_effect = [
             [{"id": "a1", "raw_text": "t1", "full_text": None}],
             [{"id": "a2", "raw_text": "t2", "full_text": None}],
         ]
-        mock_rewrite.side_effect = [True, False]
+        mock_execute.return_value = (5, 3)  # succeeded, failed
 
         config = {
             "schedule": {"rewrite_batch_size": 10},
             "processing": {"cluster_window_hours": 24},
             "rewriting": {
+                "base_language": "en",
                 "styles": [{"id": "neutral"}, {"id": "simple"}],
-                "languages": [{"id": "ca"}, {"id": "es"}],
+                "languages": [{"id": "ca"}, {"id": "es"}, {"id": "en"}],
             },
         }
         report = run_rewrite_batch(config)
 
-        assert report.variants_processed == 4
+        assert report.variants_processed == 6
         assert report.stories_attempted == 2
-        assert report.stories_succeeded == 1
-        assert report.stories_failed == 1
+        assert report.stories_succeeded == 5
+        assert report.stories_failed == 3
 
 
-def test_run_rewrite_batch_sequential_when_workers_one() -> None:
-    """run_rewrite_batch uses sequential path when rewrite_parallel_workers=1."""
+def test_run_rewrite_batch_calls_cascade() -> None:
+    """run_rewrite_batch uses cascading rewrites (rewrite → simplify → translate)."""
     with (
         patch("app.services.rewrite_service.db_stories") as mock_stories,
         patch("app.services.rewrite_service.get_provider") as mock_get,
-        patch("app.services.rewrite_service.rewrite_story") as mock_rewrite,
+        patch("app.services.rewrite_service._execute_cascading_rewrites") as mock_execute,
     ):
         mock_get.return_value = MagicMock()
-        mock_stories.get_stories_needing_rewrite.side_effect = [
-            [{"story_id": "c1"}],
-            [],
-            [],
-            [],
+        mock_stories.get_stories_needing_any_rewrite.return_value = [
+            {"story_id": "c1", "needs_rewrite": True},
         ]
         mock_stories.get_articles_in_story.return_value = [
             {"id": "a1", "raw_text": "t1", "full_text": None},
         ]
-        mock_rewrite.return_value = True
+        mock_execute.return_value = (6, 0)  # all 6 variants succeeded
 
         config = {
-            "schedule": {"rewrite_batch_size": 10, "rewrite_parallel_workers": 1},
+            "schedule": {"rewrite_batch_size": 10},
             "processing": {"cluster_window_hours": 24},
             "rewriting": {
+                "base_language": "en",
                 "styles": [{"id": "neutral"}, {"id": "simple"}],
-                "languages": [{"id": "ca"}, {"id": "es"}],
+                "languages": [{"id": "ca"}, {"id": "es"}, {"id": "en"}],
             },
         }
         report = run_rewrite_batch(config)
 
         assert report.stories_attempted == 1
-        assert report.stories_succeeded == 1
-        mock_rewrite.assert_called_once()
+        assert report.stories_succeeded == 6
+        mock_execute.assert_called_once()
+        # Verify get_provider called with task for each step
+        assert mock_get.call_count == 3
+        tasks = [c[1]["task"] for c in mock_get.call_args_list if c[1].get("task")]
+        assert "rewrite" in tasks
+        assert "simplify" in tasks
+        assert "translate" in tasks

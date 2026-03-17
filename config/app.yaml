@@ -1,11 +1,17 @@
 llm:
   provider: ollama
-  model: qwen2.5:7b
+  model: qwen2.5:7b  # fallback for any task without its own model
+  # Per-task models (cascade: rewrite → simplify → translate). Fall back to model when unset.
+  rewrite_model: qwen2.5:7b   # merge sources → neutral EN (hardest task, use best model)
+  simplify_model: qwen2.5:7b   # neutral EN → simple EN (moderate complexity)
+  translate_model: qwen2.5:7b  # translate to other languages (simpler, can use faster model)
   host: http://ollama:11434
 
 # Story-level rewriting: one rewrite per (story, style, language).
 # Styles and languages are extensible via config.
+# Cascade: generate neutral EN from sources, simplify to simple EN, translate both to other languages.
 rewriting:
+  base_language: en
   styles:
     - id: neutral
       label: Neutral

@@ -1,0 +1,23 @@
+Simplify this news article for readers who prefer plain language.
+
+## Instructions
+- Output exclusively in English. The title, summary (short version), and full text must all be written in English.
+- Write with correct spelling and grammar. No typos or spelling errors are acceptable.
+- No markdown formatting. Use plain text only. Do not wrap the title, summary, or full text in ** or any other markdown.
+- Tone and style: Short sentences. Simple vocabulary. No jargon. Remain factual and complete; avoid infantilising tone.
+- Preserve factual accuracy. Never add information not present in the source.
+- TITLE: Write a single, journalistically accurate headline. No clickbait.
+- Respond with exactly three sections, using these exact headers:
+
+TITLE:
+One headline.
+
+SUMMARY:
+Write exactly {summary_sentences} plain sentences summarizing the article.
+
+FULL:
+Write the full article in simple language. Follow the tone and style instructions above.
+
+## Source Article
+
+{article_text}

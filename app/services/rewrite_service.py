@@ -2,7 +2,6 @@
 
 import logging
 import re
-from concurrent.futures import ThreadPoolExecutor, as_completed
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 from typing import Any
@@ -87,6 +86,31 @@ def _build_articles_text(articles: list[dict[str, Any]]) -> str:
     return "\n\n---\n\n".join(blocks) if blocks else ""
 
 
+def _build_article_text_from_rewrite(rewrite: dict[str, Any]) -> str:
+    """Build article text from a rewrite (title, summary, full_text) for simplify/translate prompts."""
+    title = (rewrite.get("title") or "").strip()
+    summary = (rewrite.get("summary") or "").strip()
+    full_text = (rewrite.get("full_text") or "").strip()
+    return f"TITLE:\n{title}\n\nSUMMARY:\n{summary}\n\nFULL:\n{full_text}"
+
+
+def _get_language_label(config: dict[str, Any], lang_id: str) -> str:
+    """Return the display label for a language id (e.g. 'en' -> 'English')."""
+    for lang in config.get("rewriting", {}).get("languages", []):
+        if lang.get("id") == lang_id:
+            return lang.get("label", lang_id)
+    return lang_id
+
+
+def _get_style_description(config: dict[str, Any], style_id: str) -> str:
+    """Return a brief style description for the translate prompt."""
+    descriptions = {
+        "neutral": "Journalistic. Formal and well-written. Preserve original complexity and nuance.",
+        "simple": "Short sentences. Simple vocabulary. No jargon. Remain factual and complete.",
+    }
+    return descriptions.get(style_id, "Preserve the tone of the source.")
+
+
 def _get_rewriting_variants(config: dict[str, Any]) -> list[tuple[str, str]]:
     """Return list of (style_id, language_id) from config."""
     rewriting = config.get("rewriting", {})
@@ -109,6 +133,7 @@ def rewrite_story(
     config: dict[str, Any],
     *,
     provider: LLMProvider | None = None,
+    clear_needs_rewrite: bool = True,
 ) -> bool:
     """Rewrite a story for (style, language) and store. Returns True on success."""
     logger.debug(
@@ -138,16 +163,17 @@ def rewrite_story(
     processing = config.get("processing", {})
     summary_sentences = processing.get("summary_sentences", 3)
     max_tokens = processing.get("rewrite_max_tokens", 2000)
+    prompt_language = _get_language_label(config, language)
 
     prompt_template = load_prompt(prompt_name)
     prompt = prompt_template.format(
         articles_text=articles_text,
-        language=language,
+        language=prompt_language,
         summary_sentences=summary_sentences,
     )
 
     if provider is None:
-        provider = get_provider(config)
+        provider = get_provider(config, task="rewrite")
     try:
         logger.debug(
             "rewrite_story: calling LLM story_id=%s style=%s language=%s",
@@ -166,7 +192,8 @@ def rewrite_story(
             full_text=full_text,
             rewrite_failed=False,
         )
-        db_stories.set_story_needs_rewrite(story_id, False)
+        if clear_needs_rewrite:
+            db_stories.set_story_needs_rewrite(story_id, False)
         logger.debug("rewrite_story: done story_id=%s ok=True", story_id)
         return True
     except Exception as e:
@@ -189,101 +216,263 @@ def rewrite_story(
         return False
 
 
-def _gather_rewrite_work(
-    style: str,
-    language: str,
-    since: datetime | None,
-    batch_size: int,
-) -> list[tuple[str, list[dict[str, Any]]]]:
-    """Return list of (story_id, articles) needing rewrite for this (style, language)."""
-    stories = db_stories.get_stories_needing_rewrite(
-        style=style,
-        language=language,
-        since=since,
-    )
-    work: list[tuple[str, list[dict[str, Any]]]] = []
-    for row in stories[:batch_size]:
-        story_id = row["story_id"]
-        articles = db_stories.get_articles_in_story(story_id)
-        if articles:
-            work.append((story_id, articles))
-    return work
-
-
-def _execute_rewrites(
-    work: list[tuple[str, list[dict[str, Any]]]],
-    style: str,
-    language: str,
+def _simplify_rewrite(
+    story_id: str,
+    neutral_rewrite: dict[str, Any],
     config: dict[str, Any],
     provider: LLMProvider,
-    parallel_workers: int,
-) -> tuple[int, int, int]:
-    """Run rewrites for work items. Returns (attempted, succeeded, failed)."""
-    total = len(work)
-    attempted = 0
+) -> bool:
+    """Simplify a neutral English rewrite to simple English. Returns True on success."""
+    article_text = _build_article_text_from_rewrite(neutral_rewrite)
+    processing = config.get("processing", {})
+    summary_sentences = processing.get("summary_sentences", 3)
+    max_tokens = processing.get("rewrite_max_tokens", 2000)
+
+    prompt_template = load_prompt("simplify_article")
+    prompt = prompt_template.format(
+        article_text=article_text,
+        summary_sentences=summary_sentences,
+    )
+
+    try:
+        response = provider.complete(prompt, max_tokens=max_tokens)
+        title, summary, full_text = _parse_story_llm_response(response)
+        db_stories.insert_story_rewrite(
+            story_id=story_id,
+            style="simple",
+            language="en",
+            title=title,
+            summary=summary,
+            full_text=full_text,
+            rewrite_failed=False,
+        )
+        return True
+    except Exception as e:
+        err_msg = str(e)[:500]
+        db_stories.insert_story_rewrite(
+            story_id=story_id,
+            style="simple",
+            language="en",
+            title=None,
+            summary=None,
+            full_text=None,
+            rewrite_failed=True,
+            error_message=err_msg,
+        )
+        logger.debug("_simplify_rewrite: story_id=%s failed: %s", story_id, err_msg)
+        return False
+
+
+def _translate_rewrite(
+    story_id: str,
+    source_rewrite: dict[str, Any],
+    style: str,
+    target_lang_id: str,
+    config: dict[str, Any],
+    provider: LLMProvider,
+) -> bool:
+    """Translate a rewrite to the target language. Returns True on success."""
+    article_text = _build_article_text_from_rewrite(source_rewrite)
+    target_language = _get_language_label(config, target_lang_id)
+    style_description = _get_style_description(config, style)
+    processing = config.get("processing", {})
+    summary_sentences = processing.get("summary_sentences", 3)
+    max_tokens = processing.get("rewrite_max_tokens", 2000)
+
+    prompt_template = load_prompt("translate_article")
+    prompt = prompt_template.format(
+        article_text=article_text,
+        target_language=target_language,
+        style_description=style_description,
+        summary_sentences=summary_sentences,
+    )
+
+    try:
+        response = provider.complete(prompt, max_tokens=max_tokens)
+        title, summary, full_text = _parse_story_llm_response(response)
+        db_stories.insert_story_rewrite(
+            story_id=story_id,
+            style=style,
+            language=target_lang_id,
+            title=title,
+            summary=summary,
+            full_text=full_text,
+            rewrite_failed=False,
+        )
+        return True
+    except Exception as e:
+        err_msg = str(e)[:500]
+        db_stories.insert_story_rewrite(
+            story_id=story_id,
+            style=style,
+            language=target_lang_id,
+            title=None,
+            summary=None,
+            full_text=None,
+            rewrite_failed=True,
+            error_message=err_msg,
+        )
+        logger.debug(
+            "_translate_rewrite: story_id=%s style=%s lang=%s failed: %s",
+            story_id,
+            style,
+            target_lang_id,
+            err_msg,
+        )
+        return False
+
+
+def _rewrite_story_cascading(
+    story_id: str,
+    articles: list[dict[str, Any]],
+    config: dict[str, Any],
+    needs_full_regen: bool,
+    existing_rewrites: dict[tuple[str, str], dict[str, Any]],
+    base_language: str,
+    other_languages: list[str],
+    rewrite_provider: LLMProvider,
+    simplify_provider: LLMProvider,
+    translate_provider: LLMProvider,
+) -> tuple[int, int]:
+    """Cascade: neutral/en -> simple/en -> translate both. Returns (succeeded, failed)."""
     succeeded = 0
     failed = 0
-    if parallel_workers > 1:
-        with ThreadPoolExecutor(max_workers=parallel_workers) as executor:
-            futures = {
-                executor.submit(
-                    rewrite_story,
-                    story_id,
-                    articles,
-                    style,
-                    language,
-                    config,
-                    provider=provider,
-                ): story_id
-                for story_id, articles in work
-            }
-            for future in as_completed(futures):
-                story_id = futures[future]
-                attempted += 1
-                ok = future.result()
+
+    # Step 1: Neutral English (merge sources)
+    neutral_key = ("neutral", base_language)
+    if needs_full_regen or neutral_key not in existing_rewrites:
+        ok = rewrite_story(
+            story_id=story_id,
+            articles=articles,
+            style="neutral",
+            language=base_language,
+            config=config,
+            provider=rewrite_provider,
+            clear_needs_rewrite=False,
+        )
+        if not ok:
+            return (succeeded, failed + 1)
+        succeeded += 1
+        existing_rewrites[neutral_key] = {
+            "title": None,
+            "summary": None,
+            "full_text": None,
+        }
+        # Reload from DB to get the actual values
+        all_rewrites = db_stories.get_all_rewrites_for_story(story_id)
+        existing_rewrites[neutral_key] = all_rewrites.get(neutral_key, {})
+
+    neutral_rewrite = existing_rewrites.get(neutral_key)
+    if not neutral_rewrite or not neutral_rewrite.get("title"):
+        return (succeeded, failed + 1)
+
+    # Step 2: Simple English (simplify)
+    simple_key = ("simple", base_language)
+    if needs_full_regen or simple_key not in existing_rewrites:
+        ok = _simplify_rewrite(
+            story_id=story_id,
+            neutral_rewrite=neutral_rewrite,
+            config=config,
+            provider=simplify_provider,
+        )
+        if not ok:
+            failed += 1
+        else:
+            succeeded += 1
+            all_rewrites = db_stories.get_all_rewrites_for_story(story_id)
+            existing_rewrites[simple_key] = all_rewrites.get(simple_key, {})
+
+    # Step 3: Translate to other languages
+    simple_rewrite = existing_rewrites.get(simple_key)
+    for lang_id in other_languages:
+        for style in ("neutral", "simple"):
+            key = (style, lang_id)
+            if needs_full_regen or key not in existing_rewrites:
+                source = neutral_rewrite if style == "neutral" else (simple_rewrite or {})
+                if not source or not source.get("title"):
+                    continue
+                ok = _translate_rewrite(
+                    story_id=story_id,
+                    source_rewrite=source,
+                    style=style,
+                    target_lang_id=lang_id,
+                    config=config,
+                    provider=translate_provider,
+                )
                 if ok:
                     succeeded += 1
                 else:
                     failed += 1
-                short_id = story_id[:12]
-                status = "ok" if ok else "fail"
-                logger.info(
-                    "    [%d/%d] %s... %s",
-                    attempted,
-                    total,
-                    short_id,
-                    status,
-                )
-    else:
-        for i, (story_id, articles) in enumerate(work, 1):
-            ok = rewrite_story(
-                story_id=story_id,
-                articles=articles,
-                style=style,
-                language=language,
-                config=config,
-                provider=provider,
-            )
-            attempted += 1
-            if ok:
-                succeeded += 1
-            else:
-                failed += 1
-            short_id = story_id[:12]
-            status = "ok" if ok else "fail"
-            logger.info(
-                "    [%d/%d] %s... %s",
-                i,
-                total,
-                short_id,
-                status,
-            )
-    return (attempted, succeeded, failed)
+
+    db_stories.set_story_needs_rewrite(story_id, False)
+    return (succeeded, failed)
+
+
+def _gather_rewrite_work(
+    variants: list[tuple[str, str]],
+    since: datetime | None,
+    batch_size: int,
+) -> list[tuple[str, list[dict[str, Any]], bool]]:
+    """Return list of (story_id, articles, needs_full_regen) needing rewrite."""
+    stories = db_stories.get_stories_needing_any_rewrite(
+        variants=variants,
+        since=since,
+        limit=batch_size,
+    )
+    work: list[tuple[str, list[dict[str, Any]], bool]] = []
+    for row in stories:
+        story_id = row["story_id"]
+        needs_rewrite = row.get("needs_rewrite", False)
+        articles = db_stories.get_articles_in_story(story_id)
+        if articles:
+            work.append((story_id, articles, needs_rewrite))
+    return work
+
+
+def _execute_cascading_rewrites(
+    work: list[tuple[str, list[dict[str, Any]], bool]],
+    config: dict[str, Any],
+    base_language: str,
+    other_languages: list[str],
+    rewrite_provider: LLMProvider,
+    simplify_provider: LLMProvider,
+    translate_provider: LLMProvider,
+) -> tuple[int, int]:
+    """Run cascading rewrites for work items. Returns (succeeded, failed)."""
+    total = len(work)
+    succeeded = 0
+    failed = 0
+    for i, (story_id, articles, needs_full_regen) in enumerate(work, 1):
+        existing = db_stories.get_all_rewrites_for_story(story_id)
+        s, f = _rewrite_story_cascading(
+            story_id=story_id,
+            articles=articles,
+            config=config,
+            needs_full_regen=needs_full_regen,
+            existing_rewrites=existing,
+            base_language=base_language,
+            other_languages=other_languages,
+            rewrite_provider=rewrite_provider,
+            simplify_provider=simplify_provider,
+            translate_provider=translate_provider,
+        )
+        succeeded += s
+        failed += f
+        short_id = story_id[:12]
+        logger.info(
+            "    [%d/%d] %s... %d ok, %d fail",
+            i,
+            total,
+            short_id,
+            s,
+            f,
+        )
+    return (succeeded, failed)
 
 
 def run_rewrite_batch(config: dict[str, Any]) -> RewriteReport:
-    """Process stories for all configured (style, language) variants."""
-    logger.info("━━ Rewrite job starting")
+    """Process stories via cascade: neutral EN from sources, simplify, translate both."""
+    logger.info("━━ Rewrite job starting (cascade: rewrite → simplify → translate)")
     processing = config.get("processing", {})
     window_hours = processing.get("cluster_window_hours", 24)
     since = (
@@ -293,56 +482,52 @@ def run_rewrite_batch(config: dict[str, Any]) -> RewriteReport:
     )
     schedule_cfg = config.get("schedule", {})
     batch_size = schedule_cfg.get("rewrite_batch_size", 10)
-    parallel_workers = schedule_cfg.get("rewrite_parallel_workers", 1)
 
     variants = _get_rewriting_variants(config)
+    base_language = config.get("rewriting", {}).get("base_language", "en")
+    other_languages = [
+        lang["id"]
+        for lang in config.get("rewriting", {}).get("languages", [])
+        if lang["id"] != base_language
+    ]
+
     variant_str = ", ".join(f"{s}/{l}" for s, l in variants)
     logger.info(
-        "  Variants: %s (batch_size=%d, workers=%d)",
+        "  Variants: %s (batch_size=%d, base=%s)",
         variant_str or "none",
         batch_size,
-        parallel_workers,
+        base_language,
     )
 
-    stories_attempted = 0
-    stories_succeeded = 0
-    stories_failed = 0
-    provider: LLMProvider | None = None
-
-    for style, language in variants:
-        work = _gather_rewrite_work(style, language, since, batch_size)
-        if not work:
-            logger.info("  [%s/%s] No stories needing rewrite", style, language)
-            continue
-
-        logger.info(
-            "  [%s/%s] Rewriting %d story(ies)...",
-            style,
-            language,
-            len(work),
+    work = _gather_rewrite_work(variants, since, batch_size)
+    if not work:
+        logger.info("  No stories needing rewrite")
+        return RewriteReport(
+            variants_processed=len(variants),
+            stories_attempted=0,
+            stories_succeeded=0,
+            stories_failed=0,
         )
 
-        if provider is None:
-            logger.info("  Loading LLM provider...")
-            provider = get_provider(config)
+    logger.info("  Rewriting %d story(ies) (cascade)...", len(work))
+    logger.info("  Loading LLM providers (rewrite, simplify, translate)...")
+    rewrite_provider = get_provider(config, task="rewrite")
+    simplify_provider = get_provider(config, task="simplify")
+    translate_provider = get_provider(config, task="translate")
 
-        a, s, f = _execute_rewrites(
-            work, style, language, config, provider, parallel_workers
-        )
-        stories_attempted += a
-        stories_succeeded += s
-        stories_failed += f
-        logger.info(
-            "  [%s/%s] Done: %d attempted, %d ok, %d failed",
-            style,
-            language,
-            a,
-            s,
-            f,
-        )
+    stories_succeeded, stories_failed = _execute_cascading_rewrites(
+        work=work,
+        config=config,
+        base_language=base_language,
+        other_languages=other_languages,
+        rewrite_provider=rewrite_provider,
+        simplify_provider=simplify_provider,
+        translate_provider=translate_provider,
+    )
 
+    stories_attempted = len(work)
     logger.info(
-        "━━ Rewrite complete: %d attempted, %d ok, %d failed",
+        "━━ Rewrite complete: %d stories, %d variants ok, %d failed",
         stories_attempted,
         stories_succeeded,
         stories_failed,

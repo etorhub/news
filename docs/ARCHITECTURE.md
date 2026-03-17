@@ -22,9 +22,9 @@ A five-stage pipeline runs on a background schedule (APScheduler): fetch feeds �
 | 2. Enrich | `app/extraction/` | Trafilatura extracts full text from article URLs; updates `articles` |
 | 3. Embed | `app/llm/embeddings.py` | Ollama (nomic-embed-text) embeds each article; stores vectors |
 | 4. Cluster | `app/clustering/` | Cosine similarity + Union-Find groups related articles into clusters |
-| 5. Rewrite | `app/services/rewrite_service.py` | LLM merges cluster articles into one accessible article per profile |
+| 5. Rewrite | `app/services/rewrite_service.py` | LLM cascade: merge sources → neutral EN, simplify, translate to all languages |
 
-The worker runs on a schedule (fetch every 60 min; enrich at :05; cluster at :15; rewrite daily at 06:00). When content is ready, any user whose preferred (style, language) matches an existing cluster rewrite sees it immediately.
+The worker runs on a schedule (fetch every 60 min; enrich at :05; cluster at :15; rewrite daily at 06:00). When content is ready, any user whose preferred (style, language) matches an existing story rewrite sees it immediately.
 
 ---
 
@@ -48,7 +48,7 @@ User opens app
 ```
 User opens app
     → GET /
-    → Flask queries PostgreSQL: get clusters + cached rewrites for user's (style, language) variant
+    → Flask queries PostgreSQL: get stories + cached rewrites for user's (style, language) variant
     → Returns full article list immediately — no LLM calls made
     → User sees today's digest with 3-line summaries
 ```
@@ -66,8 +66,8 @@ User opens app
     → Category chips on article cards are hidden when viewing a section (redundant)
 ```
 
-- **All** — shows every cluster matching the user's sources and topics.
-- **Section (e.g. Politics)** — shows only clusters where at least one article matches the topic (via RSS categories or the article's source topic list).
+- **All** — shows every story matching the user's sources and topics.
+- **Section (e.g. Politics)** — shows only stories where at least one article matches the topic (via RSS categories or the article's source topic list).
 - Topic labels and icons are defined in `config/app.yaml` → `topics`. Keys must match topic IDs in `config/sources.yaml`.
 
 ### New user before first scheduled rewrite
@@ -85,8 +85,8 @@ User opens app for the first time after completing setup
 
 ```
 User taps "Read more"
-    → hx-get="/clusters/<cluster_id>/expand"
-    → Flask queries PostgreSQL: get cached cluster rewrite for this cluster + (style, language) variant
+    → hx-get="/clusters/<story_id>/expand"
+    → Flask queries PostgreSQL: get cached story rewrite for this story + (style, language) variant
     → Returns partials/article_expanded.html with cached content
     → HTMX swaps the partial into #article-{id}
 ```
@@ -113,13 +113,13 @@ The LLM abstraction layer. Nothing outside this directory calls Ollama directly.
 
 - `provider.py` — `LLMProvider` abstract base class and `OllamaProvider` implementation
 - `embeddings.py` — `EmbeddingProvider` for article clustering; Ollama (nomic-embed-text)
-- `prompts/` — prompt template files (`.txt`); `rewrite_cluster_neutral.txt` and `rewrite_cluster_simple.txt` merge multiple articles into one accessible article per reading style
+- `prompts/` — `rewrite_cluster_neutral.txt`, `simplify_article.txt`, `translate_article.txt` for the cascading rewrite pipeline
 
 ### `app/clustering/`
 
 Article clustering by embedding similarity. Groups articles about the same event into clusters.
 
-- `service.py` — embeds articles, clusters by cosine similarity (Union-Find), creates cluster records
+- `service.py` — embeds articles, clusters by cosine similarity (Union-Find), creates story records
 
 ### `app/extraction/`
 
@@ -140,9 +140,9 @@ News source discovery: feed detection, validation, quality scoring.
 
 Business logic. Routes call services; services do the work.
 
-- `article_service.py` — get today's clusters for a user, score and filter by topic, select best image; optional `topic_filter` restricts feed to a single section
+- `article_service.py` — get today's stories for a user, score and filter by topic, select best image; optional `topic_filter` restricts feed to a single section
 - `profile_service.py` — create/update user profile, resolve (style, language) reading variant
-- `rewrite_service.py` — rewrite clusters for all configured (style, language) variants, manage cache
+- `rewrite_service.py` — cascading rewrite: neutral EN from sources, simplify, translate to all languages; manage cache
 - `auth_service.py` — user registration, login, session management
 
 ### `app/db/`
@@ -150,7 +150,7 @@ Business logic. Routes call services; services do the work.
 All PostgreSQL access. No other module writes to the database directly.
 
 - `articles.py` — read/write for articles (including embeddings, extraction status)
-- `clusters.py` — clusters, cluster_articles, cluster_rewrites
+- `stories.py` — stories, story_articles, story_rewrites
 - `sources.py` — news_sources, source_feeds, source_discovery_log
 - `rewrite_requests.py` — on-demand rewrite queue infrastructure (table + DB layer exist; not yet wired to routes or scheduler)
 - `users.py` — read/write for users and profiles
@@ -161,7 +161,7 @@ All PostgreSQL access. No other module writes to the database directly.
 
 Flask blueprints. Routes are thin wrappers: parse request, call service, return template.
 
-- `reader.py` — main reader interface (`/`, `/?topic=<id>`, `/feed`, `/clusters/<id>/expand`, `/article/<cluster_id>`)
+- `reader.py` — main reader interface (`/`, `/?topic=<id>`, `/feed`, `/clusters/<id>/expand`, `/article/<story_id>`)
 - `auth.py` — login, register, logout
 - `setup.py` — initial configuration wizard (`GET /setup`, `POST /setup`)
 - `settings.py` — configuration interface; allows editing profile fields after initial setup
@@ -329,16 +329,15 @@ sources:
 
 ## LLM Processing Detail
 
-### Cluster rewrite prompts
+### Rewrite cascade prompts
 
-The system ships two prompt templates in `app/llm/prompts/`:
+The system uses a cascading pipeline for story rewrites. Prompt templates in `app/llm/prompts/`:
 
-- `rewrite_cluster_neutral.txt` — journalistic tone: formal, well-written, preserves complexity.
-- `rewrite_cluster_simple.txt` — simplified tone: short sentences, plain vocabulary, no jargon.
+- `rewrite_cluster_neutral.txt` — merge sources into neutral English (journalistic, formal).
+- `simplify_article.txt` — simplify neutral English to simple English (short sentences, plain vocabulary).
+- `translate_article.txt` — translate a finished article to target language, preserving tone.
 
-Both prompts merge multiple articles about the same event into one unified article. Template variables: `{language}`, `{summary_sentences}`, `{articles_text}`.
-
-Output format (exact headers required by the parser):
+All prompts produce the same output format (exact headers required by the parser):
 
 ```
 TITLE:
@@ -353,30 +352,34 @@ Full article.
 
 ### (style, language) variant system
 
-Rewrites are **cluster-level, not per-user**. The system generates one cached rewrite per `(cluster_id, style, language)` combination. All users who share the same preferred style and language share the same cached rewrite — the LLM is never called twice for the same combination.
+Rewrites are **story-level, not per-user**. The system generates one cached rewrite per `(story_id, style, language)` combination. All users who share the same preferred style and language share the same cached rewrite — the LLM is never called twice for the same combination.
 
-Styles and languages are defined in `config/app.yaml` under `rewriting.styles` and `rewriting.languages`. The two active styles map to prompt files:
+Styles and languages are defined in `config/app.yaml` under `rewriting.styles` and `rewriting.languages`. The two active styles:
 
-| Style ID | Prompt file | Label |
-|---|---|---|
-| `neutral` | `rewrite_cluster_neutral.txt` | Neutral |
-| `simple` | `rewrite_cluster_simple.txt` | Simple |
+| Style ID | Label |
+|---|---|
+| `neutral` | Neutral |
+| `simple` | Simple |
 
 The user's `preferred_style` (set in setup/settings) and `language` together select the correct cached rewrite when they open the feed.
 
-### Rewrite scheduling
+### Rewrite scheduling (cascade)
 
-The daily rewrite job (APScheduler, default 06:00):
+The daily rewrite job (APScheduler, default 06:00) uses a cascading pipeline:
 
-1. Reads all configured `(style, language)` variants from config
-2. For each variant, finds clusters without a cached rewrite (within the cluster window)
-3. For each cluster, merges articles via LLM and stores in `cluster_rewrites`
+1. Finds stories missing at least one configured variant (or with `needs_rewrite = true`)
+2. For each story: generate neutral English from sources (rewrite prompt)
+3. Simplify to simple English (simplify prompt)
+4. Translate both to other languages (translate prompt)
+5. Stores in `story_rewrites`
+
+Stories that already have all variants are skipped. Per-task models (`rewrite_model`, `simplify_model`, `translate_model`) can be tuned in config for optimal performance.
 
 The `rewrite_requests` table and `app/db/rewrite_requests.py` exist as infrastructure for future on-demand rewrites (triggered when a user saves setup/settings). This is not yet wired to routes or the scheduler; all rewrites are currently driven by the daily batch job.
 
 ### Daily digest delivery
 
-The daily digest is an **in-app experience only**. There is no email or push notification. When a user opens the app after the rewrite job has run, their feed shows all clusters that have a cached rewrite matching their `(style, language)` variant — no waiting, no loading spinner.
+The daily digest is an **in-app experience only**. There is no email or push notification. When a user opens the app after the rewrite job has run, their feed shows all stories that have a cached rewrite matching their `(style, language)` variant — no waiting, no loading spinner.
 
 The `user_read_clusters` table exists as infrastructure for future per-user read-state tracking (e.g. "N new articles since your last visit"). The DB table is defined in migration 010 but has no application code layer yet; read state is not currently tracked.
 
