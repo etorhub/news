@@ -71,16 +71,15 @@ def create_profile(user_id: int, data: dict[str, Any]) -> None:
             cur.execute(
                 """
                 INSERT INTO user_profiles (
-                    user_id, location, language, filter_negative,
+                    user_id, location, language,
                     rewrite_tone, high_contrast, preferred_style
                 )
-                VALUES (%s, %s, %s, %s, %s, %s, %s)
+                VALUES (%s, %s, %s, %s, %s, %s)
                 """,
                 (
                     user_id,
                     data.get("location"),
                     data.get("language", "ca"),
-                    data.get("filter_negative", False),
                     data.get(
                         "rewrite_tone",
                         "Journalistic style. Formal and well-written. Do not simplify; preserve original complexity and nuance. Avoid spoilers in headlines or summaries.",
@@ -105,7 +104,6 @@ def update_profile(user_id: int, data: dict[str, Any]) -> None:
                 SET
                     location = COALESCE(%s, location),
                     language = COALESCE(%s, language),
-                    filter_negative = COALESCE(%s, filter_negative),
                     rewrite_tone = COALESCE(%s, rewrite_tone),
                     high_contrast = COALESCE(%s, high_contrast),
                     preferred_style = COALESCE(%s, preferred_style),
@@ -115,7 +113,6 @@ def update_profile(user_id: int, data: dict[str, Any]) -> None:
                 (
                     data.get("location"),
                     data.get("language"),
-                    data.get("filter_negative"),
                     data.get("rewrite_tone"),
                     data.get("high_contrast"),
                     data.get("preferred_style"),
@@ -134,7 +131,7 @@ def get_profile(user_id: int) -> dict[str, Any] | None:
         with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
             cur.execute(
                 """
-                SELECT user_id, location, language, filter_negative,
+                SELECT user_id, location, language,
                        rewrite_tone, high_contrast, preferred_style,
                        created_at, updated_at
                 FROM user_profiles WHERE user_id = %s

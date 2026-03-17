@@ -40,12 +40,8 @@ def regeneration_needed(
         return True
     if old_profile.get("language", "ca") != new_form_data.get("language", "ca"):
         return True
-    if old_profile.get("preferred_style", "neutral") != new_form_data.get(
+    return old_profile.get("preferred_style", "neutral") != new_form_data.get(
         "preferred_style", "neutral"
-    ):
-        return True
-    return old_profile.get("filter_negative", False) != new_form_data.get(
-        "filter_negative", False
     )
 
 
@@ -63,7 +59,6 @@ def save_setup(
     profile_data = {
         "location": form_data.get("location"),
         "language": form_data.get("language", "ca"),
-        "filter_negative": form_data.get("filter_negative", False),
         "rewrite_tone": form_data.get("rewrite_tone") or tone_map.get(style, tone_map["neutral"]),
         "high_contrast": form_data.get("high_contrast", False),
         "preferred_style": style,

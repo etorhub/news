@@ -59,7 +59,7 @@ Lefthook runs these on pre-commit and commit-msg.
 ## Pull Requests
 
 1. Open an issue first for non-trivial changes.
-2. Branch from `main`. Use a descriptive branch name (e.g. `fix/tts-fallback`, `feat/negative-news-filter`).
+2. Branch from `main`. Use a descriptive branch name (e.g. `fix/tts-fallback`, `feat/settings-page`).
 3. Keep PRs focused. One concern per PR.
 4. Ensure all tests pass and lint/format checks succeed.
 5. Update documentation if behavior or config changes.

@@ -6,21 +6,21 @@ from app.services.profile_service import regeneration_needed
 def test_regeneration_needed_when_language_changes() -> None:
     """regeneration_needed returns True when language changes."""
     old = {"language": "ca", "topic_ids": ["t1"]}
-    new_form = {"language": "es", "filter_negative": False}
+    new_form = {"language": "es"}
     assert regeneration_needed(old, new_form, ["t1"]) is True
 
 
 def test_regeneration_needed_when_source_ids_change() -> None:
     """regeneration_needed returns True when source_ids change."""
     old = {"language": "ca", "topic_ids": ["t1"]}
-    new_form = {"language": "ca", "filter_negative": False}
+    new_form = {"language": "ca"}
     assert regeneration_needed(old, new_form, ["t1", "t2"]) is True
 
 
 def test_regeneration_needed_when_topic_ids_change() -> None:
     """regeneration_needed returns True when topic_ids change."""
     old = {"language": "ca", "topic_ids": ["t1"]}
-    new_form = {"language": "ca", "filter_negative": False}
+    new_form = {"language": "ca"}
     assert regeneration_needed(old, new_form, ["t1", "t2"]) is True
 
 
@@ -34,19 +34,7 @@ def test_regeneration_needed_when_preferred_style_changes() -> None:
     new_form = {
         "language": "ca",
         "preferred_style": "simple",
-        "filter_negative": False,
     }
-    assert regeneration_needed(old, new_form, ["t1"]) is True
-
-
-def test_regeneration_needed_when_filter_negative_changes() -> None:
-    """regeneration_needed returns True when filter_negative changes."""
-    old = {
-        "language": "ca",
-        "filter_negative": False,
-        "topic_ids": ["t1"],
-    }
-    new_form = {"language": "ca", "filter_negative": True}
     assert regeneration_needed(old, new_form, ["t1"]) is True
 
 
@@ -57,7 +45,7 @@ def test_regeneration_needed_when_location_changes() -> None:
         "language": "ca",
         "topic_ids": ["t1"],
     }
-    new_form = {"location": "Madrid", "language": "ca", "filter_negative": False}
+    new_form = {"location": "Madrid", "language": "ca"}
     assert regeneration_needed(old, new_form, ["t1"]) is True
 
 
@@ -66,13 +54,11 @@ def test_regeneration_not_needed_when_only_high_contrast_changes() -> None:
     old = {
         "language": "ca",
         "preferred_style": "simple",
-        "filter_negative": False,
         "topic_ids": ["t1"],
     }
     new_form = {
         "language": "ca",
         "preferred_style": "simple",
-        "filter_negative": False,
         "high_contrast": True,
     }
     assert regeneration_needed(old, new_form, ["t1"]) is False
@@ -81,12 +67,12 @@ def test_regeneration_not_needed_when_only_high_contrast_changes() -> None:
 def test_regeneration_not_needed_when_nothing_changes() -> None:
     """regeneration_needed returns False when no regeneration field changes."""
     old = {"language": "ca", "topic_ids": ["t1"]}
-    new_form = {"language": "ca", "filter_negative": False}
+    new_form = {"language": "ca"}
     assert regeneration_needed(old, new_form, ["t1"]) is False
 
 
 def test_regeneration_not_needed_when_source_order_differs() -> None:
     """regeneration_needed returns False when source_ids same but order differs."""
     old = {"language": "ca", "topic_ids": ["t1"]}
-    new_form = {"language": "ca", "filter_negative": False}
+    new_form = {"language": "ca"}
     assert regeneration_needed(old, new_form, ["t1"]) is False

@@ -23,7 +23,6 @@ def mock_profile() -> dict:
         "location": "Barcelona",
         "language": "ca",
         "preferred_style": "neutral",
-        "filter_negative": False,
         "high_contrast": False,
         "topic_ids": ["general"],
     }

@@ -39,7 +39,7 @@ User opens app
     → No: redirect to GET /login (or /register for new users)
     → After login, Flask checks: does this user have a profile?
     → No: redirect to GET /setup
-    → User fills in: location, language, topics, preferred style (neutral/simple), negative news filter
+    → User fills in: location, language, topics, preferred style (neutral/simple)
     → POST /setup → validate, store in PostgreSQL → redirect to /
 ```
 
@@ -373,8 +373,6 @@ The daily rewrite job (APScheduler, default 06:00):
 3. For each cluster, merges articles via LLM and stores in `cluster_rewrites`
 
 The `rewrite_requests` table and `app/db/rewrite_requests.py` exist as infrastructure for future on-demand rewrites (triggered when a user saves setup/settings). This is not yet wired to routes or the scheduler; all rewrites are currently driven by the daily batch job.
-
-**`filter_negative` note:** The `filter_negative` preference is stored per user in `user_profiles` and displayed in the setup/settings UI. It is not currently passed to the LLM prompt — the cluster-level rewrite prompts do not include a filter-negative instruction. This is a planned feature; the stored preference will be available when it is implemented.
 
 ### Daily digest delivery
 

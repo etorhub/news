@@ -264,10 +264,6 @@ msgstr ""
 msgid "Reading style"
 msgstr ""
 
-#: templates/settings.html:46 templates/setup.html:31
-msgid "Soften or filter distressing news"
-msgstr ""
-
 #: templates/settings.html:50 templates/setup.html:35
 msgid "High contrast mode"
 msgstr ""

@@ -66,7 +66,6 @@ def settings_page() -> Any:
 
     location = request.form.get("location", "").strip() or None
     language = request.form.get("language", "ca").strip()
-    filter_negative = request.form.get("filter_negative") == "on"
     preferred_style = request.form.get("preferred_style", "neutral").strip()
     high_contrast = request.form.get("high_contrast") == "on"
 
@@ -77,7 +76,6 @@ def settings_page() -> Any:
     form_data = {
         "location": location,
         "language": language,
-        "filter_negative": filter_negative,
         "preferred_style": preferred_style,
         "high_contrast": high_contrast,
     }
@@ -92,7 +90,6 @@ def settings_page() -> Any:
             **profile,
             "location": form_data.get("location"),
             "language": form_data.get("language"),
-            "filter_negative": form_data.get("filter_negative"),
             "preferred_style": form_data.get("preferred_style"),
             "high_contrast": form_data.get("high_contrast"),
             "topic_ids": topic_ids,

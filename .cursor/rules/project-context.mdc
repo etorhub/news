@@ -56,7 +56,7 @@ Refer to `docs/MVP_PLAN.md` for the canonical phased plan: discovery, fetching, 
 
 ### User-facing
 
-- Profile configuration (location, sources, topics, language, negative news filter, rewrite tone)
+- Profile configuration (location, sources, topics, language, rewrite tone)
 - Soft daily notification: "You have N new articles"
 - Account management designed to be set up once and left alone
 

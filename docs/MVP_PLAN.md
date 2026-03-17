@@ -173,7 +173,7 @@ End users always access the platform, never the codebase. Flow: **register → c
    - Unauthenticated users redirect to login
 
 2. **Profile configuration**
-   - Setup wizard (after registration): location, language, topics (all selected by default), preferred reading style (neutral/simple), negative news filter
+   - Setup wizard (after registration): location, language, topics (all selected by default), preferred reading style (neutral/simple)
    - Settings page: same fields, editable anytime
    - Stored in PostgreSQL: `user_profiles`, `user_topics`
 
