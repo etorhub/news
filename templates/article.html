@@ -1,11 +1,11 @@
 {% extends "base.html" %}
 
-{% block title %}{% if article %}{{ article.title }} — Accessible News{% else %}Article not found{% endif %}{% endblock %}
+{% block title %}{% if article %}{{ article.title }} — {{ _('Accessible News') }}{% else %}{{ _('Article not found') }}{% endif %}{% endblock %}
 
 {% block content %}
 {% if error %}
   <p style="color: #c00;">{{ error }}</p>
-  <a href="{{ url_for('reader.index') }}" class="btn btn-ghost">← Back</a>
+  <a href="{{ url_for('reader.index') }}" class="btn btn-ghost">← {{ _('Back') }}</a>
 {% elif article %}
 <article>
   {% if article.image_url %}
@@ -13,7 +13,7 @@
     <img src="{{ article.image_url }}" alt="" loading="lazy"
          onerror="this.parentElement.classList.add('no-image')">
     {% if article.image_source_name %}
-    <span class="article-cover-credit" aria-label="Image source: {{ article.image_source_name }}">© {{ article.image_source_name }}</span>
+    <span class="article-cover-credit" aria-label="{{ _('Image source:') }} {{ article.image_source_name }}">© {{ article.image_source_name }}</span>
     {% endif %}
   </div>
   {% endif %}
@@ -33,16 +33,16 @@
   </p>
   <div class="tts-player tts-only">
     <button type="button" class="btn" id="tts-btn-{{ article.id }}"
-      aria-pressed="false" aria-label="Read article aloud"
-      onclick='ttsToggle({{ article.id|tojson }}, {{ (article.title + ". " + (article.full_text or "")) | tojson }})'>🎧 Listen</button>
+      aria-pressed="false" aria-label="{{ _('Read article aloud') }}"
+      onclick='ttsToggle({{ article.id|tojson }}, {{ (article.title + ". " + (article.full_text or "")) | tojson }})'>🎧 {{ _('Listen') }}</button>
     <div class="tts-controls" id="tts-controls-{{ article.id }}">
       <div class="tts-track" aria-hidden="true">
         <div class="tts-bar" id="tts-bar-{{ article.id }}"></div>
       </div>
-      <label class="tts-vol-label" aria-label="Volume">
+      <label class="tts-vol-label" aria-label="{{ _('Volume') }}">
         <span aria-hidden="true">🔈</span>
         <input type="range" id="tts-vol-{{ article.id }}" class="tts-vol"
-          min="0" max="1" step="0.1" value="1" aria-label="Volume">
+          min="0" max="1" step="0.1" value="1" aria-label="{{ _('Volume') }}">
         <span aria-hidden="true">🔊</span>
       </label>
     </div>
@@ -53,7 +53,7 @@
     {% endfor %}
   </div>
   <div class="article-actions">
-    <a href="{{ url_for('reader.index') }}" class="btn btn-ghost">← Back</a>
+    <a href="{{ url_for('reader.index') }}" class="btn btn-ghost">← {{ _('Back') }}</a>
   </div>
 </article>
 {% endif %}

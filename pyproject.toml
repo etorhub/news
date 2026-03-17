@@ -17,6 +17,7 @@ dependencies = [
     "gunicorn",
     "PyYAML",
     "humanize>=4.15.0",
+    "Flask-Babel",
 ]
 
 [project.optional-dependencies]

@@ -351,14 +351,3 @@ def run_rewrite_batch(config: dict[str, Any]) -> RewriteReport:
     )
 
 
-def run_rewrite_for_user(
-    user_id: int, config: dict[str, Any] | None = None
-) -> RewriteReport:
-    """No-op: rewrites are now shared per cluster per variant, not per user."""
-    logger.info("run_rewrite_for_user: no-op for user_id=%d (cluster-level rewrites)", user_id)
-    return RewriteReport(
-        variants_processed=0,
-        clusters_attempted=0,
-        clusters_succeeded=0,
-        clusters_failed=0,
-    )

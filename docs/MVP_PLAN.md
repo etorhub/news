@@ -126,35 +126,35 @@ Canonical phased plan for the minimum viable product. This document replaces sca
 
 ## Phase 3 — Processing & Storage
 
-**Goal:** Rewrite articles via LLM per user profile, cache results on a schedule.
+**Goal:** Rewrite article clusters via LLM, cache results per (style, language) variant on a schedule.
 
 ### Tasks
 
 1. **LLM rewriter**
-   - Load user profile (language, rewrite_tone, filter_negative)
-   - Build prompt from `app/llm/prompts/` template
-   - Output: 3-line summary + full rewritten article
-   - Store in `rewrites` keyed by `(article_id, profile_hash)`
+   - For each configured `(style, language)` variant (from `config/app.yaml`), build prompt from `app/llm/prompts/` template
+   - Output: headline + N-sentence summary + full rewritten article
+   - Store in `cluster_rewrites` keyed by `(cluster_id, style, language)`
 
 2. **Scheduled rewriting**
-   - APScheduler daily job (configurable time, default 6am)
-   - Collect all active users and their unique profile hashes
-   - For each profile hash: rewrite today's articles not yet cached
-   - Two users with the same language/tone/filter settings share cached rewrites
+   - APScheduler daily job (configurable time, default 06:00)
+   - For each `(style, language)` variant: find clusters without a cached rewrite (within the configured cluster window)
+   - Two users with the same `preferred_style` and `language` share cached rewrites — the LLM is never called twice for the same combination
 
-3. **Profile hash**
-   - Hash includes only rewrite-affecting fields: `language`, `rewrite_tone`, `filter_negative`
-   - Hash does NOT include: selected sources, selected topics, location
-   - Changing source selections does not invalidate existing rewrites
+3. **Variant system**
+   - Styles and languages are defined in `config/app.yaml` under `rewriting.styles` and `rewriting.languages`
+   - Active styles: `neutral` (journalistic) and `simple` (plain language)
+   - Active languages: `ca` (Catalan), `es` (Spanish), `en` (English)
+   - User's `preferred_style` + `language` selects the correct cached rewrite at read time
 
 4. **Daily digest**
-   - Select top N articles for the day per user (filtered by their source/topic selections)
-   - Digest is per-user but rewrites are per-profile-hash
+   - Select clusters for the user filtered by their topic selections
+   - Show clusters that have a cached rewrite for the user's `(style, language)` variant
+   - Fall back to the default variant (`neutral/ca`) if the user's preferred variant is not yet available
 
 ### Output
 
-- `rewrites` table with `summary`, `full_text` per article per profile hash
-- Digest derived from articles + user source/topic selections + cached rewrites
+- `cluster_rewrites` table with `title`, `summary`, `full_text` per `(cluster_id, style, language)`
+- Feed derived from clusters + user topic selections + cached rewrites
 
 ---
 
@@ -173,9 +173,9 @@ End users always access the platform, never the codebase. Flow: **register → c
    - Unauthenticated users redirect to login
 
 2. **Profile configuration**
-   - Setup wizard (after registration): location, language, sources (all selected by default), topics (all selected), negative news filter, rewrite tone
+   - Setup wizard (after registration): location, language, topics (all selected by default), preferred reading style (neutral/simple), negative news filter
    - Settings page: same fields, editable anytime
-   - Stored in PostgreSQL: `user_profiles`, `user_sources`, `user_topics`
+   - Stored in PostgreSQL: `user_profiles`, `user_topics`
 
 3. **Feed view**
    - Main view: today's articles filtered by user's source/topic selections
@@ -211,7 +211,7 @@ End users always access the platform, never the codebase. Flow: **register → c
 | Git hooks (Lefthook) and conventional commits (Commitizen)             | ✅     |
 | News source discovery (agent or manual seed)                           | ✅     |
 | Scheduled fetching from all sources                                    | ✅     |
-| Scheduled rewriting (LLM rewrite, cache per profile hash)              | ✅     |
+| Scheduled rewriting (LLM rewrite, cache per cluster × style × language) | ✅     |
 | Multi-user authentication                                              | ✅     |
 | Profile configuration (setup wizard + settings)                        | ✅     |
 | Feed view (3-line summary, expandable)                                 | ✅     |
@@ -248,7 +248,7 @@ Rationale: Phase 0 establishes infrastructure and developer experience before an
 
 ## Database Schema Alignment
 
-The discovery agent doc defines `news_sources`, `source_feeds`, `source_discovery_log`. All use PostgreSQL-native types. The main app schema in `docs/ARCHITECTURE.md` defines `users`, `user_profiles`, `articles`, `rewrites`, etc.
+The discovery agent doc defines `news_sources`, `source_feeds`, `source_discovery_log`. All use PostgreSQL-native types. The main app schema in `docs/ARCHITECTURE.md` defines `users`, `user_profiles`, `articles`, `clusters`, `cluster_rewrites`, etc.
 
 When discovery is integrated, `articles.source_id` references `news_sources.id`. When using manual `sources.yaml` seeding only, `source_id` is the string ID from the YAML file.
 

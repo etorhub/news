@@ -4,7 +4,7 @@ from typing import Any
 
 from flask import Blueprint, redirect, render_template, request, session, url_for
 
-from app.config import load_sources
+from app.config import load_config, load_sources
 from app.services import profile_service
 
 setup_bp = Blueprint("setup", __name__, url_prefix="/setup")
@@ -38,11 +38,17 @@ def setup_page() -> Any:
     topics = _all_topics(sources)
 
     if request.method == "GET":
+        config = load_config()
+        languages = config.get("rewriting", {}).get(
+            "languages",
+            [{"id": "ca", "label": "Catalan"}, {"id": "es", "label": "Spanish"}, {"id": "en", "label": "English"}],
+        )
         return render_template(
             "setup.html",
             sources=sources,
             topics=topics,
             style_options=PREFERRED_STYLE_OPTIONS,
+            languages=languages,
         )
 
     location = request.form.get("location", "").strip() or None

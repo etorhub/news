@@ -7,6 +7,7 @@ from pathlib import Path
 import humanize
 from dotenv import load_dotenv
 from flask import Flask, Response, redirect, request, session, url_for
+from flask_babel import Babel
 
 from app.cli import make_admin, seed_sources, show_rewrite_failures
 from app.config import load_config
@@ -16,10 +17,25 @@ from app.routes.auth import auth_bp
 from app.routes.reader import reader_bp
 from app.routes.settings import settings_bp
 from app.routes.setup import setup_bp
+from app.services import profile_service
 
 load_dotenv()
 
 PUBLIC_ENDPOINTS = {"auth.login", "auth.register", "health", "favicon"}
+
+babel = Babel()
+
+
+def get_locale() -> str:
+    """Return the locale for the current request (user profile or Accept-Language)."""
+    user_id = session.get("user_id")
+    if user_id:
+        profile = db_users.get_profile(user_id)
+        if profile and profile.get("language"):
+            return profile["language"]
+    config = load_config()
+    default = config.get("rewriting", {}).get("default_language", "ca")
+    return request.accept_languages.best_match(["ca", "es", "en"], default=default)
 
 
 def create_app(config_path: str | Path | None = None) -> Flask:
@@ -29,6 +45,11 @@ def create_app(config_path: str | Path | None = None) -> Flask:
     app.config["SECRET_KEY"] = os.environ.get(
         "SECRET_KEY", "dev-secret-key-change-in-production"
     )
+    # Use absolute path so translations load correctly in Docker and all environments
+    _translations_dir = Path(__file__).resolve().parent.parent / "translations"
+    app.config["BABEL_TRANSLATION_DIRECTORIES"] = str(_translations_dir)
+
+    babel.init_app(app, locale_selector=get_locale)
 
     @app.before_request
     def require_auth():  # type: ignore[no-untyped-def]
@@ -39,6 +60,17 @@ def create_app(config_path: str | Path | None = None) -> Flask:
         if not session.get("user_id"):
             return redirect(url_for("auth.login"))
         return None
+
+    @app.before_request
+    def activate_humanize_locale() -> None:
+        """Activate humanize locale for naturaltime filter."""
+        locale = get_locale()
+        # Humanize uses full locale codes (ca_ES, es_ES); we use short codes (ca, es)
+        _humanize_locale = {"ca": "ca_ES", "es": "es_ES", "en": None}.get(locale, locale)
+        try:
+            humanize.activate(_humanize_locale)
+        except (FileNotFoundError, OSError):
+            humanize.deactivate()
 
     @app.route("/favicon.ico")
     def favicon() -> Response:
@@ -65,14 +97,22 @@ def create_app(config_path: str | Path | None = None) -> Flask:
 
     @app.context_processor
     def inject_admin_flag():  # type: ignore[no-untyped-def]
-        """Inject is_admin and current_user_email for nav."""
+        """Inject is_admin, current_user_email, profile, and locale for templates."""
         user_id = session.get("user_id")
         if not user_id:
-            return {"is_admin": False, "current_user_email": None}
+            return {
+                "is_admin": False,
+                "current_user_email": None,
+                "profile": None,
+                "locale": get_locale(),
+            }
         user = db_users.get_user_by_id(user_id)
+        profile = profile_service.get_profile_with_selections(user_id)
         return {
             "is_admin": user.get("is_admin", False) if user else False,
             "current_user_email": user.get("email") if user else None,
+            "profile": profile,
+            "locale": get_locale(),
         }
 
     app.cli.add_command(seed_sources)

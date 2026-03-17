@@ -127,26 +127,6 @@ def update_profile(user_id: int, data: dict[str, Any]) -> None:
         return_connection(conn)
 
 
-def get_distinct_rewrite_profiles() -> list[dict[str, Any]]:
-    """Return distinct (language, rewrite_tone, filter_negative) from user_profiles.
-
-    Used by the rewrite batch job to enumerate unique profile combinations.
-    """
-    conn = get_connection()
-    try:
-        with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
-            cur.execute(
-                """
-                SELECT DISTINCT language, rewrite_tone, filter_negative
-                FROM user_profiles
-                ORDER BY language, rewrite_tone, filter_negative
-                """,
-            )
-            return [dict(row) for row in cur.fetchall()]
-    finally:
-        return_connection(conn)
-
-
 def get_profile(user_id: int) -> dict[str, Any] | None:
     """Return profile dict or None if not found."""
     conn = get_connection()

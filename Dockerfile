@@ -16,6 +16,7 @@ COPY config/ /app/config/
 COPY alembic/ /app/alembic/
 COPY alembic.ini /app/
 COPY templates/ /app/templates/
+COPY translations/ /app/translations/
 
 ENV PYTHONPATH=/app
 ENV FLASK_APP=app:create_app

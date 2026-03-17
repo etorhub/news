@@ -7,7 +7,7 @@
     <img src="{{ article.image_url }}" alt="" loading="lazy"
          onerror="this.parentElement.classList.add('no-image')">
     {% if article.image_source_name %}
-    <span class="article-cover-credit" aria-label="Image source: {{ article.image_source_name }}">© {{ article.image_source_name }}</span>
+    <span class="article-cover-credit" aria-label="{{ _('Image source:') }} {{ article.image_source_name }}">© {{ article.image_source_name }}</span>
     {% endif %}
   </div>
   {% endif %}
@@ -15,7 +15,7 @@
   <p style="margin: 0.5rem 0 0;">{% for cat in article.categories %}<span class="category-chip">{{ cat|replace('_', ' ')|title }}</span>{% endfor %}</p>
   {% endif %}
   <h2>
-    {% if article.sources|length > 1 %}<span class="source-badge" title="{{ article.sources|length }} sources aggregated">▲ {{ article.sources|length }}</span> {% endif %}
+    {% if article.sources|length > 1 %}<span class="source-badge" title="{{ ngettext('%(num)d source aggregated', '%(num)d sources aggregated', article.sources|length)|format(num=article.sources|length) }}">▲ {{ article.sources|length }}</span> {% endif %}
     {{ article.title }}
   </h2>
   <p class="article-meta">
@@ -27,17 +27,17 @@
   </p>
   <div class="tts-player tts-only">
     <button type="button" class="btn" id="tts-btn-{{ article.id }}"
-      aria-pressed="false" aria-label="Read article aloud"
-      onclick='ttsToggle({{ article.id|tojson }}, {{ (article.title + ". " + (article.full_text or "")) | tojson }})'>🎧 Listen</button>
+      aria-pressed="false" aria-label="{{ _('Read article aloud') }}"
+      onclick='ttsToggle({{ article.id|tojson }}, {{ (article.title + ". " + (article.full_text or "")) | tojson }})'>🎧 {{ _('Listen') }}</button>
     <div class="tts-controls" id="tts-controls-{{ article.id }}">
       <div class="tts-track" aria-hidden="true">
         <div class="tts-bar" id="tts-bar-{{ article.id }}"></div>
       </div>
-      <label class="tts-vol-label" aria-label="Volume">
+      <label class="tts-vol-label" aria-label="{{ _('Volume') }}">
         <span aria-hidden="true">🔈</span>
         <input type="range" id="tts-vol-{{ article.id }}" class="tts-vol"
-          min="0" max="1" step="0.1" value="1" aria-label="Volume"
-          oninput="ttsSetVolume({{ article.id|tojson }})"
+          min="0" max="1" step="0.1" value="1" aria-label="{{ _('Volume') }}"
+          oninput="ttsSetVolume({{ article.id|tojson }})">
         <span aria-hidden="true">🔊</span>
       </label>
     </div>
@@ -52,7 +52,7 @@
       hx-get="{{ url_for('reader.collapse_cluster', cluster_id=article.id) }}"
       hx-target="#article-{{ article.id }}"
       hx-swap="innerHTML"
-      onclick="ttsStop()">Show less</button>
+      onclick="ttsStop()">{{ _('Show less') }}</button>
   </div>
 </article>
 {% endif %}

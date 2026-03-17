@@ -1,0 +1,369 @@
+# Catalan translations for PROJECT.
+# Copyright (C) 2026 ORGANIZATION
+# This file is distributed under the same license as the PROJECT project.
+# FIRST AUTHOR <EMAIL@ADDRESS>, 2026.
+#
+msgid ""
+msgstr ""
+"Project-Id-Version: PROJECT VERSION\n"
+"Report-Msgid-Bugs-To: EMAIL@ADDRESS\n"
+"POT-Creation-Date: 2026-03-17 12:24+0100\n"
+"PO-Revision-Date: 2026-03-17 12:11+0100\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language: ca\n"
+"Language-Team: ca <LL@li.org>\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Generated-By: Babel 2.10.3\n"
+
+#: app/i18n_strings.py:13
+msgid "Catalan"
+msgstr "Català"
+
+#: app/i18n_strings.py:14
+msgid "Spanish"
+msgstr "Espanyol"
+
+#: app/i18n_strings.py:15
+msgid "English"
+msgstr "Anglès"
+
+#: app/i18n_strings.py:16
+msgid "Neutral"
+msgstr "Neutre"
+
+#: app/i18n_strings.py:17
+msgid "Simple"
+msgstr "Simple"
+
+#: app/i18n_strings.py:19
+msgid "General"
+msgstr "General"
+
+#: app/i18n_strings.py:20
+msgid "Politics"
+msgstr "Política"
+
+#: app/i18n_strings.py:21
+msgid "Society"
+msgstr "Societat"
+
+#: app/i18n_strings.py:22
+msgid "Culture"
+msgstr "Cultura"
+
+#: app/i18n_strings.py:23
+msgid "International"
+msgstr "Internacional"
+
+#: app/i18n_strings.py:24
+msgid "Economy"
+msgstr "Economia"
+
+#: app/i18n_strings.py:25
+msgid "Science"
+msgstr "Ciència"
+
+#: app/i18n_strings.py:26
+msgid "Sports"
+msgstr "Esports"
+
+#: app/i18n_strings.py:27 templates/index.html:7
+msgid "All"
+msgstr "Tot"
+
+#: app/i18n_strings.py:28
+msgid "Pol"
+msgstr "Pol"
+
+#: app/i18n_strings.py:29
+msgid "Soc"
+msgstr "Soc"
+
+#: app/i18n_strings.py:30
+msgid "Cul"
+msgstr "Cul"
+
+#: app/i18n_strings.py:31
+msgid "Int"
+msgstr "Int"
+
+#: app/i18n_strings.py:32
+msgid "Eco"
+msgstr "Eco"
+
+#: app/i18n_strings.py:33
+msgid "Sci"
+msgstr "Sci"
+
+#: app/i18n_strings.py:34
+msgid "Spo"
+msgstr "Esp"
+
+#: app/routes/auth.py:23 app/routes/auth.py:44
+msgid "Email and password are required."
+msgstr "Cal l'adreça de correu i la contrasenya."
+
+#: app/routes/auth.py:28
+msgid "Invalid email or password."
+msgstr "Adreça de correu o contrasenya incorrectes."
+
+#: app/routes/auth.py:49
+msgid "Password must be at least 8 characters."
+msgstr "La contrasenya ha de tenir almenys 8 caràcters."
+
+#: app/routes/auth.py:56
+msgid "Email already registered."
+msgstr "Aquesta adreça de correu ja està registrada."
+
+#: app/routes/reader.py:96 app/routes/reader.py:125 app/routes/reader.py:151
+msgid "Article not found."
+msgstr "Article no trobat."
+
+#: templates/article.html:3 templates/base.html:6 templates/index.html:2
+#: templates/login.html:2 templates/register.html:2 templates/settings.html:2
+#: templates/setup.html:2
+msgid "Accessible News"
+msgstr "Accessible News"
+
+#: templates/article.html:3
+msgid "Article not found"
+msgstr "Article no trobat"
+
+#: templates/article.html:8 templates/article.html:56
+msgid "Back"
+msgstr "Enrere"
+
+#: templates/article.html:16 templates/partials/article_card.html:7
+#: templates/partials/article_expanded.html:10
+msgid "Image source:"
+msgstr "Font de la imatge:"
+
+#: templates/article.html:36 templates/base.html:402
+#: templates/partials/article_expanded.html:30
+msgid "Read article aloud"
+msgstr "Llegir l'article en veu alta"
+
+#: templates/article.html:37 templates/base.html:399
+#: templates/partials/article_expanded.html:31
+msgid "Listen"
+msgstr "Escoltar"
+
+#: templates/article.html:42 templates/article.html:45 templates/base.html:401
+#: templates/partials/article_expanded.html:36
+#: templates/partials/article_expanded.html:39
+msgid "Volume"
+msgstr "Volum"
+
+#: templates/base.html:400
+msgid "Stop"
+msgstr "Aturar"
+
+#: templates/base.html:406
+msgid "Feed"
+msgstr "Dossier"
+
+#: templates/base.html:407 templates/settings.html:2 templates/settings.html:4
+msgid "Settings"
+msgstr "Configuració"
+
+#: templates/base.html:408
+msgid "Admin"
+msgstr "Administració"
+
+#: templates/base.html:413
+msgid "Log out"
+msgstr "Tancar sessió"
+
+#: templates/base.html:418 templates/login.html:2 templates/login.html:4
+#: templates/login.html:18 templates/register.html:21
+msgid "Log in"
+msgstr "Iniciar sessió"
+
+#: templates/base.html:419 templates/login.html:21 templates/register.html:2
+#: templates/register.html:4 templates/register.html:18
+msgid "Register"
+msgstr "Registrar-se"
+
+#: templates/index.html:2 templates/index.html:4
+msgid "Today's feed"
+msgstr "El dossier d'avui"
+
+#: templates/index.html:4
+#, python-format
+msgid "%(num)d article"
+msgid_plural "%(num)d articles"
+msgstr[0] "%(num)d article"
+msgstr[1] "%(num)d articles"
+
+#: templates/index.html:6
+msgid "News sections"
+msgstr "Seccions de notícies"
+
+#: templates/login.html:10 templates/register.html:10
+msgid "Email"
+msgstr "Adreça de correu"
+
+#: templates/login.html:14
+msgid "Password"
+msgstr "Contrasenya"
+
+#: templates/login.html:21
+msgid "Don't have an account?"
+msgstr "No tens compte?"
+
+#: templates/register.html:14
+msgid "Password (at least 8 characters)"
+msgstr "Contrasenya (almenys 8 caràcters)"
+
+#: templates/register.html:21
+msgid "Already have an account?"
+msgstr "Ja tens compte?"
+
+#: templates/settings.html:6
+msgid "Settings saved."
+msgstr "Configuració desada."
+
+#: templates/settings.html:10
+msgid "Feed regeneration"
+msgstr "Regeneració del dossier"
+
+#: templates/settings.html:11
+msgid ""
+"Changing these settings will regenerate your feed. This may take a few "
+"minutes. Your new articles will appear once ready."
+msgstr ""
+"Canviar aquesta configuració regenerarà el teu dossier. Pot trigar uns "
+"minuts. Els nous articles apareixeran quan estiguin preparats."
+
+#: templates/settings.html:13 templates/settings.html:59
+msgid "Confirm and save"
+msgstr "Confirmar i desar"
+
+#: templates/settings.html:14
+msgid "Cancel"
+msgstr "Cancel·lar"
+
+#: templates/settings.html:23 templates/setup.html:8
+msgid "Profile"
+msgstr "Perfil"
+
+#: templates/settings.html:25 templates/setup.html:10
+msgid "Location (optional)"
+msgstr "Ubicació (opcional)"
+
+#: templates/settings.html:26 templates/setup.html:11
+msgid "e.g. Catalonia"
+msgstr "p. ex. Catalunya"
+
+#: templates/settings.html:29 templates/setup.html:14
+msgid "Language"
+msgstr "Idioma"
+
+#: templates/settings.html:37 templates/setup.html:22
+msgid "Reading style"
+msgstr "Estil de lectura"
+
+#: templates/settings.html:46 templates/setup.html:31
+msgid "Soften or filter distressing news"
+msgstr "Suavitzar o filtrar notícies angunioses"
+
+#: templates/settings.html:50 templates/setup.html:35
+msgid "High contrast mode"
+msgstr "Mode d'alt contrast"
+
+#: templates/settings.html:54 templates/setup.html:39
+msgid "Topics"
+msgstr "Temes"
+
+#: templates/settings.html:55
+msgid "Select the topics you're interested in."
+msgstr "Selecciona els temes que t'interessen."
+
+#: templates/settings.html:59
+msgid "Save"
+msgstr "Desar"
+
+#: templates/setup.html:2
+msgid "Setup"
+msgstr "Configuració"
+
+#: templates/setup.html:4
+msgid "Welcome — set up your news feed"
+msgstr "Benvingut — configura el teu dossier de notícies"
+
+#: templates/setup.html:5
+msgid "Configure your preferences. You can change these anytime in Settings."
+msgstr ""
+"Configura les teves preferències. Pots canviar-les en qualsevol moment a "
+"Configuració."
+
+#: templates/setup.html:40
+msgid "Select the topics you're interested in (all selected by default)."
+msgstr "Selecciona els temes que t'interessen (tots seleccionats per defecte)."
+
+#: templates/setup.html:44
+msgid "Save and continue"
+msgstr "Desar i continuar"
+
+#: templates/partials/article_card.html:15
+#: templates/partials/article_expanded.html:18
+#, python-format
+msgid "%(num)d source aggregated"
+msgid_plural "%(num)d sources aggregated"
+msgstr[0] "%(num)d font agregada"
+msgstr[1] "%(num)d fonts agregades"
+
+#: templates/partials/article_expanded.html:55
+msgid "Show less"
+msgstr "Mostrar menys"
+
+#: templates/partials/feed_content.html:19
+msgid "Articles being prepared"
+msgstr "S'estan preparant els articles"
+
+#: templates/partials/feed_content.html:22
+msgid "Preparing your articles…"
+msgstr "S'estan preparant els teus articles…"
+
+#: templates/partials/feed_content.html:24
+msgid "This usually takes a minute. The page will update automatically."
+msgstr "Solen trigar un minut. La pàgina s'actualitzarà automàticament."
+
+#: templates/partials/feed_content.html:28
+msgid ""
+"No articles yet. Your articles are being prepared, or there are no "
+"articles matching your sources and topics for today."
+msgstr ""
+"Encara no hi ha articles. S'estan preparant els teus articles, o no hi ha"
+" articles que coincideixin amb les teves fonts i temes per avui."
+
+#: templates/partials/feed_content.html:29
+msgid "You can adjust your"
+msgstr "Pots ajustar la teva"
+
+#: templates/partials/feed_content.html:29
+msgid "settings"
+msgstr "configuració"
+
+#: templates/partials/feed_content.html:29
+msgid "to change which sources and topics you follow."
+msgstr "per canviar quines fonts i temes segueixes."
+
+#~ msgid "Read articles"
+#~ msgstr "Articles llegits"
+
+#~ msgid ""
+#~ "No read articles yet. Mark articles "
+#~ "as \"Done\" when you finish reading "
+#~ "them."
+#~ msgstr ""
+#~ "Encara no hi ha articles llegits. "
+#~ "Marca els articles com a \"Fet\" "
+#~ "quan acabis de llegir-los."
+
+#~ msgid "Back to feed"
+#~ msgstr "Tornar al dossier"
+

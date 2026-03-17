@@ -13,6 +13,7 @@ sqlalchemy
 gunicorn
 PyYAML
 humanize
+Flask-Babel
 
 # Dev (install with: pip install -r requirements.txt)
 ruff

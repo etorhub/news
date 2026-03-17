@@ -3,6 +3,7 @@
 from typing import Any
 
 from flask import Blueprint, redirect, render_template, request, session, url_for
+from flask_babel import gettext
 
 from app.db import users as db_users
 from app.services import auth_service
@@ -19,12 +20,12 @@ def login() -> Any:
     password = request.form.get("password", "")
     if not email or not password:
         return render_template(
-            "login.html", error="Email and password are required.", email=email
+            "login.html", error=gettext("Email and password are required."), email=email
         )
     user_id = auth_service.authenticate_user(email, password)
     if not user_id:
         return render_template(
-            "login.html", error="Invalid email or password.", email=email
+            "login.html", error=gettext("Invalid email or password."), email=email
         )
     db_users.update_last_login(user_id)
     session["user_id"] = user_id
@@ -40,19 +41,19 @@ def register() -> Any:
     password = request.form.get("password", "")
     if not email or not password:
         return render_template(
-            "register.html", error="Email and password are required.", email=email
+            "register.html", error=gettext("Email and password are required."), email=email
         )
     if len(password) < 8:
         return render_template(
             "register.html",
-            error="Password must be at least 8 characters.",
+            error=gettext("Password must be at least 8 characters."),
             email=email,
         )
     try:
         user_id = auth_service.register_user(email, password)
-    except ValueError as e:
+    except ValueError:
         return render_template(
-            "register.html", error=str(e), email=email
+            "register.html", error=gettext("Email already registered."), email=email
         )
     session["user_id"] = user_id
     return redirect(url_for("setup.setup_page"))

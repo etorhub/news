@@ -36,6 +36,7 @@ Technology choices for the Accessible News Aggregator, with rationale.
 | gunicorn | WSGI server for production |
 | PyYAML | Config file loading |
 | humanize | Relative time formatting (e.g. "5 minutes ago") |
+| Flask-Babel | Internationalization (gettext, locale selection) |
 | ruff | Linting and formatting |
 | mypy | Static type checking |
 | pytest | Testing |
@@ -73,6 +74,10 @@ Technology choices for the Accessible News Aggregator, with rationale.
 ├── config/
 │   ├── sources.yaml         # Catalog of available RSS feeds and API sources
 │   └── app.yaml             # App-level config (LLM provider, schedule, etc.)
+├── translations/            # i18n catalogs (ca, es, en) — see docs/I18N.md
+│   ├── ca/LC_MESSAGES/      # Catalan .po and .mo
+│   ├── es/LC_MESSAGES/      # Spanish .po and .mo
+│   └── en/LC_MESSAGES/      # English .po and .mo
 ├── tests/                   # pytest test suite
 ├── docs/                    # Project documentation
 ├── .cursor/rules/           # Cursor IDE rules (project-context.mdc = full CLAUDE.md equivalent)
@@ -122,6 +127,12 @@ ruff check .
 # Format
 ruff format .
 
+# Update i18n translations (after adding/changing translatable strings)
+pybabel extract -F babel.cfg -o messages.pot .
+pybabel update -i messages.pot -d translations
+# Edit translations/*/LC_MESSAGES/messages.po, then:
+pybabel compile -d translations
+
 # Type check
 mypy .
 ```
@@ -138,7 +149,7 @@ Four services: PostgreSQL, Ollama (LLM/embeddings), the Flask web app (slim imag
 
 - **ollama** — Runs Ollama server. Models (qwen2.5:7b, nomic-embed-text) are pulled on first start via `ollama-init`. GPU is the default; use `docker-compose.cpu.yml` for CPU-only systems.
 - **web** — Gunicorn serves the Flask app. Uses `requirements-web.txt` (no ollama, no feed processing). Runs `alembic upgrade head` on startup, then Gunicorn.
-- **worker** — Runs APScheduler (`python -m app.scheduler`) for scheduled jobs and polls the `rewrite_requests` queue for on-demand rewrites. Uses `requirements.txt` (includes ollama Python client). Connects to ollama service for LLM and embeddings. Processing CLI commands run here: `docker compose exec worker python -m app.worker_cli fetch-feeds`, etc.
+- **worker** — Runs APScheduler (`python -m app.scheduler`) for scheduled pipeline jobs (fetch, enrich, cluster, rewrite). Uses `requirements.txt` (includes ollama Python client). Connects to ollama service for LLM and embeddings. Processing CLI commands run here: `docker compose exec worker python -m app.worker_cli fetch-feeds`, etc.
 
 ```yaml
 # docker-compose.yml (simplified)
@@ -242,8 +253,7 @@ Background jobs in the worker:
 1. **Fetch jobs** — poll feeds per their configured interval. Articles are stored in the `articles` table.
 2. **Enrichment jobs** — extract full article text from URLs (Trafilatura) for articles with `extraction_status = 'pending'`.
 3. **Cluster jobs** — embed articles (Ollama nomic-embed-text), cluster by cosine similarity, create cluster records.
-4. **Rewrite jobs** — run at a configurable daily time (default: early morning). For each distinct profile hash, rewrite clusters that don't have a cached result in `cluster_rewrites`.
-5. **Rewrite request poller** — every 60 seconds, claims pending rows from the `rewrite_requests` table. When a user saves setup/settings with regeneration-affecting changes, the web route inserts a row; the worker picks it up and runs `run_rewrite_for_user`. No LLM calls in the web process.
+4. **Rewrite jobs** — run at a configurable daily time (default: 06:00). For each configured `(style, language)` variant, rewrite clusters that don't have a cached result in `cluster_rewrites`. Rewrites are shared across all users with the same variant — the LLM is never called twice for the same `(cluster_id, style, language)`.
 
 When a user opens the app, content is already ready. No waiting.
 

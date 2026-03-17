@@ -8,3 +8,4 @@ sqlalchemy
 gunicorn
 PyYAML
 humanize
+Flask-Babel

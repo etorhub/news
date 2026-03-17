@@ -1,0 +1,369 @@
+# Spanish translations for PROJECT.
+# Copyright (C) 2026 ORGANIZATION
+# This file is distributed under the same license as the PROJECT project.
+# FIRST AUTHOR <EMAIL@ADDRESS>, 2026.
+#
+msgid ""
+msgstr ""
+"Project-Id-Version: PROJECT VERSION\n"
+"Report-Msgid-Bugs-To: EMAIL@ADDRESS\n"
+"POT-Creation-Date: 2026-03-17 12:24+0100\n"
+"PO-Revision-Date: 2026-03-17 12:11+0100\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language: es\n"
+"Language-Team: es <LL@li.org>\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Generated-By: Babel 2.10.3\n"
+
+#: app/i18n_strings.py:13
+msgid "Catalan"
+msgstr "Catalán"
+
+#: app/i18n_strings.py:14
+msgid "Spanish"
+msgstr "Español"
+
+#: app/i18n_strings.py:15
+msgid "English"
+msgstr "Inglés"
+
+#: app/i18n_strings.py:16
+msgid "Neutral"
+msgstr "Neutral"
+
+#: app/i18n_strings.py:17
+msgid "Simple"
+msgstr "Simple"
+
+#: app/i18n_strings.py:19
+msgid "General"
+msgstr "General"
+
+#: app/i18n_strings.py:20
+msgid "Politics"
+msgstr "Política"
+
+#: app/i18n_strings.py:21
+msgid "Society"
+msgstr "Sociedad"
+
+#: app/i18n_strings.py:22
+msgid "Culture"
+msgstr "Cultura"
+
+#: app/i18n_strings.py:23
+msgid "International"
+msgstr "Internacional"
+
+#: app/i18n_strings.py:24
+msgid "Economy"
+msgstr "Economía"
+
+#: app/i18n_strings.py:25
+msgid "Science"
+msgstr "Ciencia"
+
+#: app/i18n_strings.py:26
+msgid "Sports"
+msgstr "Deportes"
+
+#: app/i18n_strings.py:27 templates/index.html:7
+msgid "All"
+msgstr "Todo"
+
+#: app/i18n_strings.py:28
+msgid "Pol"
+msgstr "Pol"
+
+#: app/i18n_strings.py:29
+msgid "Soc"
+msgstr "Soc"
+
+#: app/i18n_strings.py:30
+msgid "Cul"
+msgstr "Cul"
+
+#: app/i18n_strings.py:31
+msgid "Int"
+msgstr "Int"
+
+#: app/i18n_strings.py:32
+msgid "Eco"
+msgstr "Eco"
+
+#: app/i18n_strings.py:33
+msgid "Sci"
+msgstr "Sci"
+
+#: app/i18n_strings.py:34
+msgid "Spo"
+msgstr "Dep"
+
+#: app/routes/auth.py:23 app/routes/auth.py:44
+msgid "Email and password are required."
+msgstr "Se requieren el correo y la contraseña."
+
+#: app/routes/auth.py:28
+msgid "Invalid email or password."
+msgstr "Correo o contraseña incorrectos."
+
+#: app/routes/auth.py:49
+msgid "Password must be at least 8 characters."
+msgstr "La contraseña debe tener al menos 8 caracteres."
+
+#: app/routes/auth.py:56
+msgid "Email already registered."
+msgstr "Este correo ya está registrado."
+
+#: app/routes/reader.py:96 app/routes/reader.py:125 app/routes/reader.py:151
+msgid "Article not found."
+msgstr "Artículo no encontrado."
+
+#: templates/article.html:3 templates/base.html:6 templates/index.html:2
+#: templates/login.html:2 templates/register.html:2 templates/settings.html:2
+#: templates/setup.html:2
+msgid "Accessible News"
+msgstr "Accessible News"
+
+#: templates/article.html:3
+msgid "Article not found"
+msgstr "Artículo no encontrado"
+
+#: templates/article.html:8 templates/article.html:56
+msgid "Back"
+msgstr "Atrás"
+
+#: templates/article.html:16 templates/partials/article_card.html:7
+#: templates/partials/article_expanded.html:10
+msgid "Image source:"
+msgstr "Fuente de la imagen:"
+
+#: templates/article.html:36 templates/base.html:402
+#: templates/partials/article_expanded.html:30
+msgid "Read article aloud"
+msgstr "Leer el artículo en voz alta"
+
+#: templates/article.html:37 templates/base.html:399
+#: templates/partials/article_expanded.html:31
+msgid "Listen"
+msgstr "Escuchar"
+
+#: templates/article.html:42 templates/article.html:45 templates/base.html:401
+#: templates/partials/article_expanded.html:36
+#: templates/partials/article_expanded.html:39
+msgid "Volume"
+msgstr "Volumen"
+
+#: templates/base.html:400
+msgid "Stop"
+msgstr "Detener"
+
+#: templates/base.html:406
+msgid "Feed"
+msgstr "Resumen"
+
+#: templates/base.html:407 templates/settings.html:2 templates/settings.html:4
+msgid "Settings"
+msgstr "Configuración"
+
+#: templates/base.html:408
+msgid "Admin"
+msgstr "Administración"
+
+#: templates/base.html:413
+msgid "Log out"
+msgstr "Cerrar sesión"
+
+#: templates/base.html:418 templates/login.html:2 templates/login.html:4
+#: templates/login.html:18 templates/register.html:21
+msgid "Log in"
+msgstr "Iniciar sesión"
+
+#: templates/base.html:419 templates/login.html:21 templates/register.html:2
+#: templates/register.html:4 templates/register.html:18
+msgid "Register"
+msgstr "Registrarse"
+
+#: templates/index.html:2 templates/index.html:4
+msgid "Today's feed"
+msgstr "El resumen de hoy"
+
+#: templates/index.html:4
+#, python-format
+msgid "%(num)d article"
+msgid_plural "%(num)d articles"
+msgstr[0] "%(num)d artículo"
+msgstr[1] "%(num)d artículos"
+
+#: templates/index.html:6
+msgid "News sections"
+msgstr "Secciones de noticias"
+
+#: templates/login.html:10 templates/register.html:10
+msgid "Email"
+msgstr "Correo electrónico"
+
+#: templates/login.html:14
+msgid "Password"
+msgstr "Contraseña"
+
+#: templates/login.html:21
+msgid "Don't have an account?"
+msgstr "¿No tienes cuenta?"
+
+#: templates/register.html:14
+msgid "Password (at least 8 characters)"
+msgstr "Contraseña (al menos 8 caracteres)"
+
+#: templates/register.html:21
+msgid "Already have an account?"
+msgstr "¿Ya tienes cuenta?"
+
+#: templates/settings.html:6
+msgid "Settings saved."
+msgstr "Configuración guardada."
+
+#: templates/settings.html:10
+msgid "Feed regeneration"
+msgstr "Regeneración del resumen"
+
+#: templates/settings.html:11
+msgid ""
+"Changing these settings will regenerate your feed. This may take a few "
+"minutes. Your new articles will appear once ready."
+msgstr ""
+"Cambiar esta configuración regenerará tu resumen. Puede tardar unos "
+"minutos. Los nuevos artículos aparecerán cuando estén listos."
+
+#: templates/settings.html:13 templates/settings.html:59
+msgid "Confirm and save"
+msgstr "Confirmar y guardar"
+
+#: templates/settings.html:14
+msgid "Cancel"
+msgstr "Cancelar"
+
+#: templates/settings.html:23 templates/setup.html:8
+msgid "Profile"
+msgstr "Perfil"
+
+#: templates/settings.html:25 templates/setup.html:10
+msgid "Location (optional)"
+msgstr "Ubicación (opcional)"
+
+#: templates/settings.html:26 templates/setup.html:11
+msgid "e.g. Catalonia"
+msgstr "p. ej. Cataluña"
+
+#: templates/settings.html:29 templates/setup.html:14
+msgid "Language"
+msgstr "Idioma"
+
+#: templates/settings.html:37 templates/setup.html:22
+msgid "Reading style"
+msgstr "Estilo de lectura"
+
+#: templates/settings.html:46 templates/setup.html:31
+msgid "Soften or filter distressing news"
+msgstr "Suavizar o filtrar noticias angustiosas"
+
+#: templates/settings.html:50 templates/setup.html:35
+msgid "High contrast mode"
+msgstr "Modo de alto contraste"
+
+#: templates/settings.html:54 templates/setup.html:39
+msgid "Topics"
+msgstr "Temas"
+
+#: templates/settings.html:55
+msgid "Select the topics you're interested in."
+msgstr "Selecciona los temas que te interesan."
+
+#: templates/settings.html:59
+msgid "Save"
+msgstr "Guardar"
+
+#: templates/setup.html:2
+msgid "Setup"
+msgstr "Configuración"
+
+#: templates/setup.html:4
+msgid "Welcome — set up your news feed"
+msgstr "Bienvenido — configura tu resumen de noticias"
+
+#: templates/setup.html:5
+msgid "Configure your preferences. You can change these anytime in Settings."
+msgstr ""
+"Configura tus preferencias. Puedes cambiarlas en cualquier momento en "
+"Configuración."
+
+#: templates/setup.html:40
+msgid "Select the topics you're interested in (all selected by default)."
+msgstr "Selecciona los temas que te interesan (todos seleccionados por defecto)."
+
+#: templates/setup.html:44
+msgid "Save and continue"
+msgstr "Guardar y continuar"
+
+#: templates/partials/article_card.html:15
+#: templates/partials/article_expanded.html:18
+#, python-format
+msgid "%(num)d source aggregated"
+msgid_plural "%(num)d sources aggregated"
+msgstr[0] "%(num)d fuente agregada"
+msgstr[1] "%(num)d fuentes agregadas"
+
+#: templates/partials/article_expanded.html:55
+msgid "Show less"
+msgstr "Mostrar menos"
+
+#: templates/partials/feed_content.html:19
+msgid "Articles being prepared"
+msgstr "Se están preparando los artículos"
+
+#: templates/partials/feed_content.html:22
+msgid "Preparing your articles…"
+msgstr "Se están preparando tus artículos…"
+
+#: templates/partials/feed_content.html:24
+msgid "This usually takes a minute. The page will update automatically."
+msgstr "Suele tardar un minuto. La página se actualizará automáticamente."
+
+#: templates/partials/feed_content.html:28
+msgid ""
+"No articles yet. Your articles are being prepared, or there are no "
+"articles matching your sources and topics for today."
+msgstr ""
+"Aún no hay artículos. Se están preparando tus artículos, o no hay "
+"artículos que coincidan con tus fuentes y temas para hoy."
+
+#: templates/partials/feed_content.html:29
+msgid "You can adjust your"
+msgstr "Puedes ajustar tu"
+
+#: templates/partials/feed_content.html:29
+msgid "settings"
+msgstr "configuración"
+
+#: templates/partials/feed_content.html:29
+msgid "to change which sources and topics you follow."
+msgstr "para cambiar qué fuentes y temas sigues."
+
+#~ msgid "Read articles"
+#~ msgstr "Artículos leídos"
+
+#~ msgid ""
+#~ "No read articles yet. Mark articles "
+#~ "as \"Done\" when you finish reading "
+#~ "them."
+#~ msgstr ""
+#~ "Aún no hay artículos leídos. Marca "
+#~ "los artículos como \"Hecho\" cuando "
+#~ "termines de leerlos."
+
+#~ msgid "Back to feed"
+#~ msgstr "Volver al resumen"
+
