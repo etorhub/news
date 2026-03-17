@@ -15,6 +15,7 @@ from app.config import load_config
 from app.db import admin as admin_db
 from app.db import articles as articles_db
 from app.extraction.extractor import enrich_all_articles
+from app.feed.availability import check_all_feeds_availability
 from app.feed.orchestrator import fetch_all_due_feeds
 from app.services.rewrite_service import run_rewrite_batch
 
@@ -38,11 +39,13 @@ def _cluster_articles_guarded(config: dict[str, Any]) -> StoryReport:
 
 
 def _run_tracked_job(
-    job_name: str, job_fn: Callable[[dict[str, Any]], Any]
+    job_name: str,
+    job_fn: Callable[[dict[str, Any]], Any],
+    trigger: str = "scheduled",
 ) -> None:
     """Run a pipeline job with admin tracking. Wraps config load, execution, and result logging."""
     logger.info("Starting %s job", job_name)
-    job_id = admin_db.insert_job_run(job_name)
+    job_id = admin_db.insert_job_run(job_name, trigger=trigger)
     try:
         config = load_config()
         report = job_fn(config)
@@ -99,12 +102,23 @@ def main() -> None:
         id="rewrite_articles",
     )
 
+    availability_interval = config.get("schedule", {}).get(
+        "availability_check_interval_minutes", 10
+    )
+    scheduler.add_job(
+        lambda: _run_tracked_job("check_source_availability", check_all_feeds_availability),
+        trigger=IntervalTrigger(minutes=availability_interval),
+        id="check_source_availability",
+    )
+
     logger.info(
-        "Scheduler started: fetch every %d min, enrichment=%s, cluster=%s, rewrite=%s",
+        "Scheduler started: fetch every %d min, enrichment=%s, cluster=%s, rewrite=%s, "
+        "availability every %d min",
         interval_min,
         enrichment_cron,
         cluster_cron,
         rewrite_cron,
+        availability_interval,
     )
     with contextlib.suppress(KeyboardInterrupt, SystemExit):
         scheduler.start()

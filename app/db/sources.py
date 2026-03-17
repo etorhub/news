@@ -163,17 +163,23 @@ def delete_feeds_for_source(source_id: str) -> None:
         return_connection(conn)
 
 
-def get_all_sources(status: str = "active") -> list[dict[str, Any]]:
-    """Return all sources, optionally filtered by status."""
+def get_all_sources(status: str | None = "active") -> list[dict[str, Any]]:
+    """Return all sources, optionally filtered by status. Pass None for all."""
     conn = get_connection()
     try:
         with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
-            cur.execute(
-                """SELECT * FROM news_sources
-                   WHERE status = %s
-                   ORDER BY quality_score DESC NULLS LAST, name""",
-                (status,),
-            )
+            if status is not None:
+                cur.execute(
+                    """SELECT * FROM news_sources
+                       WHERE status = %s
+                       ORDER BY quality_score DESC NULLS LAST, name""",
+                    (status,),
+                )
+            else:
+                cur.execute(
+                    """SELECT * FROM news_sources
+                       ORDER BY quality_score DESC NULLS LAST, name"""
+                )
             return [dict(row) for row in cur.fetchall()]
     finally:
         return_connection(conn)

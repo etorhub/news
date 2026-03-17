@@ -1,6 +1,5 @@
 """Admin dashboard queries: job runs, overview stats, feed health, incidents."""
 
-from datetime import datetime
 from typing import Any
 
 import psycopg2.extras
@@ -8,18 +7,18 @@ import psycopg2.extras
 from app.db.connection import get_connection, return_connection
 
 
-def insert_job_run(job_name: str) -> int:
+def insert_job_run(job_name: str, trigger: str = "scheduled") -> int:
     """Insert a job run row. Returns the new id."""
     conn = get_connection()
     try:
         with conn.cursor() as cur:
             cur.execute(
                 """
-                INSERT INTO job_runs (job_name, status)
-                VALUES (%s, 'running')
+                INSERT INTO job_runs (job_name, status, trigger)
+                VALUES (%s, 'running', %s)
                 RETURNING id
                 """,
-                (job_name,),
+                (job_name, trigger),
             )
             row = cur.fetchone()
             assert row is not None
@@ -60,33 +59,70 @@ def update_job_run(
 
 def get_recent_job_runs(limit: int = 20, job_name: str | None = None) -> list[dict[str, Any]]:
     """Return recent job runs, optionally filtered by job_name."""
+    return get_job_runs_paginated(limit=limit, offset=0, job_name=job_name)
+
+
+def get_job_runs_paginated(
+    limit: int = 50,
+    offset: int = 0,
+    job_name: str | None = None,
+    status: str | None = None,
+) -> list[dict[str, Any]]:
+    """Return paginated job runs with optional filters."""
     conn = get_connection()
     try:
+        conditions: list[str] = []
+        params: list[Any] = []
+        if job_name:
+            conditions.append("job_name = %s")
+            params.append(job_name)
+        if status:
+            conditions.append("status = %s")
+            params.append(status)
+        where_clause = " AND ".join(conditions) if conditions else "TRUE"
+        params.extend([limit, offset])
+
         with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
-            if job_name:
-                cur.execute(
-                    """
-                    SELECT id, job_name, started_at, finished_at, duration_ms,
-                           status, result, error_message
-                    FROM job_runs
-                    WHERE job_name = %s
-                    ORDER BY started_at DESC
-                    LIMIT %s
-                    """,
-                    (job_name, limit),
-                )
-            else:
-                cur.execute(
-                    """
-                    SELECT id, job_name, started_at, finished_at, duration_ms,
-                           status, result, error_message
-                    FROM job_runs
-                    ORDER BY started_at DESC
-                    LIMIT %s
-                    """,
-                    (limit,),
-                )
+            cur.execute(
+                f"""
+                SELECT id, job_name, started_at, finished_at, duration_ms,
+                       status, result, error_message, trigger
+                FROM job_runs
+                WHERE {where_clause}
+                ORDER BY started_at DESC
+                LIMIT %s OFFSET %s
+                """,
+                params,
+            )
             return [dict(row) for row in cur.fetchall()]
+    finally:
+        return_connection(conn)
+
+
+def get_job_runs_count(
+    job_name: str | None = None,
+    status: str | None = None,
+) -> int:
+    """Return total job runs count for pagination."""
+    conn = get_connection()
+    try:
+        conditions: list[str] = []
+        params: list[Any] = []
+        if job_name:
+            conditions.append("job_name = %s")
+            params.append(job_name)
+        if status:
+            conditions.append("status = %s")
+            params.append(status)
+        where_clause = " AND ".join(conditions) if conditions else "TRUE"
+
+        with conn.cursor() as cur:
+            cur.execute(
+                f"SELECT COUNT(*) FROM job_runs WHERE {where_clause}",
+                params,
+            )
+            row = cur.fetchone()
+            return row[0] if row else 0
     finally:
         return_connection(conn)
 
@@ -99,7 +135,7 @@ def get_last_job_run() -> dict[str, Any] | None:
             cur.execute(
                 """
                 SELECT id, job_name, started_at, finished_at, duration_ms,
-                       status, result, error_message
+                       status, result, error_message, trigger
                 FROM job_runs
                 ORDER BY started_at DESC
                 LIMIT 1
@@ -145,7 +181,10 @@ def get_feed_health() -> list[dict[str, Any]]:
                 SELECT sf.id, sf.source_id, sf.feed_url, sf.feed_label,
                        sf.feed_active, sf.consecutive_failures,
                        sf.last_fetched_at, sf.avg_articles_per_day,
-                       ns.name AS source_name
+                       sf.poll_interval_minutes,
+                       sf.is_available, sf.last_availability_check_at,
+                       ns.name AS source_name, ns.domain, ns.country_code,
+                       ns.languages, ns.quality_score
                 FROM source_feeds sf
                 JOIN news_sources ns ON ns.id = sf.source_id
                 ORDER BY sf.feed_active DESC, sf.consecutive_failures DESC,
@@ -404,8 +443,12 @@ def get_admin_articles(
     offset: int,
     extraction_status: str | None = None,
     source_id: str | None = None,
+    date_from: str | None = None,
+    date_to: str | None = None,
+    has_embedding: bool | None = None,
+    in_story: bool | None = None,
 ) -> list[dict[str, Any]]:
-    """Return articles for admin view with story_id and source_name."""
+    """Return articles for admin view with story_id, source_name, image_url, categories."""
     conn = get_connection()
     try:
         conditions: list[str] = []
@@ -416,6 +459,24 @@ def get_admin_articles(
         if source_id:
             conditions.append("a.source_id = %s")
             params.append(source_id)
+        if date_from:
+            conditions.append("a.fetched_at::date >= %s::date")
+            params.append(date_from)
+        if date_to:
+            conditions.append("a.fetched_at::date <= %s::date")
+            params.append(date_to)
+        if has_embedding is True:
+            conditions.append("a.embedding IS NOT NULL")
+        elif has_embedding is False:
+            conditions.append("a.embedding IS NULL")
+        if in_story is True:
+            conditions.append(
+                "EXISTS (SELECT 1 FROM story_articles sa WHERE sa.article_id = a.id)"
+            )
+        elif in_story is False:
+            conditions.append(
+                "NOT EXISTS (SELECT 1 FROM story_articles sa WHERE sa.article_id = a.id)"
+            )
         where_clause = " AND ".join(conditions) if conditions else "TRUE"
         params.extend([limit, offset])
 
@@ -424,6 +485,8 @@ def get_admin_articles(
                 f"""
                 SELECT a.id, a.title, a.url, a.source_id, a.published_at,
                        a.fetched_at, a.extraction_status, a.extraction_method,
+                       a.extracted_at, a.image_url, a.categories,
+                       (a.embedding IS NOT NULL) AS has_embedding,
                        sa.story_id::text AS story_id,
                        ns.name AS source_name
                 FROM articles a
@@ -443,6 +506,10 @@ def get_admin_articles(
 def get_admin_articles_count(
     extraction_status: str | None = None,
     source_id: str | None = None,
+    date_from: str | None = None,
+    date_to: str | None = None,
+    has_embedding: bool | None = None,
+    in_story: bool | None = None,
 ) -> int:
     """Return total article count for admin pagination."""
     conn = get_connection()
@@ -455,6 +522,24 @@ def get_admin_articles_count(
         if source_id:
             conditions.append("source_id = %s")
             params.append(source_id)
+        if date_from:
+            conditions.append("fetched_at::date >= %s::date")
+            params.append(date_from)
+        if date_to:
+            conditions.append("fetched_at::date <= %s::date")
+            params.append(date_to)
+        if has_embedding is True:
+            conditions.append("embedding IS NOT NULL")
+        elif has_embedding is False:
+            conditions.append("embedding IS NULL")
+        if in_story is True:
+            conditions.append(
+                "EXISTS (SELECT 1 FROM story_articles sa WHERE sa.article_id = articles.id)"
+            )
+        elif in_story is False:
+            conditions.append(
+                "NOT EXISTS (SELECT 1 FROM story_articles sa WHERE sa.article_id = articles.id)"
+            )
         where_clause = " AND ".join(conditions) if conditions else "TRUE"
 
         with conn.cursor() as cur:
@@ -541,5 +626,121 @@ def get_admin_story_articles(story_id: str) -> list[dict[str, Any]]:
                 (story_id,),
             )
             return [dict(row) for row in cur.fetchall()]
+    finally:
+        return_connection(conn)
+
+
+def get_stories_with_rewrite_status(
+    limit: int,
+    offset: int,
+    config: dict[str, Any],
+) -> list[dict[str, Any]]:
+    """Return stories with article_count, sample_titles, and rewrite status matrix.
+
+    rewrite_matrix: dict mapping (style, language) -> "done" | "failed" | "missing"
+    """
+    styles = [s["id"] for s in config.get("rewriting", {}).get("styles", [])]
+    languages = [l["id"] for l in config.get("rewriting", {}).get("languages", [])]
+    if not styles:
+        styles = ["neutral", "simple"]
+    if not languages:
+        languages = ["ca", "es", "en"]
+
+    conn = get_connection()
+    try:
+        with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
+            cur.execute(
+                """
+                SELECT s.id::text AS story_id, s.created_at,
+                       COUNT(sa.article_id) AS article_count,
+                       (
+                         SELECT COALESCE(array_agg(t.title), ARRAY[]::text[])
+                         FROM (
+                           SELECT a.title
+                           FROM story_articles sa2
+                           JOIN articles a ON a.id = sa2.article_id
+                           WHERE sa2.story_id = s.id
+                           ORDER BY sa2.position
+                           LIMIT 3
+                         ) t
+                       ) AS sample_titles
+                FROM stories s
+                LEFT JOIN story_articles sa ON sa.story_id = s.id
+                GROUP BY s.id
+                ORDER BY s.created_at DESC
+                LIMIT %s OFFSET %s
+                """,
+                (limit, offset),
+            )
+            stories = [dict(row) for row in cur.fetchall()]
+
+            if not stories:
+                return []
+
+            story_ids = [s["story_id"] for s in stories]
+            cur.execute(
+                """
+                SELECT story_id::text, style, language, rewrite_failed
+                FROM story_rewrites
+                WHERE story_id::text = ANY(%s)
+                """,
+                (story_ids,),
+            )
+            rewrites = [dict(row) for row in cur.fetchall()]
+
+        rewrite_by_story: dict[str, dict[str, str]] = {}
+        for s in stories:
+            rewrite_by_story[s["story_id"]] = {}
+            for st in styles:
+                for lang in languages:
+                    rewrite_by_story[s["story_id"]][f"{st}:{lang}"] = "missing"
+
+        for r in rewrites:
+            sid = r["story_id"]
+            key = f"{r['style']}:{r['language']}"
+            if sid in rewrite_by_story and key in rewrite_by_story[sid]:
+                rewrite_by_story[sid][key] = "failed" if r["rewrite_failed"] else "done"
+
+        for s in stories:
+            titles = s.get("sample_titles")
+            if titles is not None and not isinstance(titles, list):
+                titles = list(titles) if titles else []
+            s["sample_titles"] = (titles or [])[:3]
+            s["rewrite_matrix"] = rewrite_by_story.get(s["story_id"], {})
+            s["styles"] = styles
+            s["languages"] = languages
+
+        return stories
+    finally:
+        return_connection(conn)
+
+
+def get_user_usage_stats() -> list[dict[str, Any]]:
+    """Return users with profile info, read_stories count, and topic selections."""
+    conn = get_connection()
+    try:
+        with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
+            cur.execute(
+                """
+                SELECT u.id, u.email, u.is_active, u.is_admin, u.created_at, u.last_login_at,
+                       up.language, up.preferred_style, up.rewrite_tone, up.location,
+                       (SELECT COUNT(*) FROM user_read_stories urs WHERE urs.user_id = u.id) AS read_stories_count,
+                       (SELECT COALESCE(array_agg(ut.topic_id ORDER BY ut.topic_id), ARRAY[]::text[])
+                        FROM user_topics ut WHERE ut.user_id = u.id AND ut.enabled = true) AS enabled_topics
+                FROM users u
+                LEFT JOIN user_profiles up ON up.user_id = u.id
+                ORDER BY u.created_at DESC
+                """
+            )
+            rows = cur.fetchall()
+            result: list[dict[str, Any]] = []
+            for row in rows:
+                d = dict(row)
+                topics = d.get("enabled_topics")
+                if topics is not None and not isinstance(topics, list):
+                    topics = list(topics) if topics else []
+                d["enabled_topics"] = topics or []
+                result.append(d)
+            return result
     finally:
         return_connection(conn)

@@ -6,7 +6,6 @@ import os
 import click
 
 from app.cli import run_seed_sources
-from app.config import load_config
 from app.db import sources as sources_db
 
 
@@ -88,63 +87,45 @@ def score_sources_cmd() -> None:
 @worker_cli.command("fetch-feeds")
 def fetch_feeds_cmd() -> None:
     """Run the feed fetcher once (fetch all due feeds)."""
+    from app.scheduler import _run_tracked_job
     from app.feed.orchestrator import fetch_all_due_feeds
 
-    config = load_config()
-    report = fetch_all_due_feeds(config)
-    click.echo(
-        f"Fetched: checked={report.feeds_checked} "
-        f"fetched={report.feeds_fetched} "
-        f"inserted={report.articles_inserted} "
-        f"skipped_stale={report.articles_skipped_stale} "
-        f"deactivated={report.feeds_deactivated}"
-    )
+    _run_tracked_job("fetch_feeds", fetch_all_due_feeds, trigger="manual")
+    click.echo("Fetch job completed. Check ops dashboard for details.")
 
 
 @worker_cli.command("enrich-articles")
 def enrich_articles_cmd() -> None:
     """Extract full article content for pending articles (enrichment job)."""
+    from app.scheduler import _run_tracked_job
     from app.extraction.extractor import enrich_all_articles
 
-    config = load_config()
-    report = enrich_all_articles(config)
-    click.echo(
-        f"Enrichment: checked={report.articles_checked} "
-        f"extracted={report.articles_extracted} "
-        f"failed={report.articles_failed} "
-        f"skipped={report.articles_skipped}"
-    )
+    _run_tracked_job("enrich_articles", enrich_all_articles, trigger="manual")
+    click.echo("Enrichment job completed. Check ops dashboard for details.")
 
 
 @worker_cli.command("cluster-articles")
 def cluster_articles_cmd() -> None:
     """Embed and cluster today's articles (cluster job)."""
+    from app.scheduler import _run_tracked_job
     from app.clustering.service import run_cluster_and_embed
 
-    config = load_config()
-    report = run_cluster_and_embed(config)
-    click.echo(
-        f"Story assignment: embedded={report.articles_embedded} "
-        f"clustered={report.articles_clustered} "
-        f"stories_created={report.stories_created}"
-    )
+    _run_tracked_job("cluster_articles", run_cluster_and_embed, trigger="manual")
+    click.echo("Cluster job completed. Check ops dashboard for details.")
 
 
 @worker_cli.command("rewrite-articles")
 def rewrite_articles_cmd() -> None:
     """Rewrite today's articles for all user profiles (rewrite job)."""
+    from app.scheduler import _run_tracked_job
     from app.services.rewrite_service import run_rewrite_batch
 
-    config = load_config()
     try:
-        report = run_rewrite_batch(config)
+        _run_tracked_job("rewrite_articles", run_rewrite_batch, trigger="manual")
     except Exception as e:
         click.echo(f"Rewrite job failed: {e}", err=True)
         raise SystemExit(1)
-    click.echo(
-        f"Rewrite complete: {report.stories_attempted} attempted, "
-        f"{report.stories_succeeded} ok, {report.stories_failed} failed"
-    )
+    click.echo("Rewrite job completed. Check ops dashboard for details.")
 
 
 @worker_cli.command("run-pipeline")
@@ -156,43 +137,26 @@ def rewrite_articles_cmd() -> None:
 )
 def run_pipeline_cmd(sources_path: str | None) -> None:
     """Run the full pipeline once: seed → fetch → enrich → cluster → rewrite."""
+    from app.scheduler import _run_tracked_job
     from app.clustering.service import run_cluster_and_embed
     from app.extraction.extractor import enrich_all_articles
     from app.feed.orchestrator import fetch_all_due_feeds
     from app.services.rewrite_service import run_rewrite_batch
 
-    config = load_config()
     click.echo("Running seed-sources...")
     run_seed_sources(sources_path)
     click.echo("Running fetch...")
-    r1 = fetch_all_due_feeds(config)
-    click.echo(
-        f"  checked={r1.feeds_checked} fetched={r1.feeds_fetched} "
-        f"inserted={r1.articles_inserted} skipped_stale={r1.articles_skipped_stale}"
-    )
-
+    _run_tracked_job("fetch_feeds", fetch_all_due_feeds, trigger="manual")
     click.echo("Running enrichment...")
-    r2 = enrich_all_articles(config)
-    click.echo(
-        f"  checked={r2.articles_checked} extracted={r2.articles_extracted}"
-    )
-
+    _run_tracked_job("enrich_articles", enrich_all_articles, trigger="manual")
     click.echo("Running cluster...")
-    r3 = run_cluster_and_embed(config)
-    click.echo(
-        f"  embedded={r3.articles_embedded} clustered={r3.articles_clustered} stories={r3.stories_created}"
-    )
-
+    _run_tracked_job("cluster_articles", run_cluster_and_embed, trigger="manual")
     click.echo("Running rewrite...")
     try:
-        r4 = run_rewrite_batch(config)
+        _run_tracked_job("rewrite_articles", run_rewrite_batch, trigger="manual")
     except Exception as e:
         click.echo(f"Rewrite failed: {e}", err=True)
         raise SystemExit(1)
-    click.echo(
-        f"  variants={r4.variants_processed} stories_attempted={r4.stories_attempted} ok={r4.stories_succeeded} failed={r4.stories_failed}"
-    )
-
     click.echo("Pipeline complete.")
 
 

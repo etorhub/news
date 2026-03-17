@@ -440,7 +440,6 @@
       <div>
         <a href="{{ url_for('reader.index') }}"{% if request.endpoint == 'reader.index' %} class="nav-active"{% endif %}>{{ _('Feed') }}</a>
         <a href="{{ url_for('settings.settings_page') }}"{% if request.endpoint == 'settings.settings_page' %} class="nav-active"{% endif %}>{{ _('Settings') }}</a>
-        {% if is_admin %}<a href="{{ url_for('admin.dashboard') }}"{% if request.endpoint == 'admin.dashboard' %} class="nav-active"{% endif %}>{{ _('Admin') }}</a>{% endif %}
       </div>
       <div class="nav-right">
         {% if current_user_email %}<span>{{ current_user_email }}</span>{% endif %}

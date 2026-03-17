@@ -79,6 +79,22 @@ services:
       - ./config:/app/config
     command: python -m app.scheduler
 
+  ops:
+    build:
+      context: .
+      target: web
+    ports:
+      - "5001:5001"
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: postgresql://news:${POSTGRES_PASSWORD:-devpassword}@db:5432/news
+      POSTGRES_HOST: db
+    volumes:
+      - ./config:/app/config
+    command: gunicorn -b 0.0.0.0:5001 ops:application
+
 volumes:
   pgdata:
   ollama_data:

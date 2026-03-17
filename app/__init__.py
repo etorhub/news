@@ -12,7 +12,6 @@ from flask_babel import Babel
 from app.cli import make_admin, seed_sources, show_rewrite_failures
 from app.config import load_config
 from app.db import users as db_users
-from app.routes.admin import admin_bp
 from app.routes.auth import auth_bp
 from app.routes.reader import reader_bp
 from app.routes.settings import settings_bp
@@ -93,7 +92,6 @@ def create_app(config_path: str | Path | None = None) -> Flask:
     app.register_blueprint(setup_bp)
     app.register_blueprint(settings_bp)
     app.register_blueprint(reader_bp)
-    app.register_blueprint(admin_bp)
 
     @app.context_processor
     def inject_admin_flag():  # type: ignore[no-untyped-def]

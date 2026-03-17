@@ -12,6 +12,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     && rm -rf /var/lib/apt/lists/*
 
 COPY app/ /app/app/
+COPY ops/ /app/ops/
 COPY config/ /app/config/
 COPY alembic/ /app/alembic/
 COPY alembic.ini /app/
