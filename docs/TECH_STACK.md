@@ -136,7 +136,7 @@ Operators can access `/admin` to monitor ingestion pipelines, job history, feed 
 
 Four services: PostgreSQL, Ollama (LLM/embeddings), the Flask web app (slim image), and the worker (feed processing + ollama client).
 
-- **ollama** — Runs Ollama server. Models (qwen2.5:7b, nomic-embed-text) are pulled on first start via `ollama-init`. Use `docker-compose.gpu.yml` for GPU acceleration.
+- **ollama** — Runs Ollama server. Models (qwen2.5:7b, nomic-embed-text) are pulled on first start via `ollama-init`. GPU is the default; use `docker-compose.cpu.yml` for CPU-only systems.
 - **web** — Gunicorn serves the Flask app. Uses `requirements-web.txt` (no ollama, no feed processing). Runs `alembic upgrade head` on startup, then Gunicorn.
 - **worker** — Runs APScheduler (`python -m app.scheduler`) for scheduled jobs and polls the `rewrite_requests` queue for on-demand rewrites. Uses `requirements.txt` (includes ollama Python client). Connects to ollama service for LLM and embeddings. Processing CLI commands run here: `docker compose exec worker python -m app.worker_cli fetch-feeds`, etc.
 
@@ -184,13 +184,13 @@ If Ollama uses high CPU but negligible GPU utilization:
 
 1. **Verify GPU inside container:**
    ```bash
-   docker compose -f docker-compose.yml -f docker-compose.gpu.yml exec ollama nvidia-smi
+   docker compose exec ollama nvidia-smi
    ```
-   If this fails, the GPU is not passed to the container.
+   If this fails, the GPU is not passed to the container. On CPU-only systems, use `docker compose -f docker-compose.yml -f docker-compose.cpu.yml up`.
 
 2. **Check Ollama logs for GPU detection:**
    ```bash
-   docker compose -f docker-compose.yml -f docker-compose.gpu.yml logs ollama
+   docker compose logs ollama
    ```
    Look for "Nvidia GPU" or "CUDA" — or errors like "no compatible GPUs", "cudart", "libcuda".
 
@@ -215,10 +215,10 @@ If Ollama uses high CPU but negligible GPU utilization:
    sudo nvidia-ctk runtime configure
    ```
 
-5. **Recreate with GPU override:**
+5. **Recreate ollama container:**
    ```bash
-   docker compose -f docker-compose.yml -f docker-compose.gpu.yml down ollama
-   docker compose -f docker-compose.yml -f docker-compose.gpu.yml up -d
+   docker compose down ollama
+   docker compose up -d
    ```
 
 ---

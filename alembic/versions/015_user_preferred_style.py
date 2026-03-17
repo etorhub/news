@@ -3,7 +3,7 @@
 Replaces rewrite_tone for feed selection. Values: neutral, simple.
 
 Revision ID: 015
-Revises: 014
+Revises: 014_drop_user_sources
 Create Date: 2026-03-17
 
 """
@@ -15,7 +15,7 @@ import sqlalchemy as sa
 from alembic import op
 
 revision: str = "015"
-down_revision: str | None = "014"
+down_revision: str | None = "014_drop_user_sources"
 branch_labels: str | Sequence[str] | None = None
 depends_on: str | Sequence[str] | None = None
 
