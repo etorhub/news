@@ -143,15 +143,10 @@ def get_feed(user_id: int) -> tuple[list[dict[str, Any]], bool]:
         else None
     )
     cluster_rows = db_clusters.get_clusters_with_articles_in_window(since)
-    read_ids = db_clusters.get_read_cluster_ids(user_id)
-
     # Filter clusters: keep only if >=1 article matches user's sources and topics
-    # Exclude clusters the user has marked as read
     visible_clusters: list[dict[str, Any]] = []
     for row in cluster_rows:
         cluster_id = row["cluster_id"]
-        if cluster_id in read_ids:
-            continue
         articles = db_clusters.get_articles_in_cluster(cluster_id)
         for art in articles:
             sid = art["source_id"]
@@ -212,6 +207,10 @@ def get_feed(user_id: int) -> tuple[list[dict[str, Any]], bool]:
 
         image_url, image_source_name = select_cluster_image(articles, sources)
         categories = _derive_cluster_categories(articles)
+        published_at = max(
+            (a["published_at"] for a in articles if a.get("published_at")),
+            default=None,
+        )
 
         result.append(
             {
@@ -224,6 +223,7 @@ def get_feed(user_id: int) -> tuple[list[dict[str, Any]], bool]:
                 "image_url": image_url,
                 "image_source_name": image_source_name,
                 "categories": categories,
+                "published_at": published_at,
             }
         )
     rewrites_pending = len(visible_clusters) > 0 and len(result) == 0
@@ -281,53 +281,3 @@ def get_expanded_cluster(
     }
 
 
-def mark_cluster_read(user_id: int, cluster_id: str) -> None:
-    """Mark a cluster as read for a user."""
-    db_clusters.mark_cluster_read(user_id, cluster_id)
-
-
-def get_read_feed(user_id: int) -> list[dict[str, Any]]:
-    """Return read clusters for the archive, ordered by read_at DESC.
-
-    Each item has: id, title, summary, full_text, sources, read_at.
-    """
-    profile = profile_service.get_profile_with_selections(user_id)
-    if not profile:
-        return []
-    config = load_config()
-    style, language = profile_service.get_reading_variant(profile, config)
-    sources = {s["id"]: s for s in load_sources()}
-
-    rows = db_clusters.get_read_clusters_with_rewrites(
-        user_id, style, language, limit=50, offset=0
-    )
-    result: list[dict[str, Any]] = []
-    for row in rows:
-        cluster_id = row["cluster_id"]
-        articles = db_clusters.get_articles_in_cluster(cluster_id)
-        sources_list = []
-        for art in articles:
-            src = sources.get(art["source_id"], {})
-            sources_list.append(
-                {
-                    "source_name": src.get("name", art["source_id"]),
-                    "url": art["url"],
-                    "title": art.get("title", ""),
-                }
-            )
-        image_url, image_source_name = select_cluster_image(articles, sources)
-        categories = _derive_cluster_categories(articles)
-        result.append(
-            {
-                "id": cluster_id,
-                "title": row["title"] or "",
-                "summary": row.get("summary") or "",
-                "full_text": row.get("full_text") or "",
-                "sources": sources_list,
-                "read_at": row["read_at"],
-                "image_url": image_url,
-                "image_source_name": image_source_name,
-                "categories": categories,
-            }
-        )
-    return result

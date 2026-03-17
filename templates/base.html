@@ -6,61 +6,124 @@
   <title>{% block title %}Accessible News{% endblock %}</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Courier+Prime:wght@400;700&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Courier+Prime:wght@400;700&family=Lora:ital,wght@0,400;0,600;1,400;1,600&display=swap" rel="stylesheet">
   <script src="https://unpkg.com/htmx.org@1.9.10"></script>
   <style>
     :root {
-      --bg: #f5f5f0;
-      --fg: #1a1a1a;
-      --accent: #2c5282;
-      --border: #ccc;
+      --bg: #faf8f4;
+      --fg: #1f1b17;
+      --accent: #7c4f28;
+      --muted: #6b6159;
+      --border: #dbd5cc;
+      --surface: #f3efe9;
       --touch-min: 44px;
-      --font-base: 1.25rem;
-      --font-article: 1.5rem;
+      --font-ui: "Courier Prime", "Courier New", monospace;
+      --font-reading: "Lora", Georgia, serif;
+      --font-base: 1.15rem;
+      --font-article: 1.25rem;
+      --radius: 5px;
     }
     body.high-contrast {
       --bg: #000;
       --fg: #fff;
-      --accent: #7eb8ff;
-      --border: #666;
+      --accent: #f0b86e;
+      --muted: #b0a898;
+      --border: #555;
+      --surface: #111;
     }
     * { box-sizing: border-box; }
     body {
-      font-family: "Courier Prime", "Courier New", monospace;
+      font-family: var(--font-ui);
       font-size: var(--font-base);
-      line-height: 1.6;
+      line-height: 1.65;
       color: var(--fg);
       background: var(--bg);
       margin: 0;
       padding: 1rem;
       min-height: 100vh;
     }
+    h1 {
+      font-family: var(--font-ui);
+      font-size: 1.55rem;
+      font-weight: 700;
+      letter-spacing: -0.02em;
+      margin: 0 0 1.75rem;
+      color: var(--fg);
+    }
+    h2 {
+      font-family: var(--font-reading);
+      font-size: 1.35rem;
+      font-weight: 600;
+      line-height: 1.35;
+      letter-spacing: -0.01em;
+      margin: 0.5rem 0 0.75rem;
+    }
+    .article-title {
+      font-family: var(--font-reading);
+      font-weight: 600;
+      line-height: 1.3;
+      letter-spacing: -0.01em;
+    }
     a {
       color: var(--accent);
       text-decoration: underline;
+      text-underline-offset: 2px;
     }
-    a:hover { text-decoration: none; }
+    a:hover { opacity: 0.75; text-decoration: none; }
     button, input[type="submit"], .btn {
       min-height: var(--touch-min);
       min-width: var(--touch-min);
-      padding: 0.75rem 1.5rem;
-      font-family: inherit;
-      font-size: var(--font-base);
+      padding: 0.6rem 1.4rem;
+      font-family: var(--font-ui);
+      font-size: 0.95rem;
       cursor: pointer;
-      border: 2px solid var(--border);
+      border: 1.5px solid var(--border);
+      border-radius: var(--radius);
       background: var(--bg);
       color: var(--fg);
+      transition: background 0.15s, color 0.15s, border-color 0.15s;
     }
     button:hover, input[type="submit"]:hover, .btn:hover {
       background: var(--fg);
       color: var(--bg);
+      border-color: var(--fg);
+    }
+    .btn-primary {
+      background: var(--fg);
+      color: var(--bg);
+      border-color: var(--fg);
+      font-weight: 700;
+    }
+    .btn-primary:hover {
+      background: var(--accent);
+      color: var(--bg);
+      border-color: var(--accent);
+    }
+    .btn-ghost {
+      background: transparent;
+      color: var(--muted);
+      border: none;
+      padding: 0.6rem 0.75rem;
+      text-decoration: underline;
+      text-underline-offset: 2px;
+      font-weight: 400;
+    }
+    .btn-ghost:hover {
+      background: transparent;
+      color: var(--fg);
+    }
+    :focus-visible {
+      outline: 2.5px solid var(--accent);
+      outline-offset: 3px;
+      border-radius: 2px;
     }
     input[type="text"], input[type="email"], input[type="password"], select, textarea {
       min-height: var(--touch-min);
-      padding: 0.75rem;
-      font-family: inherit;
+      padding: 0.6rem 0.75rem;
+      font-family: var(--font-ui);
       font-size: var(--font-base);
-      border: 2px solid var(--border);
+      border: 1.5px solid var(--border);
+      border-radius: var(--radius);
       background: var(--bg);
       color: var(--fg);
     }
@@ -70,18 +133,30 @@
       cursor: pointer;
     }
     nav {
-      margin-bottom: 2rem;
-      padding-bottom: 1rem;
-      border-bottom: 2px solid var(--border);
+      margin-bottom: 2.5rem;
+      padding-bottom: 0.875rem;
+      border-bottom: 1px solid var(--border);
       display: flex;
       flex-wrap: wrap;
       align-items: center;
       justify-content: space-between;
       gap: 1rem;
     }
-    nav a, nav form {
+    nav a {
       display: inline-block;
-      margin-right: 1rem;
+      margin-right: 1.25rem;
+      min-height: var(--touch-min);
+      line-height: var(--touch-min);
+      font-size: 0.85rem;
+      font-weight: 700;
+      text-decoration: none;
+      color: var(--muted);
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+    }
+    nav a:hover { color: var(--fg); opacity: 1; }
+    nav form {
+      display: inline-block;
       min-height: var(--touch-min);
       line-height: var(--touch-min);
     }
@@ -91,28 +166,41 @@
       gap: 1rem;
       margin-left: auto;
     }
+    nav .nav-right span {
+      font-size: 0.8rem;
+      color: var(--muted);
+    }
+    .nav-active {
+      color: var(--fg) !important;
+      text-decoration: underline !important;
+      text-underline-offset: 3px;
+    }
+    /* TTS visibility — hide until browser confirms support */
     .tts-only { display: none; }
-    body.tts-available .tts-only { display: inline-block; }
+    body.tts-available .tts-only { display: block; }
+    /* Feed loading animation */
     .feed-loading-dots {
       display: inline-block;
       width: 1em;
       text-align: left;
       animation: feed-loading-pulse 1.5s ease-in-out infinite;
     }
-    .feed-loading-dots::before {
-      content: "...";
-    }
+    .feed-loading-dots::before { content: "..."; }
     @keyframes feed-loading-pulse {
-      0%, 100% { opacity: 0.4; }
+      0%, 100% { opacity: 0.3; }
       50% { opacity: 1; }
     }
+    @media (prefers-reduced-motion: reduce) {
+      .feed-loading-dots { animation: none; opacity: 1; }
+    }
+    /* Article cover image */
     .article-cover {
       position: relative;
       width: 100%;
       aspect-ratio: 16 / 9;
       overflow: hidden;
       border-radius: 8px;
-      background: linear-gradient(135deg, var(--border), var(--bg));
+      background: var(--surface);
     }
     .article-cover img {
       width: 100%;
@@ -124,18 +212,118 @@
       bottom: 0.25rem;
       right: 0.25rem;
       padding: 0.15rem 0.4rem;
-      font-size: 0.7rem;
-      background: rgba(0, 0, 0, 0.65);
+      font-size: 0.6rem;
+      background: rgba(0, 0, 0, 0.55);
       color: #fff;
-      border-radius: 4px;
+      border-radius: 3px;
     }
-    .article-cover.no-image img {
+    .article-cover.no-image { display: none; }
+    /* Article typography */
+    .article-meta {
+      font-family: var(--font-ui);
+      font-size: 0.8rem;
+      color: var(--muted);
+      margin: 0 0 0.75rem;
+      line-height: 1.5;
+    }
+    .article-meta a { color: var(--muted); }
+    .article-meta a:hover { color: var(--accent); }
+    .article-summary {
+      font-family: var(--font-reading);
+      font-size: 1.05rem;
+      color: var(--fg);
+      margin: 0.25rem 0 1rem;
+      line-height: 1.7;
+    }
+    .article-actions {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 0.5rem;
+      margin-top: 1.25rem;
+    }
+    .article-body {
+      font-family: var(--font-reading);
+      font-size: var(--font-article);
+      line-height: 1.8;
+      max-width: 65ch;
+      margin: 1.25rem 0 1rem;
+      color: var(--fg);
+    }
+    .article-body p { margin: 0 0 1.3em; }
+    /* Chips and badges */
+    .source-badge {
+      font-family: var(--font-ui);
+      font-size: 0.65rem;
+      padding: 0.15rem 0.45rem;
+      border: 1px solid var(--accent);
+      color: var(--accent);
+      border-radius: 3px;
+      display: inline-block;
+      vertical-align: middle;
+      letter-spacing: 0.03em;
+    }
+    .category-chip {
+      display: inline-block;
+      font-family: var(--font-ui);
+      font-size: 0.65rem;
+      padding: 0.15rem 0.55rem;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 20px;
+      margin-right: 0.3rem;
+      color: var(--muted);
+      letter-spacing: 0.03em;
+    }
+    /* TTS player */
+    .tts-player {
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+      margin-top: 1rem;
+    }
+    .tts-controls {
       display: none;
+      align-items: center;
+      gap: 0.75rem;
+      flex: 1;
     }
-    .article-cover.no-image .article-cover-credit {
-      display: none;
+    .tts-controls.visible {
+      display: flex;
     }
-    /* Desktop layout: constrained width, centered content, well-fitted images */
+    .tts-track {
+      flex: 1;
+      min-width: 80px;
+      height: 4px;
+      background: var(--border);
+      border-radius: 2px;
+      overflow: hidden;
+    }
+    .tts-bar {
+      height: 100%;
+      width: 0%;
+      background: var(--accent);
+      border-radius: 2px;
+      transition: width 0.25s linear;
+    }
+    .tts-vol-label {
+      display: flex;
+      align-items: center;
+      gap: 0.35rem;
+      font-size: 0.85rem;
+      color: var(--muted);
+    }
+    input[type="range"].tts-vol {
+      min-height: unset;
+      width: 72px;
+      padding: 0;
+      border: none;
+      border-radius: 0;
+      background: transparent;
+      accent-color: var(--accent);
+      cursor: pointer;
+    }
+    /* Desktop layout */
     @media (min-width: 768px) {
       main {
         max-width: 720px;
@@ -144,36 +332,27 @@
         padding-left: 2rem;
         padding-right: 2rem;
       }
-      #article-list,
-      #archive-list {
+      #article-list, #archive-list {
         display: flex;
         flex-direction: column;
-        gap: 2.5rem;
+        gap: 0;
       }
       .article-card {
-        padding: 1.5rem 0;
+        padding: 2rem 0;
         border-bottom: 1px solid var(--border);
       }
-      .article-card:last-child {
-        border-bottom: none;
-      }
+      .article-card:last-child { border-bottom: none; }
       .article-cover {
-        max-height: 360px;
-        margin-bottom: 1rem;
+        max-height: 340px;
+        margin-bottom: 1.25rem;
       }
-      .article-cover img {
-        object-fit: cover;
-        object-position: center;
-      }
-      .article-card h2,
-      .article-card p {
-        max-width: 65ch;
-      }
+      .article-cover img { object-fit: cover; object-position: center; }
+      .article-card h2, .article-card p { max-width: 65ch; }
       nav {
         max-width: 720px;
         margin-left: auto;
         margin-right: auto;
-        margin-bottom: 2rem;
+        margin-bottom: 2.5rem;
         padding-left: 2rem;
         padding-right: 2rem;
       }
@@ -185,10 +364,9 @@
   <nav>
     {% if session.get('user_id') %}
       <div>
-        <a href="{{ url_for('reader.index') }}">Feed</a>
-        <a href="{{ url_for('reader.archive') }}">Archive</a>
-        <a href="{{ url_for('settings.settings_page') }}">Settings</a>
-        {% if is_admin %}<a href="{{ url_for('admin.dashboard') }}">Admin</a>{% endif %}
+        <a href="{{ url_for('reader.index') }}"{% if request.endpoint == 'reader.index' %} class="nav-active"{% endif %}>Feed</a>
+        <a href="{{ url_for('settings.settings_page') }}"{% if request.endpoint == 'settings.settings_page' %} class="nav-active"{% endif %}>Settings</a>
+        {% if is_admin %}<a href="{{ url_for('admin.dashboard') }}"{% if request.endpoint == 'admin.dashboard' %} class="nav-active"{% endif %}>Admin</a>{% endif %}
       </div>
       <div class="nav-right">
         {% if current_user_email %}<span>{{ current_user_email }}</span>{% endif %}
@@ -213,11 +391,62 @@
         document.body.classList.add('tts-available');
       }
     })();
-    function speak(text) {
-      if (!('speechSynthesis' in window)) return;
-      window.speechSynthesis.cancel();
+
+    var _tts = { id: null, u: null, text: null };
+
+    function _ttsSpeak(id, text) {
+      var btn = document.getElementById('tts-btn-' + id);
+      var bar = document.getElementById('tts-bar-' + id);
+      var controls = document.getElementById('tts-controls-' + id);
+      var volEl = document.getElementById('tts-vol-' + id);
       var u = new SpeechSynthesisUtterance(text);
+      u.volume = volEl ? parseFloat(volEl.value) : 1;
+      var len = text.length;
+      u.onboundary = function(e) {
+        if (bar && len > 0)
+          bar.style.width = Math.min(100, Math.round(e.charIndex / len * 100)) + '%';
+      };
+      u.onend = u.onerror = function() {
+        _tts.id = null; _tts.u = null; _tts.text = null;
+        if (btn) { btn.textContent = '🎧 Listen'; btn.setAttribute('aria-pressed', 'false'); }
+        if (bar) bar.style.width = '0%';
+        if (controls) controls.classList.remove('visible');
+      };
+      _tts.id = id; _tts.u = u; _tts.text = text;
+      if (btn) { btn.textContent = '⏹ Stop'; btn.setAttribute('aria-pressed', 'true'); }
+      if (controls) controls.classList.add('visible');
       window.speechSynthesis.speak(u);
+    }
+
+    function ttsStop() {
+      if (_tts.id) {
+        var btn = document.getElementById('tts-btn-' + _tts.id);
+        var bar = document.getElementById('tts-bar-' + _tts.id);
+        var controls = document.getElementById('tts-controls-' + _tts.id);
+        if (btn) { btn.textContent = '🎧 Listen'; btn.setAttribute('aria-pressed', 'false'); }
+        if (bar) bar.style.width = '0%';
+        if (controls) controls.classList.remove('visible');
+      }
+      window.speechSynthesis.cancel();
+      _tts.id = null; _tts.u = null; _tts.text = null;
+    }
+
+    function ttsToggle(id, text) {
+      if (_tts.id === id && window.speechSynthesis.speaking) {
+        ttsStop();
+        return;
+      }
+      ttsStop();
+      _ttsSpeak(id, text);
+    }
+
+    function ttsSetVolume(id) {
+      if (_tts.id === id && window.speechSynthesis.speaking) {
+        var text = _tts.text;
+        window.speechSynthesis.cancel();
+        _tts.id = null; _tts.u = null; _tts.text = null;
+        setTimeout(function() { _ttsSpeak(id, text); }, 50);
+      }
     }
   </script>
   {% block scripts %}{% endblock %}

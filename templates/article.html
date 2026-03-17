@@ -1,5 +1,11 @@
+{% extends "base.html" %}
+
+{% block title %}{% if article %}{{ article.title }} — Accessible News{% else %}Article not found{% endif %}{% endblock %}
+
+{% block content %}
 {% if error %}
-<p style="color: #c00;">{{ error }}</p>
+  <p style="color: #c00;">{{ error }}</p>
+  <a href="{{ url_for('reader.index') }}" class="btn btn-ghost">← Back</a>
 {% elif article %}
 <article>
   {% if article.image_url %}
@@ -14,15 +20,15 @@
   {% if article.categories %}
   <p style="margin: 0.5rem 0 0;">{% for cat in article.categories %}<span class="category-chip">{{ cat|replace('_', ' ')|title }}</span>{% endfor %}</p>
   {% endif %}
-  <h2>
-    {% if article.sources|length > 1 %}<span class="source-badge" title="{{ article.sources|length }} sources aggregated">▲ {{ article.sources|length }}</span> {% endif %}
-    {{ article.title }}
-  </h2>
+  <h1 class="article-title">{{ article.title }}</h1>
   <p class="article-meta">
     {% if article.sources %}
       {% for src in article.sources %}
         <a href="{{ src.url }}" target="_blank" rel="noopener"{% if src.title %} title="{{ src.title }}"{% endif %}>{{ src.source_name }}</a>{% if not loop.last %} · {% endif %}
       {% endfor %}
+    {% endif %}
+    {% if article.published_at %}
+      &middot; <time datetime="{{ article.published_at.isoformat() }}">{{ article.published_at|naturaltime }}</time>
     {% endif %}
   </p>
   <div class="tts-player tts-only">
@@ -36,8 +42,7 @@
       <label class="tts-vol-label" aria-label="Volume">
         <span aria-hidden="true">🔈</span>
         <input type="range" id="tts-vol-{{ article.id }}" class="tts-vol"
-          min="0" max="1" step="0.1" value="1" aria-label="Volume"
-          oninput="ttsSetVolume({{ article.id|tojson }})"
+          min="0" max="1" step="0.1" value="1" aria-label="Volume">
         <span aria-hidden="true">🔊</span>
       </label>
     </div>
@@ -48,11 +53,8 @@
     {% endfor %}
   </div>
   <div class="article-actions">
-    <button type="button" class="btn btn-primary"
-      hx-get="{{ url_for('reader.collapse_cluster', cluster_id=article.id) }}"
-      hx-target="#article-{{ article.id }}"
-      hx-swap="innerHTML"
-      onclick="ttsStop()">Show less</button>
+    <a href="{{ url_for('reader.index') }}" class="btn btn-ghost">← Back</a>
   </div>
 </article>
 {% endif %}
+{% endblock %}

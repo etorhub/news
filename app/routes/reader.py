@@ -44,15 +44,6 @@ def feed_partial() -> Any:
     )
 
 
-@reader_bp.route("/clusters/<cluster_id>/read", methods=["POST"])
-def mark_read(cluster_id: str) -> Any:
-    """Mark cluster as read. Returns empty response for HTMX to remove the card."""
-    user_id = session.get("user_id")
-    if not user_id:
-        return redirect(url_for("auth.login"))
-    article_service.mark_cluster_read(user_id, cluster_id)
-    return ""
-
 
 @reader_bp.route("/clusters/<cluster_id>/expand")
 def expand_cluster(cluster_id: str) -> Any:
@@ -112,9 +103,9 @@ def collapse_cluster(cluster_id: str) -> Any:
     )
 
 
-@reader_bp.route("/archive")
-def archive() -> Any:
-    """Archive page: read articles."""
+@reader_bp.route("/article/<cluster_id>")
+def article_page(cluster_id: str) -> Any:
+    """Full-page article view."""
     user_id = session.get("user_id")
     if not user_id:
         return redirect(url_for("auth.login"))
@@ -123,24 +114,11 @@ def archive() -> Any:
     if not profile:
         return redirect(url_for("setup.setup_page"))
 
-    read_feed = article_service.get_read_feed(user_id)
-    return render_template(
-        "archive.html",
-        feed=read_feed,
-        profile=profile,
-    )
+    config = load_config()
+    style, language = profile_service.get_reading_variant(profile, config)
+    cluster = article_service.get_expanded_cluster(cluster_id, style, language, config)
+    if not cluster:
+        return render_template("article.html", article=None, error="Article not found.")
+    return render_template("article.html", article=cluster)
 
 
-@reader_bp.route("/archive/feed")
-def archive_partial() -> Any:
-    """HTMX partial: archive content."""
-    user_id = session.get("user_id")
-    if not user_id:
-        return redirect(url_for("auth.login"))
-
-    profile = profile_service.get_profile_with_selections(user_id)
-    if not profile:
-        return redirect(url_for("setup.setup_page"))
-
-    read_feed = article_service.get_read_feed(user_id)
-    return render_template("partials/archive_content.html", feed=read_feed)

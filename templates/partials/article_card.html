@@ -9,33 +9,23 @@
   </div>
   {% endif %}
   {% if article.categories %}
-  <p><small class="article-categories">{{ article.categories|join(', ')|replace('_', ' ')|title }}</small></p>
+  <p style="margin: 0.5rem 0 0;">{% for cat in article.categories %}<span class="category-chip">{{ cat|replace('_', ' ')|title }}</span>{% endfor %}</p>
   {% endif %}
-  <h2 style="font-size: var(--font-article);">{{ article.title }}</h2>
-  <p><small>
+  <h2>
+    {% if article.sources|length > 1 %}<span class="source-badge" title="{{ article.sources|length }} sources aggregated">▲ {{ article.sources|length }}</span> {% endif %}
+    <a href="{{ url_for('reader.article_page', cluster_id=article.id) }}" style="color: inherit; text-decoration: none;">{{ article.title }}</a>
+  </h2>
+  <p class="article-meta">
     {% if article.sources %}
-      Sources:
       {% for src in article.sources %}
         <a href="{{ src.url }}" target="_blank" rel="noopener"{% if src.title %} title="{{ src.title }}"{% endif %}>{{ src.source_name }}</a>{% if not loop.last %}, {% endif %}
       {% endfor %}
     {% endif %}
-  </small></p>
-  {% if article.summary %}
-  <p>{{ article.summary }}</p>
-  {% endif %}
-  <p>
-    <button type="button" class="btn tts-only" aria-label="Read aloud"
-      onclick='speak({{ (article.title + ". " + (article.summary or "")) | tojson }})'>Listen</button>
-    <button type="button" class="btn"
-      hx-get="{{ url_for('reader.expand_cluster', cluster_id=article.id) }}{% if archive %}?archive=1{% endif %}"
-      hx-target="#article-{{ article.id }}"
-      hx-swap="innerHTML">Read more</button>
-    {% if not archive %}
-    <button type="button" class="btn"
-      hx-post="{{ url_for('reader.mark_read', cluster_id=article.id) }}"
-      hx-target="#article-{{ article.id }}"
-      hx-swap="outerHTML"
-      aria-label="Mark as read">Done</button>
+    {% if article.published_at %}
+      &middot; <time datetime="{{ article.published_at.isoformat() }}">{{ article.published_at|naturaltime }}</time>
     {% endif %}
   </p>
+  {% if article.summary %}
+  <p class="article-summary">{{ article.summary }}</p>
+  {% endif %}
 </article>
