@@ -1,5 +1,6 @@
 """Standalone CLI for pipeline processing. Run in worker container: python -m app.worker_cli <cmd>."""
 
+import logging
 import os
 
 import click
@@ -140,10 +141,8 @@ def rewrite_articles_cmd() -> None:
         click.echo(f"Rewrite job failed: {e}", err=True)
         raise SystemExit(1)
     click.echo(
-        f"Rewrite: variants={report.variants_processed} "
-        f"clusters_attempted={report.clusters_attempted} "
-        f"ok={report.clusters_succeeded} "
-        f"failed={report.clusters_failed}"
+        f"Rewrite complete: {report.clusters_attempted} attempted, "
+        f"{report.clusters_succeeded} ok, {report.clusters_failed} failed"
     )
 
 
@@ -201,6 +200,13 @@ def main() -> None:
         from dotenv import load_dotenv
 
         load_dotenv()
+
+    logging.basicConfig(
+        level=logging.INFO,
+        format="%(asctime)s %(levelname)s %(name)s: %(message)s",
+        datefmt="%Y-%m-%d %H:%M:%S",
+    )
+
     worker_cli()
 
 

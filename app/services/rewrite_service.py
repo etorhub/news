@@ -107,7 +107,7 @@ def rewrite_cluster(
     provider: LLMProvider | None = None,
 ) -> bool:
     """Rewrite a cluster for (style, language) and store. Returns True on success."""
-    logger.info(
+    logger.debug(
         "rewrite_cluster: cluster_id=%s style=%s language=%s articles=%d",
         cluster_id,
         style,
@@ -145,7 +145,7 @@ def rewrite_cluster(
     if provider is None:
         provider = get_provider(config)
     try:
-        logger.info(
+        logger.debug(
             "rewrite_cluster: calling LLM cluster_id=%s style=%s language=%s",
             cluster_id,
             style,
@@ -162,7 +162,7 @@ def rewrite_cluster(
             full_text=full_text,
             rewrite_failed=False,
         )
-        logger.info("rewrite_cluster: done cluster_id=%s style=%s language=%s ok=True", cluster_id, style, language)
+        logger.debug("rewrite_cluster: done cluster_id=%s ok=True", cluster_id)
         return True
     except Exception as e:
         err_msg = str(e)[:500]
@@ -176,11 +176,9 @@ def rewrite_cluster(
             rewrite_failed=True,
             error_message=err_msg,
         )
-        logger.warning(
-            "rewrite_cluster: done cluster_id=%s style=%s language=%s ok=False error=%s",
+        logger.debug(
+            "rewrite_cluster: done cluster_id=%s ok=False error=%s",
             cluster_id,
-            style,
-            language,
             err_msg,
         )
         return False
@@ -217,6 +215,7 @@ def _execute_rewrites(
     parallel_workers: int,
 ) -> tuple[int, int, int]:
     """Run rewrites for work items. Returns (attempted, succeeded, failed)."""
+    total = len(work)
     attempted = 0
     succeeded = 0
     failed = 0
@@ -235,31 +234,52 @@ def _execute_rewrites(
                 for cluster_id, articles in work
             }
             for future in as_completed(futures):
+                cluster_id = futures[future]
                 attempted += 1
-                if future.result():
+                ok = future.result()
+                if ok:
                     succeeded += 1
                 else:
                     failed += 1
+                short_id = cluster_id[:12]
+                status = "ok" if ok else "fail"
+                logger.info(
+                    "    [%d/%d] %s... %s",
+                    attempted,
+                    total,
+                    short_id,
+                    status,
+                )
     else:
-        for cluster_id, articles in work:
-            attempted += 1
-            if rewrite_cluster(
+        for i, (cluster_id, articles) in enumerate(work, 1):
+            ok = rewrite_cluster(
                 cluster_id=cluster_id,
                 articles=articles,
                 style=style,
                 language=language,
                 config=config,
                 provider=provider,
-            ):
+            )
+            attempted += 1
+            if ok:
                 succeeded += 1
             else:
                 failed += 1
+            short_id = cluster_id[:12]
+            status = "ok" if ok else "fail"
+            logger.info(
+                "    [%d/%d] %s... %s",
+                i,
+                total,
+                short_id,
+                status,
+            )
     return (attempted, succeeded, failed)
 
 
 def run_rewrite_batch(config: dict[str, Any]) -> RewriteReport:
     """Process clusters for all configured (style, language) variants."""
-    logger.info("run_rewrite_batch: starting")
+    logger.info("━━ Rewrite job starting")
     processing = config.get("processing", {})
     window_hours = processing.get("cluster_window_hours", 24)
     since = (
@@ -272,9 +292,10 @@ def run_rewrite_batch(config: dict[str, Any]) -> RewriteReport:
     parallel_workers = schedule_cfg.get("rewrite_parallel_workers", 1)
 
     variants = _get_rewriting_variants(config)
+    variant_str = ", ".join(f"{s}/{l}" for s, l in variants)
     logger.info(
-        "run_rewrite_batch: variants=%d batch_size=%d parallel_workers=%d",
-        len(variants),
+        "  Variants: %s (batch_size=%d, workers=%d)",
+        variant_str or "none",
         batch_size,
         parallel_workers,
     )
@@ -286,25 +307,29 @@ def run_rewrite_batch(config: dict[str, Any]) -> RewriteReport:
 
     for style, language in variants:
         work = _gather_rewrite_work(style, language, since, batch_size)
+        if not work:
+            logger.info("  [%s/%s] No clusters needing rewrite", style, language)
+            continue
+
         logger.info(
-            "run_rewrite_batch: style=%s language=%s clusters_needing_rewrite=%d",
+            "  [%s/%s] Rewriting %d cluster(s)...",
             style,
             language,
             len(work),
         )
-        if not work:
-            continue
 
         if provider is None:
-            logger.info("run_rewrite_batch: loading provider")
+            logger.info("  Loading LLM provider...")
             provider = get_provider(config)
 
-        a, s, f = _execute_rewrites(work, style, language, config, provider, parallel_workers)
+        a, s, f = _execute_rewrites(
+            work, style, language, config, provider, parallel_workers
+        )
         clusters_attempted += a
         clusters_succeeded += s
         clusters_failed += f
         logger.info(
-            "run_rewrite_batch: style=%s language=%s attempted=%d ok=%d failed=%d",
+            "  [%s/%s] Done: %d attempted, %d ok, %d failed",
             style,
             language,
             a,
@@ -313,8 +338,7 @@ def run_rewrite_batch(config: dict[str, Any]) -> RewriteReport:
         )
 
     logger.info(
-        "run_rewrite_batch: finished variants=%d attempted=%d ok=%d failed=%d",
-        len(variants),
+        "━━ Rewrite complete: %d attempted, %d ok, %d failed",
         clusters_attempted,
         clusters_succeeded,
         clusters_failed,
