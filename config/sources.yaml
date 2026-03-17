@@ -1,5 +1,5 @@
 # News source catalog for Catalonia and Spain.
-# Open publishers with full-text RSS. Used by flask seed-sources.
+# Open publishers and major outlets. Used by flask seed-sources.
 
 sources:
   - id: "3cat"
@@ -119,3 +119,131 @@ sources:
       - url: "https://www.elpuntavui.cat/barcelona.feed?type=rss"
         type: rss
         label: barcelona
+
+  # --- Spanish-language sources ---
+
+  - id: "elpais"
+    name: "El País"
+    domain: "elpais.com"
+    homepage_url: "https://elpais.com/"
+    country_code: "ES"
+    region: null
+    languages: ["es"]
+    topics: ["general", "politics", "international"]
+    full_text: false
+    feeds:
+      - url: "https://feeds.elpais.com/mrss-s/pages/ep/site/elpais.com/portada"
+        type: rss
+        label: main
+
+  - id: "elmundo"
+    name: "El Mundo"
+    domain: "www.elmundo.es"
+    homepage_url: "https://www.elmundo.es/"
+    country_code: "ES"
+    region: null
+    languages: ["es"]
+    topics: ["general", "politics"]
+    full_text: false
+    feeds:
+      - url: "https://e00-elmundo.uecdn.es/elmundo/rss/portada.xml"
+        type: rss
+        label: main
+
+  - id: "eldiario"
+    name: "elDiario.es"
+    domain: "www.eldiario.es"
+    homepage_url: "https://www.eldiario.es/"
+    country_code: "ES"
+    region: null
+    languages: ["es"]
+    topics: ["general", "politics", "society"]
+    full_text: false
+    feeds:
+      - url: "https://www.eldiario.es/rss/"
+        type: rss
+        label: main
+
+  - id: "elconfidencial"
+    name: "El Confidencial"
+    domain: "www.elconfidencial.com"
+    homepage_url: "https://www.elconfidencial.com/"
+    country_code: "ES"
+    region: null
+    languages: ["es"]
+    topics: ["general", "politics", "economy"]
+    full_text: false
+    feeds:
+      - url: "https://rss.elconfidencial.com/espana/"
+        type: atom
+        label: main
+
+  - id: "20minutos"
+    name: "20 Minutos"
+    domain: "www.20minutos.es"
+    homepage_url: "https://www.20minutos.es/"
+    country_code: "ES"
+    region: null
+    languages: ["es"]
+    topics: ["general"]
+    full_text: false
+    feeds:
+      - url: "https://www.20minutos.es/rss/"
+        type: rss
+        label: main
+
+  - id: "elespanol"
+    name: "El Español"
+    domain: "www.elespanol.com"
+    homepage_url: "https://www.elespanol.com/"
+    country_code: "ES"
+    region: null
+    languages: ["es"]
+    topics: ["general", "politics"]
+    full_text: false
+    feeds:
+      - url: "https://www.elespanol.com/rss/"
+        type: rss
+        label: main
+
+  - id: "lavanguardia"
+    name: "La Vanguardia"
+    domain: "www.lavanguardia.com"
+    homepage_url: "https://www.lavanguardia.com/"
+    country_code: "ES"
+    region: null
+    languages: ["es"]
+    topics: ["general", "politics", "society"]
+    full_text: false
+    feeds:
+      - url: "https://www.lavanguardia.com/rss/home.xml"
+        type: rss
+        label: main
+
+  - id: "newtral"
+    name: "Newtral"
+    domain: "www.newtral.es"
+    homepage_url: "https://www.newtral.es/"
+    country_code: "ES"
+    region: null
+    languages: ["es"]
+    topics: ["politics", "society"]
+    full_text: true
+    feeds:
+      - url: "https://www.newtral.es/feed/"
+        type: rss
+        label: main
+
+  - id: "maldita"
+    name: "Maldita.es"
+    domain: "maldita.es"
+    homepage_url: "https://maldita.es/"
+    country_code: "ES"
+    region: null
+    languages: ["es"]
+    topics: ["society", "science"]
+    full_text: true
+    feeds:
+      - url: "https://maldita.es/feed"
+        type: rss
+        label: main
