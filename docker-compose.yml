@@ -37,7 +37,7 @@ services:
     environment:
       POSTGRES_DB: news
       POSTGRES_USER: news
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-devpassword}
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U news"]
       interval: 5s
@@ -53,15 +53,14 @@ services:
     depends_on:
       db:
         condition: service_healthy
-    env_file:
-      - .env
     environment:
-      DATABASE_URL: postgresql://news:${POSTGRES_PASSWORD}@db:5432/news
+      DATABASE_URL: postgresql://news:${POSTGRES_PASSWORD:-devpassword}@db:5432/news
       POSTGRES_HOST: db
+      SECRET_KEY: ${SECRET_KEY:-dev-secret-key-change-in-production}
     volumes:
       - ./config:/app/config
     command: >
-      sh -c "alembic upgrade head && gunicorn -b 0.0.0.0:5000 app:application"
+      sh -c "alembic upgrade head && flask seed-sources && gunicorn -b 0.0.0.0:5000 app:application"
 
   worker:
     build:
@@ -72,10 +71,8 @@ services:
         condition: service_healthy
       ollama-init:
         condition: service_completed_successfully
-    env_file:
-      - .env
     environment:
-      DATABASE_URL: postgresql://news:${POSTGRES_PASSWORD}@db:5432/news
+      DATABASE_URL: postgresql://news:${POSTGRES_PASSWORD:-devpassword}@db:5432/news
       POSTGRES_HOST: db
       OLLAMA_HOST: http://ollama:11434
     volumes:

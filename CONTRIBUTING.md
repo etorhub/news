@@ -13,11 +13,11 @@ Thank you for your interest in contributing. This project serves a general audie
 ```bash
 git clone https://github.com/accessible-news/aggregator.git
 cd aggregator
-cp .env.example .env
-# Edit .env: POSTGRES_PASSWORD, SECRET_KEY
 docker-compose up -d
-docker compose exec web flask seed-sources
+./scripts/fetch-news.sh
 ```
+
+Admin: **admin@admin.com** / **admin**.
 
 Run tests:
 

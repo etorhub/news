@@ -45,24 +45,22 @@ Neither the end user nor anyone acting on their behalf ever touches the codebase
 git clone https://github.com/accessible-news/aggregator.git
 cd aggregator
 
-# Copy the environment template and fill in values
-cp .env.example .env
-# Edit .env: set POSTGRES_PASSWORD and SECRET_KEY (no LLM API key needed — uses local Ollama)
-
-# Start everything
 docker-compose up
-
-# Seed news sources from config (required before fetch-feeds)
-docker compose exec web flask seed-sources
 ```
 
-The app starts at `http://localhost:5000`. Create an account, complete the setup wizard, and you'll see your first articles after the next scheduled fetch/rewrite cycle.
+Wait for services to be healthy (web at `http://localhost:5000`, worker running). Then populate with news:
 
-### Admin dashboard
+```bash
+./scripts/fetch-news.sh
+```
 
-Operators can monitor ingestion pipelines, job history, and system health at `/admin`. Access requires admin privileges.
+The script fetches feeds, extracts full text, clusters articles, and rewrites them. When it finishes, the app has real content.
 
-A default admin account is created by migrations: **admin@admin.com** / **admin**. To grant admin to another user:
+### Admin account
+
+A default admin is ready to use: **admin@admin.com** / **admin**. Log in to access the app and the admin dashboard at `/admin`.
+
+To grant admin to another user:
 
 ```bash
 docker compose exec web flask make-admin your@email.com
@@ -70,30 +68,28 @@ docker compose exec web flask make-admin your@email.com
 
 See [docs/ADMIN_DASHBOARD.md](docs/ADMIN_DASHBOARD.md) for full documentation.
 
-### Running scheduler jobs manually
+### Manual pipeline control
 
-The scheduler runs four jobs on a schedule: fetch feeds, enrich articles (extract full text), cluster articles (embed + group), and rewrite articles (LLM simplification). You can run any of them manually:
+The scheduler runs jobs on a schedule. To run them manually:
 
 | Command | Where | Description |
 | ------- | ----- | ----------- |
-| `flask seed-sources` | Web | Load sources from config/sources.yaml (run once before fetch) |
+| `flask seed-sources` | Web | Load sources from config/sources.yaml (auto-run on startup) |
 | `python -m app.worker_cli fetch-feeds` | Worker | Fetch all due RSS feeds |
 | `python -m app.worker_cli enrich-articles` | Worker | Extract full article content for pending articles |
 | `python -m app.worker_cli cluster-articles` | Worker | Embed and cluster today's articles |
 | `python -m app.worker_cli rewrite-articles` | Worker | Rewrite articles for all user profiles |
 | `python -m app.worker_cli run-pipeline` | Worker | Full pipeline once (seed → fetch → enrich → cluster → rewrite) |
 
-Pipeline order: seed sources first (once), then fetch, enrich, cluster, rewrite.
-
 With Docker:
 
 ```bash
-docker compose exec web flask seed-sources
-docker compose exec worker python -m app.worker_cli fetch-feeds
 docker compose exec worker python -m app.worker_cli run-pipeline
 ```
 
-### Running Locally (without Docker)
+Or use `./scripts/fetch-news.sh` for the same result.
+
+### Running locally (without Docker)
 
 ```bash
 # Requires Python 3.12+ and a running PostgreSQL instance

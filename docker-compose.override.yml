@@ -4,7 +4,7 @@ services:
     volumes:
       - .:/app
     command: >
-      sh -c "alembic upgrade head && flask run --host 0.0.0.0 --debug"
+      sh -c "alembic upgrade head && flask seed-sources && flask run --host 0.0.0.0 --debug"
     ports:
       - "5000:5000"
       - "5678:5678"
