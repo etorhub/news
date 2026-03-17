@@ -81,24 +81,45 @@ def _derive_cluster_category(articles: list[dict[str, Any]]) -> str | None:
     return counts.most_common(1)[0][0]
 
 
+def _get_rewrite_with_fallback(
+    cluster_ids: list[str],
+    style: str,
+    language: str,
+    config: dict[str, Any],
+) -> dict[str, dict[str, Any]]:
+    """Get rewrites for cluster_ids. Fall back to default variant if primary missing."""
+    rewrites = db_clusters.get_cluster_rewrites(cluster_ids, style, language)
+    rewriting = config.get("rewriting", {})
+    default_style = rewriting.get("default_style", "neutral")
+    default_language = rewriting.get("default_language", "ca")
+
+    missing = [cid for cid in cluster_ids if cid not in rewrites or not rewrites[cid].get("full_text")]
+    if missing and (default_style != style or default_language != language):
+        fallback = db_clusters.get_cluster_rewrites(missing, default_style, default_language)
+        for cid, rw in fallback.items():
+            if rw.get("full_text"):
+                rewrites[cid] = rw
+    return rewrites
+
+
 def get_feed(user_id: int) -> tuple[list[dict[str, Any]], bool]:
     """Return today's clusters for the user, filtered by sources/topics.
 
     Returns (feed, rewrites_pending). rewrites_pending is True when there are
     clusters matching the user's profile but no rewrites yet (e.g. after setup).
     Each feed item has: id (cluster_id), title, summary, full_text, sources (list
-    of {source_name, url, title}), profile_hash, relevance_score. Uses cluster_rewrites.
+    of {source_name, url, title}), relevance_score. Uses cluster_rewrites.
     """
     profile = profile_service.get_profile_with_selections(user_id)
     if not profile:
         return ([], False)
-    source_ids = set(profile.get("source_ids", []))
     topic_ids = set(profile.get("topic_ids", []))
-    if not source_ids or not topic_ids:
+    if not topic_ids:
         return ([], False)
 
     sources = {s["id"]: s for s in load_sources()}
     config = load_config()
+    style, language = profile_service.get_reading_variant(profile, config)
     processing = config.get("processing", {})
     window_hours = processing.get("cluster_window_hours", 24)
     limit = processing.get("articles_per_day", 10)
@@ -121,8 +142,6 @@ def get_feed(user_id: int) -> tuple[list[dict[str, Any]], bool]:
         articles = db_clusters.get_articles_in_cluster(cluster_id)
         for art in articles:
             sid = art["source_id"]
-            if sid not in source_ids:
-                continue
             src = sources.get(sid, {})
             src_topics = set(src.get("topics", []))
             if topic_ids & src_topics:
@@ -132,9 +151,10 @@ def get_feed(user_id: int) -> tuple[list[dict[str, Any]], bool]:
                 break
 
     # Score each cluster
+    user_source_ids = set(sources.keys())
     for c in visible_clusters:
         c["relevance_score"] = score_cluster(
-            c, source_ids, topic_ids, sources, config
+            c, user_source_ids, topic_ids, sources, config
         )
 
     # Partition by source count: multi-source first, singletons as backfill
@@ -153,9 +173,8 @@ def get_feed(user_id: int) -> tuple[list[dict[str, Any]], bool]:
     combined = primary + fallback
     visible_clusters = combined[:limit] if limit else combined
 
-    profile_hash = profile_service.compute_profile_hash(profile)
     cluster_ids = [c["cluster_id"] for c in visible_clusters]
-    rewrites_map = db_clusters.get_cluster_rewrites(cluster_ids, profile_hash)
+    rewrites_map = _get_rewrite_with_fallback(cluster_ids, style, language, config)
 
     result: list[dict[str, Any]] = []
     for cluster_data in visible_clusters:
@@ -188,7 +207,6 @@ def get_feed(user_id: int) -> tuple[list[dict[str, Any]], bool]:
                 "summary": rw.get("summary") or "",
                 "full_text": rw["full_text"],
                 "sources": sources_list,
-                "profile_hash": profile_hash,
                 "relevance_score": cluster_data.get("relevance_score"),
                 "image_url": image_url,
                 "category": category,
@@ -198,15 +216,20 @@ def get_feed(user_id: int) -> tuple[list[dict[str, Any]], bool]:
     return (result, rewrites_pending)
 
 
-def get_expanded_cluster(cluster_id: str, profile_hash: str) -> dict[str, Any] | None:
+def get_expanded_cluster(
+    cluster_id: str,
+    style: str,
+    language: str,
+    config: dict[str, Any],
+) -> dict[str, Any] | None:
     """Return cluster with full rewritten text and sources for expansion. None if not found."""
     if not db_clusters.cluster_exists(cluster_id):
         return None
     articles = db_clusters.get_articles_in_cluster(cluster_id)
     if not articles:
         return None
-    rewrites = db_clusters.get_cluster_rewrites([cluster_id], profile_hash)
-    rw = rewrites.get(cluster_id)
+    rewrites_map = _get_rewrite_with_fallback([cluster_id], style, language, config)
+    rw = rewrites_map.get(cluster_id)
     sources_list = []
     sources_map = {s["id"]: s for s in load_sources()}
     for art in articles:
@@ -253,11 +276,12 @@ def get_read_feed(user_id: int) -> list[dict[str, Any]]:
     profile = profile_service.get_profile_with_selections(user_id)
     if not profile:
         return []
-    profile_hash = profile_service.compute_profile_hash(profile)
+    config = load_config()
+    style, language = profile_service.get_reading_variant(profile, config)
     sources = {s["id"]: s for s in load_sources()}
 
     rows = db_clusters.get_read_clusters_with_rewrites(
-        user_id, profile_hash, limit=50, offset=0
+        user_id, style, language, limit=50, offset=0
     )
     result: list[dict[str, Any]] = []
     for row in rows:

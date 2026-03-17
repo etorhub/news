@@ -1,4 +1,4 @@
-"""CRUD operations for users, user_profiles, user_sources, and user_topics."""
+"""CRUD operations for users, user_profiles, and user_topics."""
 
 from typing import Any
 
@@ -72,9 +72,9 @@ def create_profile(user_id: int, data: dict[str, Any]) -> None:
                 """
                 INSERT INTO user_profiles (
                     user_id, location, language, filter_negative,
-                    rewrite_tone, high_contrast
+                    rewrite_tone, high_contrast, preferred_style
                 )
-                VALUES (%s, %s, %s, %s, %s, %s)
+                VALUES (%s, %s, %s, %s, %s, %s, %s)
                 """,
                 (
                     user_id,
@@ -86,6 +86,7 @@ def create_profile(user_id: int, data: dict[str, Any]) -> None:
                         "Journalistic style. Formal and well-written. Do not simplify; preserve original complexity and nuance. Avoid spoilers in headlines or summaries.",
                     ),
                     data.get("high_contrast", False),
+                    data.get("preferred_style", "neutral"),
                 ),
             )
         conn.commit()
@@ -107,6 +108,7 @@ def update_profile(user_id: int, data: dict[str, Any]) -> None:
                     filter_negative = COALESCE(%s, filter_negative),
                     rewrite_tone = COALESCE(%s, rewrite_tone),
                     high_contrast = COALESCE(%s, high_contrast),
+                    preferred_style = COALESCE(%s, preferred_style),
                     updated_at = now()
                 WHERE user_id = %s
                 """,
@@ -116,6 +118,7 @@ def update_profile(user_id: int, data: dict[str, Any]) -> None:
                     data.get("filter_negative"),
                     data.get("rewrite_tone"),
                     data.get("high_contrast"),
+                    data.get("preferred_style"),
                     user_id,
                 ),
             )
@@ -152,47 +155,14 @@ def get_profile(user_id: int) -> dict[str, Any] | None:
             cur.execute(
                 """
                 SELECT user_id, location, language, filter_negative,
-                       rewrite_tone, high_contrast, created_at, updated_at
+                       rewrite_tone, high_contrast, preferred_style,
+                       created_at, updated_at
                 FROM user_profiles WHERE user_id = %s
                 """,
                 (user_id,),
             )
             row = cur.fetchone()
             return dict(row) if row else None
-    finally:
-        return_connection(conn)
-
-
-def set_user_sources(user_id: int, source_ids: list[str]) -> None:
-    """Replace user's source selections. Deletes existing, inserts new."""
-    conn = get_connection()
-    try:
-        with conn.cursor() as cur:
-            cur.execute("DELETE FROM user_sources WHERE user_id = %s", (user_id,))
-            for source_id in source_ids:
-                cur.execute(
-                    "INSERT INTO user_sources (user_id, source_id) VALUES (%s, %s)",
-                    (user_id, source_id),
-                )
-        conn.commit()
-    finally:
-        return_connection(conn)
-
-
-def get_user_sources(user_id: int) -> list[str]:
-    """Return list of enabled source_ids for the user."""
-    conn = get_connection()
-    try:
-        with conn.cursor() as cur:
-            cur.execute(
-                """
-                SELECT source_id FROM user_sources
-                WHERE user_id = %s AND enabled = true
-                ORDER BY source_id
-                """,
-                (user_id,),
-            )
-            return [row[0] for row in cur.fetchall()]
     finally:
         return_connection(conn)
 

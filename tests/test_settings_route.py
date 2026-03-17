@@ -25,7 +25,6 @@ def mock_profile() -> dict:
         "rewrite_tone": "Journalistic style. Formal and well-written. Do not simplify; preserve original complexity and nuance. Avoid spoilers in headlines or summaries.",
         "filter_negative": False,
         "high_contrast": False,
-        "source_ids": ["s1", "s2"],
         "topic_ids": ["general"],
     }
 
@@ -61,7 +60,6 @@ def test_settings_post_only_high_contrast_does_not_enqueue_rewrite(
                 "language": "ca",
                 "rewrite_tone": "Journalistic style. Formal and well-written. Do not simplify; preserve original complexity and nuance. Avoid spoilers in headlines or summaries.",
                 "high_contrast": "on",
-                "sources": ["s1", "s2"],
                 "topics": ["general"],
             },
             follow_redirects=False,
@@ -103,7 +101,6 @@ def test_settings_post_regeneration_field_enqueues_rewrite(
                 "language": "es",
                 "rewrite_tone": "Journalistic style. Formal and well-written. Do not simplify; preserve original complexity and nuance. Avoid spoilers in headlines or summaries.",
                 "confirm_regenerate": "1",
-                "sources": ["s1", "s2"],
                 "topics": ["general"],
             },
             follow_redirects=False,
@@ -143,7 +140,6 @@ def test_settings_post_regeneration_needed_shows_confirmation(
                 "location": "Barcelona",
                 "language": "es",
                 "rewrite_tone": "Journalistic style. Formal and well-written. Do not simplify; preserve original complexity and nuance. Avoid spoilers in headlines or summaries.",
-                "sources": ["s1", "s2"],
                 "topics": ["general"],
             },
             follow_redirects=False,

@@ -57,7 +57,6 @@ def test_get_feed_multi_source_ranks_above_singleton() -> None:
         patch("app.services.article_service.db_clusters") as mock_db,
     ):
         mock_ps.get_profile_with_selections.return_value = {
-            "source_ids": ["s1", "s2"],
             "topic_ids": ["politics"],
         }
         mock_ps.compute_profile_hash.return_value = "hash1"
@@ -114,7 +113,6 @@ def test_get_feed_backfill_when_few_multi_source() -> None:
         patch("app.services.article_service.db_clusters") as mock_db,
     ):
         mock_ps.get_profile_with_selections.return_value = {
-            "source_ids": ["s1", "s2"],
             "topic_ids": ["politics"],
         }
         mock_ps.compute_profile_hash.return_value = "hash1"
@@ -163,7 +161,6 @@ def test_get_feed_min_sources_one_disables_filter() -> None:
         patch("app.services.article_service.db_clusters") as mock_db,
     ):
         mock_ps.get_profile_with_selections.return_value = {
-            "source_ids": ["s1"],
             "topic_ids": ["politics"],
         }
         mock_ps.compute_profile_hash.return_value = "hash1"
@@ -202,7 +199,6 @@ def test_get_feed_excludes_read_clusters() -> None:
         patch("app.services.article_service.db_clusters") as mock_db,
     ):
         mock_ps.get_profile_with_selections.return_value = {
-            "source_ids": ["s1"],
             "topic_ids": ["politics"],
         }
         mock_ps.compute_profile_hash.return_value = "hash1"

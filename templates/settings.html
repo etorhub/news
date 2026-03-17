@@ -34,10 +34,10 @@
       </select>
     </p>
     <p>
-      <label for="rewrite_tone">Reading style</label><br>
-      <select id="rewrite_tone" name="rewrite_tone">
-        {% for value, label in rewrite_tone_options %}
-        <option value="{{ value }}" {% if profile.rewrite_tone == value %}selected{% endif %}>{{ label }}</option>
+      <label for="preferred_style">Reading style</label><br>
+      <select id="preferred_style" name="preferred_style">
+        {% for value, label in style_options %}
+        <option value="{{ value }}" {% if profile.preferred_style == value %}selected{% endif %}>{{ label }}</option>
         {% endfor %}
       </select>
     </p>
@@ -49,11 +49,6 @@
       <input type="checkbox" id="high_contrast" name="high_contrast" {% if profile.high_contrast %}checked{% endif %}>
       <label for="high_contrast">High contrast mode</label>
     </p>
-  </section>
-  <section>
-    <h2>Sources</h2>
-    <p>Select the news sources you want to follow.</p>
-    {% include "partials/setup_sources.html" %}
   </section>
   <section>
     <h2>Topics</h2>
