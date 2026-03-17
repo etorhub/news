@@ -86,7 +86,7 @@ User opens app for the first time after completing setup
 ```
 User taps "Read more"
     → hx-get="/clusters/<cluster_id>/expand"
-    → Flask queries PostgreSQL: get cached cluster rewrite for this cluster + profile_hash
+    → Flask queries PostgreSQL: get cached cluster rewrite for this cluster + (style, language) variant
     → Returns partials/article_expanded.html with cached content
     → HTMX swaps the partial into #article-{id}
 ```

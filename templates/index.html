@@ -4,9 +4,9 @@
 <h1>{{ _("Today's feed") }}{% if topic_filter %}{% for s in sections %}{% if s.id == topic_filter %} · {{ s.emoji }} {{ _(s.label) }}{% endif %}{% endfor %}{% endif %}{% if feed %} · {{ ngettext('%(num)d article', '%(num)d articles', feed|length)|format(num=feed|length) }}{% endif %}</h1>
 {% if sections %}
 <nav class="section-nav" aria-label="{{ _('News sections') }}">
-  <a href="{{ url_for('reader.index') }}" class="section-link{% if not topic_filter %} section-active{% endif %}">📰 {{ _('All') }}</a>
+  <a href="{{ url_for('reader.index') }}" class="section-link{% if not topic_filter %} section-active{% endif %}" title="{{ _('All') }}">📰 {{ _('All') }}</a>
   {% for s in sections %}
-  <a href="{{ url_for('reader.index', topic=s.id) }}" class="section-link{% if topic_filter == s.id %} section-active{% endif %}">{{ s.emoji }} {{ _(s.label) }}</a>
+  <a href="{{ url_for('reader.index', topic=s.id) }}" class="section-link{% if topic_filter == s.id %} section-active{% endif %}" title="{{ _(s.label) }}">{{ s.emoji }} {{ _(s.short) }}</a>
   {% endfor %}
 </nav>
 {% endif %}

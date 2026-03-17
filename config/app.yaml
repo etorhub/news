@@ -79,12 +79,13 @@ server:
   debug: false
 
 # Topic labels and icons for section navigation. Keys must match topic ids in sources.
+# short: compact label for nav (used when space is limited)
 topics:
-  general: { label: General, emoji: "📰" }
-  politics: { label: Politics, emoji: "🏛️" }
-  society: { label: Society, emoji: "👥" }
-  culture: { label: Culture, emoji: "🎭" }
-  international: { label: International, emoji: "🌍" }
-  economy: { label: Economy, emoji: "📈" }
-  science: { label: Science, emoji: "🔬" }
-  sports: { label: Sports, emoji: "⚽" }
+  general: { label: General, short: All, emoji: "📰" }
+  politics: { label: Politics, short: Pol, emoji: "🏛️" }
+  society: { label: Society, short: Soc, emoji: "👥" }
+  culture: { label: Culture, short: Cul, emoji: "🎭" }
+  international: { label: International, short: Int, emoji: "🌍" }
+  economy: { label: Economy, short: Eco, emoji: "📈" }
+  science: { label: Science, short: Sci, emoji: "🔬" }
+  sports: { label: Sports, short: Spo, emoji: "⚽" }
