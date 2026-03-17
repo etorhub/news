@@ -112,7 +112,7 @@ Report structures vary by job:
 | `fetch_feeds` | `feeds_checked`, `feeds_fetched`, `articles_inserted`, `feeds_deactivated` |
 | `enrich_articles` | `articles_checked`, `articles_extracted`, `articles_failed`, `articles_skipped` |
 | `cluster_articles` | `articles_embedded`, `articles_clustered`, `clusters_created` |
-| `rewrite_articles` | `profiles_processed`, `clusters_attempted`, `clusters_succeeded`, `clusters_failed` |
+| `rewrite_articles` | `variants_processed`, `clusters_attempted`, `clusters_succeeded`, `clusters_failed` |
 
 ---
 

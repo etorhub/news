@@ -77,23 +77,15 @@ def test_parse_cluster_llm_response_empty_sections_raises() -> None:
 
 def test_rewrite_cluster_empty_articles_stores_failed() -> None:
     """rewrite_cluster stores rewrite_failed=True when articles have no text."""
-    with (
-        patch("app.services.rewrite_service.db_clusters") as mock_db,
-        patch("app.services.rewrite_service.profile_service") as mock_ps,
-    ):
-        mock_ps.compute_profile_hash.return_value = "abc123"
+    with patch("app.services.rewrite_service.db_clusters") as mock_db:
         articles = [{"id": "art1", "raw_text": "", "full_text": None}]
-        profile = {
-            "language": "ca",
-            "rewrite_tone": "Simple.",
-            "filter_negative": False,
-        }
-        config = {}
-        result = rewrite_cluster("cluster-1", articles, profile, config)
+        config = {"rewriting": {"styles": [{"id": "neutral", "prompt": "rewrite_cluster_neutral"}]}}
+        result = rewrite_cluster("cluster-1", articles, "neutral", "ca", config)
         assert result is False
         mock_db.insert_cluster_rewrite.assert_called_once_with(
             cluster_id="cluster-1",
-            profile_hash="abc123",
+            style="neutral",
+            language="ca",
             title=None,
             summary=None,
             full_text=None,
@@ -106,10 +98,8 @@ def test_rewrite_cluster_success_stores_rewrite() -> None:
     """rewrite_cluster stores title, summary and full_text on success."""
     with (
         patch("app.services.rewrite_service.db_clusters") as mock_db,
-        patch("app.services.rewrite_service.profile_service") as mock_ps,
         patch("app.services.rewrite_service.get_provider") as mock_get,
     ):
-        mock_ps.compute_profile_hash.return_value = "hash1"
         mock_provider = MagicMock()
         mock_provider.complete.return_value = """TITLE:
 Power outage in Barcelona.
@@ -128,18 +118,17 @@ Simplified article here."""
                 "full_text": None,
             },
         ]
-        profile = {
-            "language": "ca",
-            "rewrite_tone": "Simple.",
-            "filter_negative": False,
+        config = {
+            "processing": {"summary_sentences": 3},
+            "rewriting": {"styles": [{"id": "neutral", "prompt": "rewrite_cluster_neutral"}]},
         }
-        config = {"processing": {"summary_sentences": 3}}
 
-        result = rewrite_cluster("cluster-1", articles, profile, config)
+        result = rewrite_cluster("cluster-1", articles, "neutral", "ca", config)
         assert result is True
         mock_db.insert_cluster_rewrite.assert_called_once_with(
             cluster_id="cluster-1",
-            profile_hash="hash1",
+            style="neutral",
+            language="ca",
             title="Power outage in Barcelona.",
             summary="One. Two. Three.",
             full_text="Simplified article here.",
@@ -154,10 +143,8 @@ def test_rewrite_cluster_uses_config_max_tokens() -> None:
     """rewrite_cluster uses rewrite_max_tokens from config."""
     with (
         patch("app.services.rewrite_service.db_clusters") as mock_db,
-        patch("app.services.rewrite_service.profile_service") as mock_ps,
         patch("app.services.rewrite_service.get_provider") as mock_get,
     ):
-        mock_ps.compute_profile_hash.return_value = "hash1"
         mock_provider = MagicMock()
         mock_provider.complete.return_value = """TITLE:
 Title.
@@ -170,10 +157,12 @@ Full text."""
         mock_get.return_value = mock_provider
 
         articles = [{"id": "art1", "raw_text": "Text", "full_text": None}]
-        profile = {"language": "ca", "rewrite_tone": "Simple.", "filter_negative": False}
-        config = {"processing": {"rewrite_max_tokens": 1500}}
+        config = {
+            "processing": {"rewrite_max_tokens": 1500},
+            "rewriting": {"styles": [{"id": "neutral", "prompt": "rewrite_cluster_neutral"}]},
+        }
 
-        rewrite_cluster("cluster-1", articles, profile, config)
+        rewrite_cluster("cluster-1", articles, "neutral", "ca", config)
 
         mock_provider.complete.assert_called_once()
         assert mock_provider.complete.call_args[1]["max_tokens"] == 1500
@@ -185,27 +174,21 @@ def test_rewrite_cluster_provider_error_stores_failed() -> None:
 
     with (
         patch("app.services.rewrite_service.db_clusters") as mock_db,
-        patch("app.services.rewrite_service.profile_service") as mock_ps,
         patch("app.services.rewrite_service.get_provider") as mock_get,
     ):
-        mock_ps.compute_profile_hash.return_value = "hash1"
         mock_provider = MagicMock()
         mock_provider.complete.side_effect = LLMProviderError("API down")
         mock_get.return_value = mock_provider
 
         articles = [{"id": "art1", "raw_text": "Some text", "full_text": None}]
-        profile = {
-            "language": "ca",
-            "rewrite_tone": "Simple.",
-            "filter_negative": False,
-        }
-        config = {}
+        config = {"rewriting": {"styles": [{"id": "neutral", "prompt": "rewrite_cluster_neutral"}]}}
 
-        result = rewrite_cluster("cluster-1", articles, profile, config)
+        result = rewrite_cluster("cluster-1", articles, "neutral", "ca", config)
         assert result is False
         mock_db.insert_cluster_rewrite.assert_called_once_with(
             cluster_id="cluster-1",
-            profile_hash="hash1",
+            style="neutral",
+            language="ca",
             title=None,
             summary=None,
             full_text=None,
@@ -214,14 +197,21 @@ def test_rewrite_cluster_provider_error_stores_failed() -> None:
         )
 
 
-def test_run_rewrite_batch_empty_profiles() -> None:
-    """run_rewrite_batch returns zero counts when no profiles exist."""
-    with patch("app.services.rewrite_service.db_users") as mock_users:
-        mock_users.get_distinct_rewrite_profiles.return_value = []
-        config = {"schedule": {"rewrite_batch_size": 10}}
+def test_run_rewrite_batch_empty_variants() -> None:
+    """run_rewrite_batch returns zero counts when no clusters need rewrite."""
+    with patch("app.services.rewrite_service.db_clusters") as mock_clusters:
+        mock_clusters.get_clusters_needing_rewrite_for_variant.return_value = []
+        config = {
+            "schedule": {"rewrite_batch_size": 10},
+            "processing": {"cluster_window_hours": 24},
+            "rewriting": {
+                "styles": [{"id": "neutral"}, {"id": "simple"}],
+                "languages": [{"id": "ca"}, {"id": "es"}],
+            },
+        }
         report = run_rewrite_batch(config)
         assert report == RewriteReport(
-            profiles_processed=0,
+            variants_processed=4,
             clusters_attempted=0,
             clusters_succeeded=0,
             clusters_failed=0,
@@ -231,22 +221,16 @@ def test_run_rewrite_batch_empty_profiles() -> None:
 def test_run_rewrite_batch_counts() -> None:
     """run_rewrite_batch returns correct counts for mixed success/failure."""
     with (
-        patch("app.services.rewrite_service.db_users") as mock_users,
         patch("app.services.rewrite_service.db_clusters") as mock_clusters,
         patch("app.services.rewrite_service.rewrite_cluster") as mock_rewrite,
         patch("app.services.rewrite_service.get_provider") as mock_get,
     ):
         mock_get.return_value = MagicMock()
-        mock_users.get_distinct_rewrite_profiles.return_value = [
-            {
-                "language": "ca",
-                "rewrite_tone": "Simple",
-                "filter_negative": False,
-            },
-        ]
-        mock_clusters.get_clusters_needing_rewrite.return_value = [
-            {"cluster_id": "c1"},
-            {"cluster_id": "c2"},
+        mock_clusters.get_clusters_needing_rewrite_for_variant.side_effect = [
+            [{"cluster_id": "c1"}, {"cluster_id": "c2"}],
+            [],
+            [],
+            [],
         ]
         mock_clusters.get_articles_in_cluster.side_effect = [
             [{"id": "a1", "raw_text": "t1", "full_text": None}],
@@ -254,10 +238,17 @@ def test_run_rewrite_batch_counts() -> None:
         ]
         mock_rewrite.side_effect = [True, False]
 
-        config = {"schedule": {"rewrite_batch_size": 10}}
+        config = {
+            "schedule": {"rewrite_batch_size": 10},
+            "processing": {"cluster_window_hours": 24},
+            "rewriting": {
+                "styles": [{"id": "neutral"}, {"id": "simple"}],
+                "languages": [{"id": "ca"}, {"id": "es"}],
+            },
+        }
         report = run_rewrite_batch(config)
 
-        assert report.profiles_processed == 1
+        assert report.variants_processed == 4
         assert report.clusters_attempted == 2
         assert report.clusters_succeeded == 1
         assert report.clusters_failed == 1
@@ -266,17 +257,16 @@ def test_run_rewrite_batch_counts() -> None:
 def test_run_rewrite_batch_sequential_when_workers_one() -> None:
     """run_rewrite_batch uses sequential path when rewrite_parallel_workers=1."""
     with (
-        patch("app.services.rewrite_service.db_users") as mock_users,
         patch("app.services.rewrite_service.db_clusters") as mock_clusters,
         patch("app.services.rewrite_service.get_provider") as mock_get,
         patch("app.services.rewrite_service.rewrite_cluster") as mock_rewrite,
     ):
         mock_get.return_value = MagicMock()
-        mock_users.get_distinct_rewrite_profiles.return_value = [
-            {"language": "ca", "rewrite_tone": "Simple", "filter_negative": False},
-        ]
-        mock_clusters.get_clusters_needing_rewrite.return_value = [
-            {"cluster_id": "c1"},
+        mock_clusters.get_clusters_needing_rewrite_for_variant.side_effect = [
+            [{"cluster_id": "c1"}],
+            [],
+            [],
+            [],
         ]
         mock_clusters.get_articles_in_cluster.return_value = [
             {"id": "a1", "raw_text": "t1", "full_text": None},
@@ -285,6 +275,11 @@ def test_run_rewrite_batch_sequential_when_workers_one() -> None:
 
         config = {
             "schedule": {"rewrite_batch_size": 10, "rewrite_parallel_workers": 1},
+            "processing": {"cluster_window_hours": 24},
+            "rewriting": {
+                "styles": [{"id": "neutral"}, {"id": "simple"}],
+                "languages": [{"id": "ca"}, {"id": "es"}],
+            },
         }
         report = run_rewrite_batch(config)
 

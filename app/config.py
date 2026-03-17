@@ -47,6 +47,19 @@ DEFAULTS: dict[str, Any] = {
         "port": 5000,
         "debug": False,
     },
+    "rewriting": {
+        "styles": [
+            {"id": "neutral", "label": "Neutral", "prompt": "rewrite_cluster_neutral"},
+            {"id": "simple", "label": "Simple", "prompt": "rewrite_cluster_simple"},
+        ],
+        "languages": [
+            {"id": "ca", "label": "Catalan"},
+            {"id": "es", "label": "Spanish"},
+            {"id": "en", "label": "English"},
+        ],
+        "default_style": "neutral",
+        "default_language": "ca",
+    },
 }
 
 

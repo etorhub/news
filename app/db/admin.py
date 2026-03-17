@@ -219,6 +219,29 @@ def get_clustering_stats() -> dict[str, Any]:
                 """
                 SELECT COUNT(*) AS cnt
                 FROM cluster_rewrites
+                WHERE rewrite_failed = false
+                """
+            )
+            rewrite_variants_ok = cur.fetchone()["cnt"]
+
+            cur.execute(
+                """
+                SELECT style, language, COUNT(*) AS cnt
+                FROM cluster_rewrites
+                WHERE rewrite_failed = false
+                GROUP BY style, language
+                ORDER BY style, language
+                """
+            )
+            rewrite_coverage_by_variant = [
+                {"style": row["style"], "language": row["language"], "count": row["cnt"]}
+                for row in cur.fetchall()
+            ]
+
+            cur.execute(
+                """
+                SELECT COUNT(*) AS cnt
+                FROM cluster_rewrites
                 WHERE rewrite_failed = true
                   AND created_at >= NOW() - INTERVAL '24 hours'
                 """
@@ -230,6 +253,8 @@ def get_clustering_stats() -> dict[str, Any]:
                 "articles_in_clusters": articles_in_clusters,
                 "articles_with_embedding": articles_with_embedding,
                 "clusters_with_rewrite": clusters_with_rewrite,
+                "rewrite_variants_ok": rewrite_variants_ok,
+                "rewrite_coverage_by_variant": rewrite_coverage_by_variant,
                 "rewrite_failures_24h": rewrite_failures_24h,
             }
     finally:
@@ -237,13 +262,13 @@ def get_clustering_stats() -> dict[str, Any]:
 
 
 def get_recent_rewrite_failures(hours: int = 24, limit: int = 50) -> list[dict[str, Any]]:
-    """Return recent cluster rewrite failures with cluster_id, created_at, error_message."""
+    """Return recent cluster rewrite failures with cluster_id, style, language, created_at, error_message."""
     conn = get_connection()
     try:
         with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
             cur.execute(
                 """
-                SELECT cluster_id::text, profile_hash, created_at, error_message
+                SELECT cluster_id::text, style, language, created_at, error_message
                 FROM cluster_rewrites
                 WHERE rewrite_failed = true
                   AND created_at >= NOW() - INTERVAL '1 hour' * %s

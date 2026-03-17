@@ -117,15 +117,16 @@ def get_clusters_with_articles_in_window(
         return_connection(conn)
 
 
-def get_clusters_needing_rewrite(
-    profile_hash: str,
+def get_clusters_needing_rewrite_for_variant(
+    style: str,
+    language: str,
     since: datetime | None,
     limit: int | None = None,
 ) -> list[dict[str, Any]]:
-    """Return clusters that have no rewrite for this profile_hash.
+    """Return clusters that have no rewrite for this (style, language) variant.
 
     If since is not None, only clusters with articles published since that time.
-    If since is None, return all clusters needing rewrite.
+    If since is None, return all clusters needing this variant.
     """
     conn = get_connection()
     try:
@@ -137,12 +138,13 @@ def get_clusters_needing_rewrite(
                     FROM clusters c
                     JOIN cluster_articles ca ON ca.cluster_id = c.id
                     JOIN articles a ON a.id = ca.article_id
-                    LEFT JOIN cluster_rewrites cr ON cr.cluster_id = c.id AND cr.profile_hash = %s
+                    LEFT JOIN cluster_rewrites cr ON cr.cluster_id = c.id
+                        AND cr.style = %s AND cr.language = %s
                     WHERE a.published_at >= %s AND cr.cluster_id IS NULL
                     GROUP BY c.id
                     ORDER BY MAX(a.published_at) DESC
                     """,
-                    (profile_hash, since),
+                    (style, language, since),
                 )
             else:
                 cur.execute(
@@ -151,12 +153,13 @@ def get_clusters_needing_rewrite(
                     FROM clusters c
                     JOIN cluster_articles ca ON ca.cluster_id = c.id
                     JOIN articles a ON a.id = ca.article_id
-                    LEFT JOIN cluster_rewrites cr ON cr.cluster_id = c.id AND cr.profile_hash = %s
+                    LEFT JOIN cluster_rewrites cr ON cr.cluster_id = c.id
+                        AND cr.style = %s AND cr.language = %s
                     WHERE cr.cluster_id IS NULL
                     GROUP BY c.id
                     ORDER BY MAX(a.published_at) DESC
                     """,
-                    (profile_hash,),
+                    (style, language),
                 )
             rows = cur.fetchall()
             if limit is not None:
@@ -168,24 +171,26 @@ def get_clusters_needing_rewrite(
 
 def insert_cluster_rewrite(
     cluster_id: str,
-    profile_hash: str,
+    style: str,
+    language: str,
     title: str | None,
     summary: str | None,
     full_text: str | None,
     rewrite_failed: bool = False,
     error_message: str | None = None,
 ) -> None:
-    """Insert or update a cluster rewrite."""
+    """Insert or update a cluster rewrite for (cluster_id, style, language)."""
     conn = get_connection()
     try:
         with conn.cursor() as cur:
             cur.execute(
                 """
                 INSERT INTO cluster_rewrites (
-                    cluster_id, profile_hash, title, summary, full_text, rewrite_failed, error_message
+                    cluster_id, style, language, title, summary, full_text,
+                    rewrite_failed, error_message
                 )
-                VALUES (%s::uuid, %s, %s, %s, %s, %s, %s)
-                ON CONFLICT (cluster_id, profile_hash)
+                VALUES (%s::uuid, %s, %s, %s, %s, %s, %s, %s)
+                ON CONFLICT (cluster_id, style, language)
                 DO UPDATE SET
                     title = EXCLUDED.title,
                     summary = EXCLUDED.summary,
@@ -193,7 +198,16 @@ def insert_cluster_rewrite(
                     rewrite_failed = EXCLUDED.rewrite_failed,
                     error_message = EXCLUDED.error_message
                 """,
-                (cluster_id, profile_hash, title, summary, full_text, rewrite_failed, error_message),
+                (
+                    cluster_id,
+                    style,
+                    language,
+                    title,
+                    summary,
+                    full_text,
+                    rewrite_failed,
+                    error_message,
+                ),
             )
         conn.commit()
     finally:
@@ -202,9 +216,10 @@ def insert_cluster_rewrite(
 
 def get_cluster_rewrites(
     cluster_ids: list[str],
-    profile_hash: str,
+    style: str,
+    language: str,
 ) -> dict[str, dict[str, Any]]:
-    """Return rewrites for cluster_ids and profile_hash, keyed by cluster_id."""
+    """Return rewrites for cluster_ids and (style, language), keyed by cluster_id."""
     if not cluster_ids:
         return {}
     conn = get_connection()
@@ -214,9 +229,9 @@ def get_cluster_rewrites(
                 """
                 SELECT cluster_id::text, title, summary, full_text, rewrite_failed
                 FROM cluster_rewrites
-                WHERE profile_hash = %s AND cluster_id::text = ANY(%s)
+                WHERE style = %s AND language = %s AND cluster_id::text = ANY(%s)
                 """,
-                (profile_hash, cluster_ids),
+                (style, language, cluster_ids),
             )
             return {row["cluster_id"]: dict(row) for row in cur.fetchall()}
     finally:
@@ -288,7 +303,8 @@ def get_read_cluster_ids(user_id: int) -> set[str]:
 
 def get_read_clusters_with_rewrites(
     user_id: int,
-    profile_hash: str,
+    style: str,
+    language: str,
     limit: int = 50,
     offset: int = 0,
 ) -> list[dict[str, Any]]:
@@ -302,13 +318,13 @@ def get_read_clusters_with_rewrites(
                        cr.title, cr.summary, cr.full_text
                 FROM user_read_clusters urc
                 JOIN cluster_rewrites cr ON cr.cluster_id = urc.cluster_id
-                    AND cr.profile_hash = %s
+                    AND cr.style = %s AND cr.language = %s
                     AND cr.title IS NOT NULL AND cr.full_text IS NOT NULL
                 WHERE urc.user_id = %s
                 ORDER BY urc.read_at DESC
                 LIMIT %s OFFSET %s
                 """,
-                (profile_hash, user_id, limit, offset),
+                (style, language, user_id, limit, offset),
             )
             return [dict(row) for row in cur.fetchall()]
     finally:

@@ -4,6 +4,7 @@ from typing import Any
 
 from flask import Blueprint, redirect, render_template, session, url_for
 
+from app.config import load_config
 from app.services import article_service, profile_service
 
 reader_bp = Blueprint("reader", __name__)
@@ -64,8 +65,9 @@ def expand_cluster(cluster_id: str) -> Any:
     if not profile:
         return redirect(url_for("setup.setup_page"))
 
-    profile_hash = profile_service.compute_profile_hash(profile)
-    cluster = article_service.get_expanded_cluster(cluster_id, profile_hash)
+    config = load_config()
+    style, language = profile_service.get_reading_variant(profile, config)
+    cluster = article_service.get_expanded_cluster(cluster_id, style, language, config)
     if not cluster:
         return render_template(
             "partials/article_expanded.html",

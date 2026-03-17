@@ -140,7 +140,7 @@ def rewrite_articles_cmd() -> None:
         click.echo(f"Rewrite job failed: {e}", err=True)
         raise SystemExit(1)
     click.echo(
-        f"Rewrite: profiles={report.profiles_processed} "
+        f"Rewrite: variants={report.variants_processed} "
         f"clusters_attempted={report.clusters_attempted} "
         f"ok={report.clusters_succeeded} "
         f"failed={report.clusters_failed}"
@@ -189,7 +189,7 @@ def run_pipeline_cmd(sources_path: str | None) -> None:
         click.echo(f"Rewrite failed: {e}", err=True)
         raise SystemExit(1)
     click.echo(
-        f"  profiles={r4.profiles_processed} clusters_attempted={r4.clusters_attempted} ok={r4.clusters_succeeded} failed={r4.clusters_failed}"
+        f"  variants={r4.variants_processed} clusters_attempted={r4.clusters_attempted} ok={r4.clusters_succeeded} failed={r4.clusters_failed}"
     )
 
     click.echo("Pipeline complete.")

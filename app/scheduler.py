@@ -12,10 +12,9 @@ from apscheduler.triggers.interval import IntervalTrigger
 from app.clustering.service import run_cluster_and_embed
 from app.config import load_config
 from app.db import admin as admin_db
-from app.db import rewrite_requests as rewrite_requests_db
 from app.extraction.extractor import enrich_articles
 from app.feed.orchestrator import fetch_all_due_feeds
-from app.services.rewrite_service import run_rewrite_batch, run_rewrite_for_user
+from app.services.rewrite_service import run_rewrite_batch
 
 logger = logging.getLogger(__name__)
 
@@ -34,24 +33,6 @@ def _run_tracked_job(
     except Exception as e:
         admin_db.update_job_run(job_id, status="error", error_message=str(e))
         logger.exception("%s job failed", job_name)
-
-
-def _poll_rewrite_requests() -> None:
-    """Poll for on-demand rewrite requests (from setup/settings save)."""
-    claimed = rewrite_requests_db.claim_pending_requests()
-    if not claimed:
-        return
-    config = load_config()
-    for row in claimed:
-        request_id = row["id"]
-        user_id = row["user_id"]
-        try:
-            run_rewrite_for_user(user_id, config)
-            rewrite_requests_db.mark_done(request_id)
-            logger.info("On-demand rewrite completed for user_id=%d", user_id)
-        except Exception as e:
-            rewrite_requests_db.mark_failed(request_id, str(e))
-            logger.exception("On-demand rewrite failed for user_id=%d", user_id)
 
 
 def main() -> None:
@@ -98,12 +79,6 @@ def main() -> None:
         lambda: _run_tracked_job("rewrite_articles", run_rewrite_batch),
         trigger=CronTrigger.from_crontab(rewrite_cron),
         id="rewrite_articles",
-    )
-
-    scheduler.add_job(
-        _poll_rewrite_requests,
-        trigger=IntervalTrigger(seconds=60),
-        id="poll_rewrite_requests",
     )
 
     logger.info(

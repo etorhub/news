@@ -1,4 +1,4 @@
-"""LLM rewrite orchestration. Runs on schedule or via manual trigger after settings save."""
+"""LLM rewrite orchestration. Runs on schedule for all (style, language) variants."""
 
 import logging
 import re
@@ -11,17 +11,15 @@ from app.config import load_config
 
 logger = logging.getLogger(__name__)
 from app.db import clusters as db_clusters
-from app.db import users as db_users
 from app.llm.prompts import load_prompt
 from app.llm.provider import LLMProvider, get_provider
-from app.services import profile_service
 
 
 @dataclass
 class RewriteReport:
     """Summary of a rewrite batch run."""
 
-    profiles_processed: int
+    variants_processed: int
     clusters_attempted: int
     clusters_succeeded: int
     clusters_failed: int
@@ -39,7 +37,6 @@ def _strip_markdown_bold(text: str) -> str:
 
 def _parse_cluster_llm_response(text: str) -> tuple[str, str, str]:
     """Parse LLM output into (title, summary, full_text). Raises ValueError on bad format."""
-    # Case-insensitive markers (small models may output "Title:" or "Título:" etc.)
     if not re.search(r"TITLE\s*:", text, re.I):
         raise ValueError("Response missing TITLE:, SUMMARY:, or FULL: sections")
     if not re.search(r"SUMMARY\s*:", text, re.I):
@@ -86,22 +83,43 @@ def _build_articles_text(articles: list[dict[str, Any]]) -> str:
     return "\n\n---\n\n".join(blocks) if blocks else ""
 
 
+def _get_rewriting_variants(config: dict[str, Any]) -> list[tuple[str, str]]:
+    """Return list of (style_id, language_id) from config."""
+    rewriting = config.get("rewriting", {})
+    styles = rewriting.get("styles", [])
+    languages = rewriting.get("languages", [])
+    if not styles or not languages:
+        return [("neutral", "ca")]
+    return [
+        (s["id"], lang["id"])
+        for s in styles
+        for lang in languages
+    ]
+
+
 def rewrite_cluster(
     cluster_id: str,
     articles: list[dict[str, Any]],
-    profile: dict[str, Any],
+    style: str,
+    language: str,
     config: dict[str, Any],
     *,
     provider: LLMProvider | None = None,
 ) -> bool:
-    """Rewrite a cluster (merge + adapt all articles) and store. Returns True on success."""
-    logger.info("rewrite_cluster: starting cluster_id=%s articles=%d", cluster_id, len(articles))
+    """Rewrite a cluster for (style, language) and store. Returns True on success."""
+    logger.info(
+        "rewrite_cluster: cluster_id=%s style=%s language=%s articles=%d",
+        cluster_id,
+        style,
+        language,
+        len(articles),
+    )
     articles_text = _build_articles_text(articles)
     if not articles_text:
-        profile_hash = profile_service.compute_profile_hash(profile)
         db_clusters.insert_cluster_rewrite(
             cluster_id=cluster_id,
-            profile_hash=profile_hash,
+            style=style,
+            language=language,
             title=None,
             summary=None,
             full_text=None,
@@ -110,62 +128,74 @@ def rewrite_cluster(
         )
         return False
 
-    profile_hash = profile_service.compute_profile_hash(profile)
+    rewriting = config.get("rewriting", {})
+    styles_cfg = {s["id"]: s for s in rewriting.get("styles", [])}
+    prompt_name = styles_cfg.get(style, {}).get("prompt", "rewrite_cluster_neutral")
     processing = config.get("processing", {})
     summary_sentences = processing.get("summary_sentences", 3)
     max_tokens = processing.get("rewrite_max_tokens", 2000)
-    language = (profile.get("language") or "ca").strip() or "ca"
-    prompt_template = load_prompt("rewrite_cluster")
+
+    prompt_template = load_prompt(prompt_name)
     prompt = prompt_template.format(
         articles_text=articles_text,
         language=language,
-        rewrite_tone=profile.get(
-            "rewrite_tone",
-            "Journalistic style. Formal and well-written. Do not simplify; preserve original complexity and nuance. Avoid spoilers in headlines or summaries.",
-        ),
-        filter_negative=str(profile.get("filter_negative", False)).lower(),
         summary_sentences=summary_sentences,
     )
 
     if provider is None:
         provider = get_provider(config)
     try:
-        logger.info("rewrite_cluster: calling LLM cluster_id=%s max_tokens=%d", cluster_id, max_tokens)
+        logger.info(
+            "rewrite_cluster: calling LLM cluster_id=%s style=%s language=%s",
+            cluster_id,
+            style,
+            language,
+        )
         response = provider.complete(prompt, max_tokens=max_tokens)
         title, summary, full_text = _parse_cluster_llm_response(response)
         db_clusters.insert_cluster_rewrite(
             cluster_id=cluster_id,
-            profile_hash=profile_hash,
+            style=style,
+            language=language,
             title=title,
             summary=summary,
             full_text=full_text,
             rewrite_failed=False,
         )
-        logger.info("rewrite_cluster: done cluster_id=%s ok=True", cluster_id)
+        logger.info("rewrite_cluster: done cluster_id=%s style=%s language=%s ok=True", cluster_id, style, language)
         return True
     except Exception as e:
         err_msg = str(e)[:500]
         db_clusters.insert_cluster_rewrite(
             cluster_id=cluster_id,
-            profile_hash=profile_hash,
+            style=style,
+            language=language,
             title=None,
             summary=None,
             full_text=None,
             rewrite_failed=True,
             error_message=err_msg,
         )
-        logger.warning("rewrite_cluster: done cluster_id=%s ok=False error=%s", cluster_id, err_msg)
+        logger.warning(
+            "rewrite_cluster: done cluster_id=%s style=%s language=%s ok=False error=%s",
+            cluster_id,
+            style,
+            language,
+            err_msg,
+        )
         return False
 
 
 def _gather_rewrite_work(
-    profile_hash: str,
-    since: datetime,
+    style: str,
+    language: str,
+    since: datetime | None,
     batch_size: int,
 ) -> list[tuple[str, list[dict[str, Any]]]]:
-    """Return list of (cluster_id, articles) needing rewrite for this profile."""
-    clusters = db_clusters.get_clusters_needing_rewrite(
-        profile_hash=profile_hash,
+    """Return list of (cluster_id, articles) needing rewrite for this (style, language)."""
+    clusters = db_clusters.get_clusters_needing_rewrite_for_variant(
+        style=style,
+        language=language,
         since=since,
         limit=batch_size,
     )
@@ -180,7 +210,8 @@ def _gather_rewrite_work(
 
 def _execute_rewrites(
     work: list[tuple[str, list[dict[str, Any]]]],
-    profile: dict[str, Any],
+    style: str,
+    language: str,
     config: dict[str, Any],
     provider: LLMProvider,
     parallel_workers: int,
@@ -196,7 +227,8 @@ def _execute_rewrites(
                     rewrite_cluster,
                     cluster_id,
                     articles,
-                    profile,
+                    style,
+                    language,
                     config,
                     provider=provider,
                 ): cluster_id
@@ -214,7 +246,8 @@ def _execute_rewrites(
             if rewrite_cluster(
                 cluster_id=cluster_id,
                 articles=articles,
-                profile=profile,
+                style=style,
+                language=language,
                 config=config,
                 provider=provider,
             ):
@@ -225,7 +258,7 @@ def _execute_rewrites(
 
 
 def run_rewrite_batch(config: dict[str, Any]) -> RewriteReport:
-    """Process today's clusters for all distinct rewrite profiles."""
+    """Process clusters for all configured (style, language) variants."""
     logger.info("run_rewrite_batch: starting")
     processing = config.get("processing", {})
     window_hours = processing.get("cluster_window_hours", 24)
@@ -236,27 +269,27 @@ def run_rewrite_batch(config: dict[str, Any]) -> RewriteReport:
     )
     schedule_cfg = config.get("schedule", {})
     batch_size = schedule_cfg.get("rewrite_batch_size", 10)
-    parallel_workers = schedule_cfg.get("rewrite_parallel_workers", 2)
+    parallel_workers = schedule_cfg.get("rewrite_parallel_workers", 1)
+
+    variants = _get_rewriting_variants(config)
     logger.info(
-        "run_rewrite_batch: window_hours=%d batch_size=%d parallel_workers=%d",
-        window_hours,
+        "run_rewrite_batch: variants=%d batch_size=%d parallel_workers=%d",
+        len(variants),
         batch_size,
         parallel_workers,
     )
 
-    profiles = db_users.get_distinct_rewrite_profiles()
-    logger.info("run_rewrite_batch: got profiles=%d", len(profiles))
     clusters_attempted = 0
     clusters_succeeded = 0
     clusters_failed = 0
     provider: LLMProvider | None = None
 
-    for profile in profiles:
-        profile_hash = profile_service.compute_profile_hash(profile)
-        work = _gather_rewrite_work(profile_hash, since, batch_size)
+    for style, language in variants:
+        work = _gather_rewrite_work(style, language, since, batch_size)
         logger.info(
-            "run_rewrite_batch: profile_hash=%s clusters_needing_rewrite=%d",
-            profile_hash[:12] if profile_hash else "none",
+            "run_rewrite_batch: style=%s language=%s clusters_needing_rewrite=%d",
+            style,
+            language,
             len(work),
         )
         if not work:
@@ -265,28 +298,29 @@ def run_rewrite_batch(config: dict[str, Any]) -> RewriteReport:
         if provider is None:
             logger.info("run_rewrite_batch: loading provider")
             provider = get_provider(config)
-            logger.info("run_rewrite_batch: provider ready, processing %d clusters", len(work))
 
-        a, s, f = _execute_rewrites(work, profile, config, provider, parallel_workers)
+        a, s, f = _execute_rewrites(work, style, language, config, provider, parallel_workers)
         clusters_attempted += a
         clusters_succeeded += s
         clusters_failed += f
         logger.info(
-            "run_rewrite_batch: profile done attempted=%d ok=%d failed=%d",
-            len(work),
+            "run_rewrite_batch: style=%s language=%s attempted=%d ok=%d failed=%d",
+            style,
+            language,
+            a,
             s,
             f,
         )
 
     logger.info(
-        "run_rewrite_batch: finished profiles=%d attempted=%d ok=%d failed=%d",
-        len(profiles),
+        "run_rewrite_batch: finished variants=%d attempted=%d ok=%d failed=%d",
+        len(variants),
         clusters_attempted,
         clusters_succeeded,
         clusters_failed,
     )
     return RewriteReport(
-        profiles_processed=len(profiles),
+        variants_processed=len(variants),
         clusters_attempted=clusters_attempted,
         clusters_succeeded=clusters_succeeded,
         clusters_failed=clusters_failed,
@@ -296,59 +330,11 @@ def run_rewrite_batch(config: dict[str, Any]) -> RewriteReport:
 def run_rewrite_for_user(
     user_id: int, config: dict[str, Any] | None = None
 ) -> RewriteReport:
-    """Process clusters needing rewrite for a single user's profile. Used after setup/settings save."""
-    logger.info("run_rewrite_for_user: starting user_id=%d", user_id)
-    cfg = config or load_config()
-    profile = db_users.get_profile(user_id)
-    if not profile:
-        return RewriteReport(
-            profiles_processed=0,
-            clusters_attempted=0,
-            clusters_succeeded=0,
-            clusters_failed=0,
-        )
-
-    processing = cfg.get("processing", {})
-    window_hours = processing.get("cluster_window_hours", 24)
-    since = (
-        datetime.now(UTC) - timedelta(hours=window_hours)
-        if window_hours
-        else None
-    )
-    schedule_cfg = cfg.get("schedule", {})
-    batch_size = schedule_cfg.get("rewrite_batch_size", 10)
-    parallel_workers = schedule_cfg.get("rewrite_parallel_workers", 2)
-
-    profile_hash = profile_service.compute_profile_hash(profile)
-    work = _gather_rewrite_work(profile_hash, since, batch_size)
-
-    if not work:
-        logger.info("run_rewrite_for_user: no work for user_id=%d", user_id)
-        return RewriteReport(
-            profiles_processed=1,
-            clusters_attempted=0,
-            clusters_succeeded=0,
-            clusters_failed=0,
-        )
-
-    logger.info("run_rewrite_for_user: work=%d clusters, loading provider", len(work))
-    provider = get_provider(cfg)
-    logger.info("run_rewrite_for_user: provider ready")
-
-    clusters_attempted, clusters_succeeded, clusters_failed = _execute_rewrites(
-        work, profile, cfg, provider, parallel_workers
-    )
-
-    logger.info(
-        "run_rewrite_for_user: finished user_id=%d attempted=%d ok=%d failed=%d",
-        user_id,
-        clusters_attempted,
-        clusters_succeeded,
-        clusters_failed,
-    )
+    """No-op: rewrites are now shared per cluster per variant, not per user."""
+    logger.info("run_rewrite_for_user: no-op for user_id=%d (cluster-level rewrites)", user_id)
     return RewriteReport(
-        profiles_processed=1,
-        clusters_attempted=clusters_attempted,
-        clusters_succeeded=clusters_succeeded,
-        clusters_failed=clusters_failed,
+        variants_processed=0,
+        clusters_attempted=0,
+        clusters_succeeded=0,
+        clusters_failed=0,
     )

@@ -117,7 +117,11 @@
   </p>
   <p>
     Clusters with rewrite: {{ clustering_stats.clusters_with_rewrite or 0 }} |
+    Variants (style×lang): {{ clustering_stats.rewrite_variants_ok or 0 }} |
     Rewrite failures (24h): {{ clustering_stats.rewrite_failures_24h or 0 }}
+    {% if clustering_stats.rewrite_coverage_by_variant %}
+    <br><small>By variant: {% for v in clustering_stats.rewrite_coverage_by_variant %}{{ v.style }}/{{ v.language }}: {{ v.count }}{% if not loop.last %} | {% endif %}{% endfor %}</small>
+    {% endif %}
   </p>
   {% if rewrite_failures %}
   <p><strong>Recent rewrite failures (24h)</strong></p>

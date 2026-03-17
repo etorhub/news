@@ -3,6 +3,27 @@ llm:
   model: qwen2.5:7b
   host: http://ollama:11434
 
+# Cluster-level rewriting: one rewrite per (cluster, style, language).
+# Styles and languages are extensible via config.
+rewriting:
+  styles:
+    - id: neutral
+      label: Neutral
+      prompt: rewrite_cluster_neutral
+    - id: simple
+      label: Simple
+      prompt: rewrite_cluster_simple
+  languages:
+    - id: ca
+      label: Catalan
+    - id: es
+      label: Spanish
+    - id: en
+      label: English
+  # Fallback when user's preferred (style, language) is not yet available
+  default_style: neutral
+  default_language: ca
+
 embeddings:
   provider: ollama
   model: nomic-embed-text
