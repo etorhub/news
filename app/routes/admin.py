@@ -74,20 +74,20 @@ def _articles_page_params() -> dict[str, Any]:
 
 @admin_bp.route("/articles")
 def articles_page() -> Any:
-    """Articles and clusters browse page."""
+    """Articles and stories browse page."""
     params = _articles_page_params()
     sources = db_sources.get_all_sources()
 
-    if params["view"] == "clusters":
-        total = admin_db.get_admin_clusters_count()
+    if params["view"] == "stories":
+        total = admin_db.get_admin_stories_count()
         offset = (params["page"] - 1) * params["per_page"]
-        clusters = admin_db.get_admin_clusters(
+        stories = admin_db.get_admin_stories(
             limit=params["per_page"],
             offset=offset,
         )
         return render_template(
             "admin/articles.html",
-            clusters=clusters,
+            stories=stories,
             total=total,
             sources=sources,
             **params,
@@ -136,33 +136,33 @@ def articles_partial() -> Any:
     )
 
 
-@admin_bp.route("/articles/partials/clusters")
-def clusters_partial() -> Any:
-    """HTMX partial: paginated clusters list."""
+@admin_bp.route("/articles/partials/stories")
+def stories_partial() -> Any:
+    """HTMX partial: paginated stories list."""
     params = _articles_page_params()
-    total = admin_db.get_admin_clusters_count()
+    total = admin_db.get_admin_stories_count()
     offset = (params["page"] - 1) * params["per_page"]
-    clusters = admin_db.get_admin_clusters(
+    stories = admin_db.get_admin_stories(
         limit=params["per_page"],
         offset=offset,
     )
     return render_template(
-        "admin/partials/clusters_list.html",
-        clusters=clusters,
+        "admin/partials/stories_list.html",
+        stories=stories,
         total=total,
         **params,
     )
 
 
-@admin_bp.route("/articles/partials/cluster_detail")
-def cluster_detail_partial() -> Any:
-    """HTMX partial: single cluster's articles."""
-    cluster_id = request.args.get("cluster_id")
-    if not cluster_id:
-        return render_template("admin/partials/cluster_detail.html", articles=[])
-    articles = admin_db.get_admin_cluster_articles(cluster_id)
+@admin_bp.route("/articles/partials/story_detail")
+def story_detail_partial() -> Any:
+    """HTMX partial: single story's articles."""
+    story_id = request.args.get("story_id")
+    if not story_id:
+        return render_template("admin/partials/story_detail.html", articles=[])
+    articles = admin_db.get_admin_story_articles(story_id)
     return render_template(
-        "admin/partials/cluster_detail.html",
-        cluster_id=cluster_id,
+        "admin/partials/story_detail.html",
+        story_id=story_id,
         articles=articles,
     )

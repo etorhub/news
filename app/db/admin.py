@@ -188,37 +188,37 @@ def get_article_pipeline_stats() -> dict[str, Any]:
 
 
 def get_clustering_stats() -> dict[str, Any]:
-    """Return clustering and rewrite coverage stats."""
+    """Return story clustering and rewrite coverage stats."""
     conn = get_connection()
     try:
         with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
-            cur.execute("SELECT COUNT(*) AS cnt FROM clusters")
-            total_clusters = cur.fetchone()["cnt"]
+            cur.execute("SELECT COUNT(*) AS cnt FROM stories")
+            total_stories = cur.fetchone()["cnt"]
 
             cur.execute(
                 """
                 SELECT COUNT(DISTINCT article_id) AS cnt
-                FROM cluster_articles
+                FROM story_articles
                 """
             )
-            articles_in_clusters = cur.fetchone()["cnt"]
+            articles_in_stories = cur.fetchone()["cnt"]
 
             cur.execute("SELECT COUNT(*) AS cnt FROM articles WHERE embedding IS NOT NULL")
             articles_with_embedding = cur.fetchone()["cnt"]
 
             cur.execute(
                 """
-                SELECT COUNT(DISTINCT cluster_id) AS cnt
-                FROM cluster_rewrites
+                SELECT COUNT(DISTINCT story_id) AS cnt
+                FROM story_rewrites
                 WHERE rewrite_failed = false
                 """
             )
-            clusters_with_rewrite = cur.fetchone()["cnt"]
+            stories_with_rewrite = cur.fetchone()["cnt"]
 
             cur.execute(
                 """
                 SELECT COUNT(*) AS cnt
-                FROM cluster_rewrites
+                FROM story_rewrites
                 WHERE rewrite_failed = false
                 """
             )
@@ -227,7 +227,7 @@ def get_clustering_stats() -> dict[str, Any]:
             cur.execute(
                 """
                 SELECT style, language, COUNT(*) AS cnt
-                FROM cluster_rewrites
+                FROM story_rewrites
                 WHERE rewrite_failed = false
                 GROUP BY style, language
                 ORDER BY style, language
@@ -241,7 +241,7 @@ def get_clustering_stats() -> dict[str, Any]:
             cur.execute(
                 """
                 SELECT COUNT(*) AS cnt
-                FROM cluster_rewrites
+                FROM story_rewrites
                 WHERE rewrite_failed = true
                   AND created_at >= NOW() - INTERVAL '24 hours'
                 """
@@ -249,10 +249,10 @@ def get_clustering_stats() -> dict[str, Any]:
             rewrite_failures_24h = cur.fetchone()["cnt"]
 
             return {
-                "total_clusters": total_clusters,
-                "articles_in_clusters": articles_in_clusters,
+                "total_stories": total_stories,
+                "articles_in_stories": articles_in_stories,
                 "articles_with_embedding": articles_with_embedding,
-                "clusters_with_rewrite": clusters_with_rewrite,
+                "stories_with_rewrite": stories_with_rewrite,
                 "rewrite_variants_ok": rewrite_variants_ok,
                 "rewrite_coverage_by_variant": rewrite_coverage_by_variant,
                 "rewrite_failures_24h": rewrite_failures_24h,
@@ -262,14 +262,14 @@ def get_clustering_stats() -> dict[str, Any]:
 
 
 def get_recent_rewrite_failures(hours: int = 24, limit: int = 50) -> list[dict[str, Any]]:
-    """Return recent cluster rewrite failures with cluster_id, style, language, created_at, error_message."""
+    """Return recent story rewrite failures with story_id, style, language, created_at, error_message."""
     conn = get_connection()
     try:
         with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
             cur.execute(
                 """
-                SELECT cluster_id::text, style, language, created_at, error_message
-                FROM cluster_rewrites
+                SELECT story_id::text, style, language, created_at, error_message
+                FROM story_rewrites
                 WHERE rewrite_failed = true
                   AND created_at >= NOW() - INTERVAL '1 hour' * %s
                 ORDER BY created_at DESC
@@ -358,7 +358,7 @@ def get_incidents(config: dict[str, Any]) -> list[dict[str, Any]]:
             cur.execute(
                 """
                 SELECT COUNT(*) AS cnt
-                FROM cluster_rewrites
+                FROM story_rewrites
                 WHERE rewrite_failed = true
                   AND created_at >= NOW() - INTERVAL '24 hours'
                 """
@@ -369,7 +369,7 @@ def get_incidents(config: dict[str, Any]) -> list[dict[str, Any]]:
                     {
                         "type": "rewrite_failures",
                         "title": f"{rewrite_failures} rewrite failures in last 24h",
-                        "detail": "Cluster rewrites failed",
+                        "detail": "Story rewrites failed",
                         "severity": "warning",
                     }
                 )
@@ -405,7 +405,7 @@ def get_admin_articles(
     extraction_status: str | None = None,
     source_id: str | None = None,
 ) -> list[dict[str, Any]]:
-    """Return articles for admin view with cluster_id and source_name."""
+    """Return articles for admin view with story_id and source_name."""
     conn = get_connection()
     try:
         conditions: list[str] = []
@@ -424,11 +424,11 @@ def get_admin_articles(
                 f"""
                 SELECT a.id, a.title, a.url, a.source_id, a.published_at,
                        a.fetched_at, a.extraction_status, a.extraction_method,
-                       ca.cluster_id::text AS cluster_id,
+                       sa.story_id::text AS story_id,
                        ns.name AS source_name
                 FROM articles a
                 LEFT JOIN news_sources ns ON ns.id = a.source_id
-                LEFT JOIN cluster_articles ca ON ca.article_id = a.id
+                LEFT JOIN story_articles sa ON sa.article_id = a.id
                 WHERE {where_clause}
                 ORDER BY a.fetched_at DESC NULLS LAST
                 LIMIT %s OFFSET %s
@@ -468,30 +468,30 @@ def get_admin_articles_count(
         return_connection(conn)
 
 
-def get_admin_clusters(limit: int, offset: int) -> list[dict[str, Any]]:
-    """Return clusters with article_count and sample_titles for admin view."""
+def get_admin_stories(limit: int, offset: int) -> list[dict[str, Any]]:
+    """Return stories with article_count and sample_titles for admin view."""
     conn = get_connection()
     try:
         with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
             cur.execute(
                 """
-                SELECT c.id::text AS cluster_id, c.created_at,
-                       COUNT(ca.article_id) AS article_count,
+                SELECT s.id::text AS story_id, s.created_at,
+                       COUNT(sa.article_id) AS article_count,
                        (
                          SELECT COALESCE(array_agg(t.title), ARRAY[]::text[])
                          FROM (
                            SELECT a.title
-                           FROM cluster_articles ca2
-                           JOIN articles a ON a.id = ca2.article_id
-                           WHERE ca2.cluster_id = c.id
-                           ORDER BY ca2.position
+                           FROM story_articles sa2
+                           JOIN articles a ON a.id = sa2.article_id
+                           WHERE sa2.story_id = s.id
+                           ORDER BY sa2.position
                            LIMIT 3
                          ) t
                        ) AS sample_titles
-                FROM clusters c
-                LEFT JOIN cluster_articles ca ON ca.cluster_id = c.id
-                GROUP BY c.id
-                ORDER BY c.created_at DESC
+                FROM stories s
+                LEFT JOIN story_articles sa ON sa.story_id = s.id
+                GROUP BY s.id
+                ORDER BY s.created_at DESC
                 LIMIT %s OFFSET %s
                 """,
                 (limit, offset),
@@ -511,34 +511,34 @@ def get_admin_clusters(limit: int, offset: int) -> list[dict[str, Any]]:
         return_connection(conn)
 
 
-def get_admin_clusters_count() -> int:
-    """Return total cluster count for admin pagination."""
+def get_admin_stories_count() -> int:
+    """Return total story count for admin pagination."""
     conn = get_connection()
     try:
         with conn.cursor() as cur:
-            cur.execute("SELECT COUNT(*) FROM clusters")
+            cur.execute("SELECT COUNT(*) FROM stories")
             row = cur.fetchone()
             return row[0] if row else 0
     finally:
         return_connection(conn)
 
 
-def get_admin_cluster_articles(cluster_id: str) -> list[dict[str, Any]]:
-    """Return articles in a cluster with source_name for admin cluster detail view."""
+def get_admin_story_articles(story_id: str) -> list[dict[str, Any]]:
+    """Return articles in a story with source_name for admin story detail view."""
     conn = get_connection()
     try:
         with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
             cur.execute(
                 """
-                SELECT a.id, a.title, a.url, a.source_id, ca.position,
+                SELECT a.id, a.title, a.url, a.source_id, sa.position,
                        ns.name AS source_name
                 FROM articles a
-                JOIN cluster_articles ca ON ca.article_id = a.id
+                JOIN story_articles sa ON sa.article_id = a.id
                 LEFT JOIN news_sources ns ON ns.id = a.source_id
-                WHERE ca.cluster_id = %s::uuid
-                ORDER BY ca.position
+                WHERE sa.story_id = %s::uuid
+                ORDER BY sa.position
                 """,
-                (cluster_id,),
+                (story_id,),
             )
             return [dict(row) for row in cur.fetchall()]
     finally:

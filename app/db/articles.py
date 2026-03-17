@@ -151,21 +151,21 @@ def get_recent_articles_with_embedding(
         return_connection(conn)
 
 
-def get_articles_with_embedding_not_in_cluster(since: datetime) -> list[dict[str, Any]]:
-    """Return articles in window with embeddings that are not yet in any cluster."""
-    return _get_articles_not_in_cluster(since, require_embedding=True)
+def get_articles_with_embedding_not_in_story(since: datetime) -> list[dict[str, Any]]:
+    """Return articles in window with embeddings that are not yet in any story."""
+    return _get_articles_not_in_story(since, require_embedding=True)
 
 
-def get_articles_not_in_cluster(since: datetime) -> list[dict[str, Any]]:
-    """Return articles in window that are not yet in any cluster (with or without embedding)."""
-    return _get_articles_not_in_cluster(since, require_embedding=False)
+def get_articles_not_in_story(since: datetime) -> list[dict[str, Any]]:
+    """Return articles in window that are not yet in any story (with or without embedding)."""
+    return _get_articles_not_in_story(since, require_embedding=False)
 
 
-def _get_articles_not_in_cluster(
+def _get_articles_not_in_story(
     since: datetime,
     require_embedding: bool = True,
 ) -> list[dict[str, Any]]:
-    """Return articles in window not in a cluster. Optionally require embedding."""
+    """Return articles in window not in a story. Optionally require embedding."""
     conn = get_connection()
     try:
         with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
@@ -173,10 +173,10 @@ def _get_articles_not_in_cluster(
                 cur.execute(
                     """
                     SELECT a.* FROM articles a
-                    LEFT JOIN cluster_articles ca ON ca.article_id = a.id
+                    LEFT JOIN story_articles sa ON sa.article_id = a.id
                     WHERE a.published_at >= %s
                       AND a.embedding IS NOT NULL
-                      AND ca.article_id IS NULL
+                      AND sa.article_id IS NULL
                     ORDER BY a.published_at DESC
                     """,
                     (since,),
@@ -185,9 +185,9 @@ def _get_articles_not_in_cluster(
                 cur.execute(
                     """
                     SELECT a.* FROM articles a
-                    LEFT JOIN cluster_articles ca ON ca.article_id = a.id
+                    LEFT JOIN story_articles sa ON sa.article_id = a.id
                     WHERE a.published_at >= %s
-                      AND ca.article_id IS NULL
+                      AND sa.article_id IS NULL
                     ORDER BY a.published_at DESC
                     """,
                     (since,),

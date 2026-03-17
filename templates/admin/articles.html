@@ -1,14 +1,14 @@
 {% extends "base.html" %}
-{% block title %}Articles &amp; Clusters — Admin — Accessible News{% endblock %}
+{% block title %}Articles &amp; Stories — Admin — Accessible News{% endblock %}
 {% block content %}
-<h1>Articles &amp; clusters</h1>
+<h1>Articles &amp; stories</h1>
 <p><a href="{{ url_for('admin.dashboard') }}">← Back to dashboard</a></p>
 
 <nav style="margin: 1rem 0; display: flex; gap: 1rem; flex-wrap: wrap;">
   <a href="{{ url_for('admin.articles_page', view='articles', page=page, per_page=per_page, extraction_status=extraction_status or '', source_id=source_id or '') }}"
      style="{% if view == 'articles' %}font-weight: bold;{% endif %}">Articles</a>
-  <a href="{{ url_for('admin.articles_page', view='clusters', page=page, per_page=per_page) }}"
-     style="{% if view == 'clusters' %}font-weight: bold;{% endif %}">Clusters</a>
+  <a href="{{ url_for('admin.articles_page', view='stories', page=page, per_page=per_page) }}"
+     style="{% if view == 'stories' %}font-weight: bold;{% endif %}">Stories</a>
 </nav>
 
 {% if view == 'articles' %}
@@ -56,8 +56,8 @@
   {% include "admin/partials/articles_table.html" %}
 </div>
 {% else %}
-<div id="clusters-content">
-  {% include "admin/partials/clusters_list.html" %}
+<div id="stories-content">
+  {% include "admin/partials/stories_list.html" %}
 </div>
 {% endif %}
 {% endblock %}
