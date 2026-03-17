@@ -107,6 +107,7 @@
       50% { opacity: 1; }
     }
     .article-cover {
+      position: relative;
       width: 100%;
       aspect-ratio: 16 / 9;
       overflow: hidden;
@@ -118,7 +119,20 @@
       height: 100%;
       object-fit: cover;
     }
+    .article-cover-credit {
+      position: absolute;
+      bottom: 0.25rem;
+      right: 0.25rem;
+      padding: 0.15rem 0.4rem;
+      font-size: 0.7rem;
+      background: rgba(0, 0, 0, 0.65);
+      color: #fff;
+      border-radius: 4px;
+    }
     .article-cover.no-image img {
+      display: none;
+    }
+    .article-cover.no-image .article-cover-credit {
       display: none;
     }
     /* Desktop layout: constrained width, centered content, well-fitted images */

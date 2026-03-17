@@ -1,7 +1,7 @@
 """Drop user_sources table now that per-user source selection is removed.
 
 Revision ID: 014_drop_user_sources
-Revises: 013
+Revises: 014
 Create Date: 2026-03-17
 """
 
@@ -10,7 +10,7 @@ from collections.abc import Sequence
 from alembic import op
 
 revision: str = "014_drop_user_sources"
-down_revision: str | None = "013"
+down_revision: str | None = "014"
 branch_labels: str | Sequence[str] | None = None
 depends_on: str | Sequence[str] | None = None
 

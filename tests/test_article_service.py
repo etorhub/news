@@ -245,7 +245,8 @@ def test_select_cluster_image_prefers_media_content_over_og_image() -> None:
         },
     ]
     sources = {"s1": {}, "s2": {}}
-    assert select_cluster_image(articles, sources) == "https://s2.com/media.jpg"
+    url, _ = select_cluster_image(articles, sources)
+    assert url == "https://s2.com/media.jpg"
 
 
 def test_select_cluster_image_uses_earliest_published_as_tiebreaker() -> None:
@@ -269,7 +270,8 @@ def test_select_cluster_image_uses_earliest_published_as_tiebreaker() -> None:
         },
     ]
     sources = {"s1": {}, "s2": {}}
-    assert select_cluster_image(articles, sources) == "https://s2.com/earlier.jpg"
+    url, _ = select_cluster_image(articles, sources)
+    assert url == "https://s2.com/earlier.jpg"
 
 
 def test_select_cluster_image_returns_none_when_no_images() -> None:
@@ -277,12 +279,14 @@ def test_select_cluster_image_returns_none_when_no_images() -> None:
     articles = [
         {"id": "a1", "source_id": "s1", "image_url": None, "published_at": None},
     ]
-    assert select_cluster_image(articles, {}) is None
+    url, _ = select_cluster_image(articles, {})
+    assert url is None
 
 
 def test_select_cluster_image_returns_none_for_empty_articles() -> None:
     """Returns None for empty article list."""
-    assert select_cluster_image([], {}) is None
+    url, _ = select_cluster_image([], {})
+    assert url is None
 
 
 def test_select_cluster_image_uses_fallback_for_unknown_source() -> None:
@@ -296,7 +300,8 @@ def test_select_cluster_image_uses_fallback_for_unknown_source() -> None:
             "published_at": None,
         },
     ]
-    assert select_cluster_image(articles, {}) == "https://example.com/newly-incorporated.jpg"
+    url, _ = select_cluster_image(articles, {})
+    assert url == "https://example.com/newly-incorporated.jpg"
 
 
 def test_select_cluster_image_prefers_known_source_over_unknown() -> None:
@@ -317,4 +322,5 @@ def test_select_cluster_image_prefers_known_source_over_unknown() -> None:
             "published_at": None,
         },
     ]
-    assert select_cluster_image(articles, {}) == "https://example.com/og.jpg"
+    url, _ = select_cluster_image(articles, {})
+    assert url == "https://example.com/og.jpg"

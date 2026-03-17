@@ -2,7 +2,7 @@
 
 from typing import Any
 
-from flask import Blueprint, redirect, render_template, session, url_for
+from flask import Blueprint, redirect, render_template, request, session, url_for
 
 from app.config import load_config
 from app.services import article_service, profile_service
@@ -68,13 +68,48 @@ def expand_cluster(cluster_id: str) -> Any:
     config = load_config()
     style, language = profile_service.get_reading_variant(profile, config)
     cluster = article_service.get_expanded_cluster(cluster_id, style, language, config)
+    archive = request.args.get("archive") == "1"
     if not cluster:
         return render_template(
             "partials/article_expanded.html",
             article=None,
             error="Article not found.",
+            archive=archive,
         )
-    return render_template("partials/article_expanded.html", article=cluster)
+    return render_template(
+        "partials/article_expanded.html",
+        article=cluster,
+        archive=archive,
+    )
+
+
+@reader_bp.route("/clusters/<cluster_id>/collapse")
+def collapse_cluster(cluster_id: str) -> Any:
+    """Return article_card partial for HTMX swap (collapse expanded view)."""
+    user_id = session.get("user_id")
+    if not user_id:
+        return redirect(url_for("auth.login"))
+
+    profile = profile_service.get_profile_with_selections(user_id)
+    if not profile:
+        return redirect(url_for("setup.setup_page"))
+
+    config = load_config()
+    style, language = profile_service.get_reading_variant(profile, config)
+    cluster = article_service.get_expanded_cluster(cluster_id, style, language, config)
+    archive = request.args.get("archive") == "1"
+    if not cluster:
+        return render_template(
+            "partials/article_expanded.html",
+            article=None,
+            error="Article not found.",
+            archive=archive,
+        )
+    return render_template(
+        "partials/article_card.html",
+        article=cluster,
+        archive=archive,
+    )
 
 
 @reader_bp.route("/archive")

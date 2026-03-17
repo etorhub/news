@@ -3,14 +3,20 @@
   <div class="article-cover">
     <img src="{{ article.image_url }}" alt="" loading="lazy"
          onerror="this.parentElement.classList.add('no-image')">
+    {% if article.image_source_name %}
+    <span class="article-cover-credit" aria-label="Image source: {{ article.image_source_name }}">© {{ article.image_source_name }}</span>
+    {% endif %}
   </div>
+  {% endif %}
+  {% if article.categories %}
+  <p><small class="article-categories">{{ article.categories|join(', ')|replace('_', ' ')|title }}</small></p>
   {% endif %}
   <h2 style="font-size: var(--font-article);">{{ article.title }}</h2>
   <p><small>
     {% if article.sources %}
       Sources:
       {% for src in article.sources %}
-        <a href="{{ src.url }}" target="_blank" rel="noopener">{{ src.source_name }}</a>{% if not loop.last %}, {% endif %}
+        <a href="{{ src.url }}" target="_blank" rel="noopener"{% if src.title %} title="{{ src.title }}"{% endif %}>{{ src.source_name }}</a>{% if not loop.last %}, {% endif %}
       {% endfor %}
     {% endif %}
   </small></p>
@@ -18,13 +24,10 @@
   <p>{{ article.summary }}</p>
   {% endif %}
   <p>
-    {% if article.sources %}
-      <a href="{{ article.sources[0].url }}" target="_blank" rel="noopener">Read original</a>
-    {% endif %}
     <button type="button" class="btn tts-only" aria-label="Read aloud"
       onclick='speak({{ (article.title + ". " + (article.summary or "")) | tojson }})'>Listen</button>
     <button type="button" class="btn"
-      hx-get="{{ url_for('reader.expand_cluster', cluster_id=article.id) }}"
+      hx-get="{{ url_for('reader.expand_cluster', cluster_id=article.id) }}{% if archive %}?archive=1{% endif %}"
       hx-target="#article-{{ article.id }}"
       hx-swap="innerHTML">Read more</button>
     {% if not archive %}

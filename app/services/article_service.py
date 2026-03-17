@@ -23,15 +23,18 @@ _IMAGE_SOURCE_FALLBACK = 0.5
 def select_cluster_image(
     articles: list[dict[str, Any]],
     sources_map: dict[str, dict[str, Any]],
-) -> str | None:
+) -> tuple[str | None, str | None]:
     """Select best image URL from cluster articles.
+
+    Returns (image_url, image_source_name). image_source_name is the publisher name
+    for legal attribution; None when no image or source unknown.
 
     Scoring: image_source priority (media_content=3, media_thumbnail=2, enclosure=2,
     og_image=1, content_html=1), then source quality_score as bonus, then earliest
     published_at as tiebreaker. Images with unknown image_source use fallback score
     so newly incorporated images are still displayed.
     """
-    candidates: list[tuple[str, float, datetime | None]] = []
+    candidates: list[tuple[str, str | None, float, datetime | None]] = []
     for art in articles:
         url = art.get("image_url")
         if not url or not isinstance(url, str) or not url.strip():
@@ -40,8 +43,10 @@ def select_cluster_image(
         base_score = _IMAGE_SOURCE_SCORES.get(src, _IMAGE_SOURCE_FALLBACK)
         quality = 0.0
         sid = art.get("source_id")
+        source_name: str | None = None
         if sid and sources_map:
             src_info = sources_map.get(sid, {})
+            source_name = src_info.get("name") or sid
             qs = src_info.get("quality_score")
             if qs is not None:
                 try:
@@ -51,24 +56,33 @@ def select_cluster_image(
                     pass
         total = base_score + quality
         pub = art.get("published_at")
-        candidates.append((url, total, pub))
+        candidates.append((url, source_name, total, pub))
 
     if not candidates:
-        return None
+        return (None, None)
 
-    def _sort_key(item: tuple[str, float, datetime | None]) -> tuple[float, float]:
-        url, score, pub = item
+    def _sort_key(
+        item: tuple[str, str | None, float, datetime | None],
+    ) -> tuple[float, float]:
+        _url, _sn, score, pub = item
         pub_ts = pub.timestamp() if pub else 0.0
         return (-score, pub_ts)
 
     candidates.sort(key=_sort_key)
-    return candidates[0][0]
+    url, source_name = candidates[0][0], candidates[0][1]
+    return (url, source_name)
 
 
 def _derive_cluster_category(articles: list[dict[str, Any]]) -> str | None:
     """Most common category among cluster articles, or None if none have categories."""
+    cats = _derive_cluster_categories(articles)
+    return cats[0] if cats else None
+
+
+def _derive_cluster_categories(articles: list[dict[str, Any]]) -> list[str]:
+    """All categories in cluster, ordered by frequency (most common first)."""
     if not articles:
-        return None
+        return []
     counts: Counter[str] = Counter()
     for art in articles:
         cats = art.get("categories")
@@ -77,9 +91,7 @@ def _derive_cluster_category(articles: list[dict[str, Any]]) -> str | None:
         for c in cats:
             if c and isinstance(c, str):
                 counts[c] += 1
-    if not counts:
-        return None
-    return counts.most_common(1)[0][0]
+    return [c for c, _ in counts.most_common()]
 
 
 def _get_rewrite_with_fallback(
@@ -198,8 +210,8 @@ def get_feed(user_id: int) -> tuple[list[dict[str, Any]], bool]:
                 }
             )
 
-        image_url = select_cluster_image(articles, sources)
-        category = _derive_cluster_category(articles)
+        image_url, image_source_name = select_cluster_image(articles, sources)
+        categories = _derive_cluster_categories(articles)
 
         result.append(
             {
@@ -210,7 +222,8 @@ def get_feed(user_id: int) -> tuple[list[dict[str, Any]], bool]:
                 "sources": sources_list,
                 "relevance_score": cluster_data.get("relevance_score"),
                 "image_url": image_url,
-                "category": category,
+                "image_source_name": image_source_name,
+                "categories": categories,
             }
         )
     rewrites_pending = len(visible_clusters) > 0 and len(result) == 0
@@ -243,24 +256,28 @@ def get_expanded_cluster(
             }
         )
 
-    image_url = select_cluster_image(articles, sources_map)
-    category = _derive_cluster_category(articles)
+    image_url, image_source_name = select_cluster_image(articles, sources_map)
+    categories = _derive_cluster_categories(articles)
 
     # Never show raw source content; use rewrite or "being prepared" placeholder
     if rw and rw.get("full_text"):
         title = rw.get("title") or "Article"
+        summary = rw.get("summary") or ""
         full_text = rw["full_text"]
     else:
         title = "Article"
+        summary = ""
         full_text = "This article is being prepared. Please try again shortly."
 
     return {
         "id": cluster_id,
         "title": title,
+        "summary": summary,
         "full_text": full_text,
         "sources": sources_list,
         "image_url": image_url,
-        "category": category,
+        "image_source_name": image_source_name,
+        "categories": categories,
     }
 
 
@@ -298,8 +315,8 @@ def get_read_feed(user_id: int) -> list[dict[str, Any]]:
                     "title": art.get("title", ""),
                 }
             )
-        image_url = select_cluster_image(articles, sources)
-        category = _derive_cluster_category(articles)
+        image_url, image_source_name = select_cluster_image(articles, sources)
+        categories = _derive_cluster_categories(articles)
         result.append(
             {
                 "id": cluster_id,
@@ -309,7 +326,8 @@ def get_read_feed(user_id: int) -> list[dict[str, Any]]:
                 "sources": sources_list,
                 "read_at": row["read_at"],
                 "image_url": image_url,
-                "category": category,
+                "image_source_name": image_source_name,
+                "categories": categories,
             }
         )
     return result
