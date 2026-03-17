@@ -59,11 +59,12 @@ def test_get_feed_multi_source_ranks_above_singleton() -> None:
         mock_ps.get_profile_with_selections.return_value = {
             "topic_ids": ["politics"],
         }
-        mock_ps.compute_profile_hash.return_value = "hash1"
+        mock_ps.get_reading_variant.return_value = ("neutral", "ca")
         mock_load_sources.return_value = list(sources.values())
         mock_load_config.return_value = {
             "processing": {"cluster_window_hours": 24, "articles_per_day": 10},
             "relevance": {"min_sources": 2},
+            "rewriting": {"default_style": "neutral", "default_language": "ca"},
         }
         mock_db.get_read_cluster_ids.return_value = set()
         mock_db.get_clusters_with_articles_in_window.return_value = [
@@ -115,11 +116,12 @@ def test_get_feed_backfill_when_few_multi_source() -> None:
         mock_ps.get_profile_with_selections.return_value = {
             "topic_ids": ["politics"],
         }
-        mock_ps.compute_profile_hash.return_value = "hash1"
+        mock_ps.get_reading_variant.return_value = ("neutral", "ca")
         mock_load_sources.return_value = list(sources.values())
         mock_load_config.return_value = {
             "processing": {"cluster_window_hours": 24, "articles_per_day": 3},
             "relevance": {"min_sources": 2},
+            "rewriting": {"default_style": "neutral", "default_language": "ca"},
         }
         mock_db.get_read_cluster_ids.return_value = set()
         mock_db.get_clusters_with_articles_in_window.return_value = [
@@ -163,11 +165,12 @@ def test_get_feed_min_sources_one_disables_filter() -> None:
         mock_ps.get_profile_with_selections.return_value = {
             "topic_ids": ["politics"],
         }
-        mock_ps.compute_profile_hash.return_value = "hash1"
+        mock_ps.get_reading_variant.return_value = ("neutral", "ca")
         mock_load_sources.return_value = list(sources.values())
         mock_load_config.return_value = {
             "processing": {"cluster_window_hours": 24, "articles_per_day": 10},
             "relevance": {"min_sources": 1},
+            "rewriting": {"default_style": "neutral", "default_language": "ca"},
         }
         mock_db.get_read_cluster_ids.return_value = set()
         mock_db.get_clusters_with_articles_in_window.return_value = [
@@ -201,11 +204,12 @@ def test_get_feed_excludes_read_clusters() -> None:
         mock_ps.get_profile_with_selections.return_value = {
             "topic_ids": ["politics"],
         }
-        mock_ps.compute_profile_hash.return_value = "hash1"
+        mock_ps.get_reading_variant.return_value = ("neutral", "ca")
         mock_load_sources.return_value = list(sources.values())
         mock_load_config.return_value = {
             "processing": {"cluster_window_hours": 24, "articles_per_day": 10},
             "relevance": {"min_sources": 1},
+            "rewriting": {"default_style": "neutral", "default_language": "ca"},
         }
         mock_db.get_read_cluster_ids.return_value = {"c1"}
         mock_db.get_clusters_with_articles_in_window.return_value = [

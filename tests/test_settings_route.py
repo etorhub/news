@@ -22,19 +22,19 @@ def mock_profile() -> dict:
         "user_id": 1,
         "location": "Barcelona",
         "language": "ca",
-        "rewrite_tone": "Journalistic style. Formal and well-written. Do not simplify; preserve original complexity and nuance. Avoid spoilers in headlines or summaries.",
+        "preferred_style": "neutral",
         "filter_negative": False,
         "high_contrast": False,
         "topic_ids": ["general"],
     }
 
 
-def test_settings_post_only_high_contrast_does_not_enqueue_rewrite(
+def test_settings_post_only_high_contrast_saves_without_confirmation(
     client: FlaskClient,
     mock_sources: list[dict],
     mock_profile: dict,
 ) -> None:
-    """When only high_contrast changes, enqueue_rewrite is not called."""
+    """When only high_contrast changes, save proceeds without regeneration confirmation."""
     with (
         patch("app.routes.settings.load_sources", return_value=mock_sources),
         patch(
@@ -46,9 +46,6 @@ def test_settings_post_only_high_contrast_does_not_enqueue_rewrite(
             return_value=False,
         ),
         patch("app.routes.settings.profile_service.save_setup"),
-        patch(
-            "app.routes.settings.db_rewrite_requests.enqueue_rewrite",
-        ) as mock_enqueue,
     ):
         with client.session_transaction() as sess:
             sess["user_id"] = 1
@@ -58,7 +55,7 @@ def test_settings_post_only_high_contrast_does_not_enqueue_rewrite(
             data={
                 "location": "Barcelona",
                 "language": "ca",
-                "rewrite_tone": "Journalistic style. Formal and well-written. Do not simplify; preserve original complexity and nuance. Avoid spoilers in headlines or summaries.",
+                "preferred_style": "neutral",
                 "high_contrast": "on",
                 "topics": ["general"],
             },
@@ -67,15 +64,14 @@ def test_settings_post_only_high_contrast_does_not_enqueue_rewrite(
 
         assert response.status_code == 302
         assert "saved=1" in response.location
-        mock_enqueue.assert_not_called()
 
 
-def test_settings_post_regeneration_field_enqueues_rewrite(
+def test_settings_post_regeneration_field_saves_when_confirmed(
     client: FlaskClient,
     mock_sources: list[dict],
     mock_profile: dict,
 ) -> None:
-    """When a regeneration-affecting field changes, enqueue_rewrite is called."""
+    """When a regeneration-affecting field changes and user confirms, save proceeds."""
     with (
         patch("app.routes.settings.load_sources", return_value=mock_sources),
         patch(
@@ -87,9 +83,6 @@ def test_settings_post_regeneration_field_enqueues_rewrite(
             return_value=True,
         ),
         patch("app.routes.settings.profile_service.save_setup"),
-        patch(
-            "app.routes.settings.db_rewrite_requests.enqueue_rewrite",
-        ) as mock_enqueue,
     ):
         with client.session_transaction() as sess:
             sess["user_id"] = 1
@@ -99,7 +92,7 @@ def test_settings_post_regeneration_field_enqueues_rewrite(
             data={
                 "location": "Barcelona",
                 "language": "es",
-                "rewrite_tone": "Journalistic style. Formal and well-written. Do not simplify; preserve original complexity and nuance. Avoid spoilers in headlines or summaries.",
+                "preferred_style": "neutral",
                 "confirm_regenerate": "1",
                 "topics": ["general"],
             },
@@ -108,7 +101,6 @@ def test_settings_post_regeneration_field_enqueues_rewrite(
 
         assert response.status_code == 302
         assert "saved=1" in response.location
-        mock_enqueue.assert_called_once_with(1)
 
 
 def test_settings_post_regeneration_needed_shows_confirmation(
@@ -128,7 +120,6 @@ def test_settings_post_regeneration_needed_shows_confirmation(
             return_value=True,
         ),
         patch("app.routes.settings.profile_service.save_setup"),
-        patch("app.routes.settings.db_rewrite_requests.enqueue_rewrite"),
         patch("app.db.users.get_user_by_id", return_value={"is_admin": False}),
     ):
         with client.session_transaction() as sess:
@@ -139,7 +130,7 @@ def test_settings_post_regeneration_needed_shows_confirmation(
             data={
                 "location": "Barcelona",
                 "language": "es",
-                "rewrite_tone": "Journalistic style. Formal and well-written. Do not simplify; preserve original complexity and nuance. Avoid spoilers in headlines or summaries.",
+                "preferred_style": "neutral",
                 "topics": ["general"],
             },
             follow_redirects=False,
