@@ -214,6 +214,20 @@ def get_articles_by_ids(article_ids: list[str]) -> list[dict[str, Any]]:
         return_connection(conn)
 
 
+def get_pending_extraction_count() -> int:
+    """Return count of articles with extraction_status = 'pending'."""
+    conn = get_connection()
+    try:
+        with conn.cursor() as cur:
+            cur.execute(
+                "SELECT COUNT(*) FROM articles WHERE extraction_status = 'pending'"
+            )
+            row = cur.fetchone()
+            return int(row[0]) if row else 0
+    finally:
+        return_connection(conn)
+
+
 def get_articles_needing_extraction(limit: int) -> list[dict[str, Any]]:
     """Return articles with extraction_status = 'pending', by fetched_at DESC."""
     conn = get_connection()

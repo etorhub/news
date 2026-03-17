@@ -10,13 +10,31 @@ from apscheduler.triggers.cron import CronTrigger
 from apscheduler.triggers.interval import IntervalTrigger
 
 from app.clustering.service import run_cluster_and_embed
+from app.clustering.service import StoryReport
 from app.config import load_config
 from app.db import admin as admin_db
-from app.extraction.extractor import enrich_articles
+from app.db import articles as articles_db
+from app.extraction.extractor import enrich_all_articles
 from app.feed.orchestrator import fetch_all_due_feeds
 from app.services.rewrite_service import run_rewrite_batch
 
 logger = logging.getLogger(__name__)
+
+
+def _cluster_articles_guarded(config: dict[str, Any]) -> StoryReport:
+    """Run clustering only when no articles are pending extraction."""
+    pending = articles_db.get_pending_extraction_count()
+    if pending > 0:
+        logger.warning(
+            "Skipping cluster job: %d articles still pending extraction",
+            pending,
+        )
+        return StoryReport(
+            articles_embedded=0,
+            articles_clustered=0,
+            stories_created=0,
+        )
+    return run_cluster_and_embed(config)
 
 
 def _run_tracked_job(
@@ -62,14 +80,14 @@ def main() -> None:
 
     enrichment_cron = config.get("schedule", {}).get("enrichment_cron", "10 * * * *")
     scheduler.add_job(
-        lambda: _run_tracked_job("enrich_articles", enrich_articles),
+        lambda: _run_tracked_job("enrich_articles", enrich_all_articles),
         trigger=CronTrigger.from_crontab(enrichment_cron),
         id="enrich_articles",
     )
 
     cluster_cron = config.get("schedule", {}).get("cluster_cron", "5 * * * *")
     scheduler.add_job(
-        lambda: _run_tracked_job("cluster_articles", run_cluster_and_embed),
+        lambda: _run_tracked_job("cluster_articles", _cluster_articles_guarded),
         trigger=CronTrigger.from_crontab(cluster_cron),
         id="cluster_articles",
     )

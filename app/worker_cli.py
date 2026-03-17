@@ -96,6 +96,7 @@ def fetch_feeds_cmd() -> None:
         f"Fetched: checked={report.feeds_checked} "
         f"fetched={report.feeds_fetched} "
         f"inserted={report.articles_inserted} "
+        f"skipped_stale={report.articles_skipped_stale} "
         f"deactivated={report.feeds_deactivated}"
     )
 
@@ -103,10 +104,10 @@ def fetch_feeds_cmd() -> None:
 @worker_cli.command("enrich-articles")
 def enrich_articles_cmd() -> None:
     """Extract full article content for pending articles (enrichment job)."""
-    from app.extraction.extractor import enrich_articles
+    from app.extraction.extractor import enrich_all_articles
 
     config = load_config()
-    report = enrich_articles(config)
+    report = enrich_all_articles(config)
     click.echo(
         f"Enrichment: checked={report.articles_checked} "
         f"extracted={report.articles_extracted} "
@@ -156,7 +157,7 @@ def rewrite_articles_cmd() -> None:
 def run_pipeline_cmd(sources_path: str | None) -> None:
     """Run the full pipeline once: seed → fetch → enrich → cluster → rewrite."""
     from app.clustering.service import run_cluster_and_embed
-    from app.extraction.extractor import enrich_articles
+    from app.extraction.extractor import enrich_all_articles
     from app.feed.orchestrator import fetch_all_due_feeds
     from app.services.rewrite_service import run_rewrite_batch
 
@@ -166,11 +167,12 @@ def run_pipeline_cmd(sources_path: str | None) -> None:
     click.echo("Running fetch...")
     r1 = fetch_all_due_feeds(config)
     click.echo(
-        f"  checked={r1.feeds_checked} fetched={r1.feeds_fetched} inserted={r1.articles_inserted}"
+        f"  checked={r1.feeds_checked} fetched={r1.feeds_fetched} "
+        f"inserted={r1.articles_inserted} skipped_stale={r1.articles_skipped_stale}"
     )
 
     click.echo("Running enrichment...")
-    r2 = enrich_articles(config)
+    r2 = enrich_all_articles(config)
     click.echo(
         f"  checked={r2.articles_checked} extracted={r2.articles_extracted}"
     )

@@ -21,6 +21,7 @@ class FetchReport:
     feeds_checked: int
     feeds_fetched: int
     articles_inserted: int
+    articles_skipped_stale: int
     feeds_deactivated: int
 
 
@@ -47,19 +48,28 @@ def fetch_all_due_feeds(config: dict[str, Any] | None = None) -> FetchReport:
     Uses config for fetcher settings. Pass config or loads from default path.
     """
     cfg = config or load_config()
-    fetcher_cfg = cfg.get("schedule", {}).get("fetcher", {})
+    schedule_cfg = cfg.get("schedule", {})
+    fetcher_cfg = schedule_cfg.get("fetcher", {})
+    max_age_hours = schedule_cfg.get("max_article_age_hours", 24)
+
     timeout = fetcher_cfg.get("request_timeout_seconds", 30)
     user_agent = fetcher_cfg.get("user_agent", "AccessibleNewsAggregator/0.1")
     threshold = fetcher_cfg.get("circuit_breaker_threshold", 5)
 
     feeds = sources_db.get_all_active_feeds()
     now = datetime.now(UTC)
+    cutoff = (
+        now - timedelta(hours=max_age_hours)
+        if max_age_hours and max_age_hours > 0
+        else None
+    )
     due_feeds = [f for f in feeds if _is_feed_due(f, now)]
 
     report = FetchReport(
         feeds_checked=len(due_feeds),
         feeds_fetched=0,
         articles_inserted=0,
+        articles_skipped_stale=0,
         feeds_deactivated=0,
     )
 
@@ -120,12 +130,25 @@ def fetch_all_due_feeds(config: dict[str, Any] | None = None) -> FetchReport:
 
         last_guid: str | None = None
         inserted = 0
+        skipped_stale = 0
         for raw in raw_articles:
+            published_at = raw.get("published_at")
+            if cutoff is not None and published_at is not None:
+                pub_aware = (
+                    published_at.replace(tzinfo=UTC)
+                    if published_at.tzinfo is None
+                    else published_at
+                )
+                if pub_aware < cutoff:
+                    skipped_stale += 1
+                    last_guid = raw.get("guid") or raw["url"]
+                    continue
+
             article = {
                 "source_id": source_id,
                 "title": raw["title"],
                 "url": raw["url"],
-                "published_at": raw.get("published_at"),
+                "published_at": published_at,
                 "raw_text": raw.get("raw_text") or "",
                 "full_text": raw.get("full_text") or None,
                 "guid": raw.get("guid"),
@@ -136,6 +159,8 @@ def fetch_all_due_feeds(config: dict[str, Any] | None = None) -> FetchReport:
             if articles_db.insert_article(article):
                 inserted += 1
             last_guid = raw.get("guid") or raw["url"]
+
+        report.articles_skipped_stale += skipped_stale
 
         sources_db.update_feed(
             feed_id,

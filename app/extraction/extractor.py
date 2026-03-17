@@ -117,3 +117,42 @@ def enrich_articles(config: dict) -> EnrichmentReport:
             time.sleep(min_interval)
 
     return report
+
+
+def enrich_all_articles(config: dict) -> EnrichmentReport:
+    """Process all pending articles in batches until none remain or max rounds hit.
+
+    Returns aggregate EnrichmentReport. Used by scheduler so clustering never
+    runs with pending extraction.
+    """
+    extraction_cfg = config.get("extraction", {})
+    if not extraction_cfg.get("enabled", True):
+        return EnrichmentReport(0, 0, 0, 0)
+
+    max_rounds = extraction_cfg.get("max_enrichment_rounds", 20)
+    aggregate = EnrichmentReport(0, 0, 0, 0)
+
+    for round_num in range(max_rounds):
+        pending = db_articles.get_pending_extraction_count()
+        if pending == 0:
+            break
+
+        report = enrich_articles(config)
+        aggregate.articles_checked += report.articles_checked
+        aggregate.articles_extracted += report.articles_extracted
+        aggregate.articles_failed += report.articles_failed
+        aggregate.articles_skipped += report.articles_skipped
+
+        if report.articles_checked == 0:
+            break
+
+        remaining = db_articles.get_pending_extraction_count()
+        if remaining > 0:
+            logger.info(
+                "Enrichment round %d: %d processed, %d pending remaining",
+                round_num + 1,
+                report.articles_checked,
+                remaining,
+            )
+
+    return aggregate

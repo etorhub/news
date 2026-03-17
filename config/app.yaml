@@ -40,6 +40,8 @@ schedule:
   # Pipeline order: fetch -> enrichment -> cluster -> rewrite
   enrichment_cron: "5 * * * *"   # Hourly at :05 (after fetch at :00)
   cluster_cron: "15 * * * *"    # Hourly at :15 (after enrichment)
+  # Articles older than this are not fetched (0 = no limit)
+  max_article_age_hours: 24
   rewrite_cron: "0 6 * * *"   # Daily at 6am
   # Higher batch when showing all stories; more rewrites per run
   rewrite_batch_size: 50
@@ -54,6 +56,7 @@ extraction:
   enabled: true
   min_content_length: 200
   batch_size: 30
+  max_enrichment_rounds: 20  # Cap per run to avoid runaway loops
   rate_limit_per_domain: 2.0
   timeout: 30
 
