@@ -8,7 +8,7 @@ from app.services.rewrite_service import (
     RewriteReport,
     _parse_cluster_llm_response,
     _strip_markdown_bold,
-    rewrite_cluster,
+    rewrite_story,
     run_rewrite_batch,
 )
 
@@ -77,13 +77,13 @@ def test_parse_cluster_llm_response_empty_sections_raises() -> None:
 
 def test_rewrite_cluster_empty_articles_stores_failed() -> None:
     """rewrite_cluster stores rewrite_failed=True when articles have no text."""
-    with patch("app.services.rewrite_service.db_clusters") as mock_db:
+    with patch("app.services.rewrite_service.db_stories") as mock_db:
         articles = [{"id": "art1", "raw_text": "", "full_text": None}]
         config = {"rewriting": {"styles": [{"id": "neutral", "prompt": "rewrite_cluster_neutral"}]}}
-        result = rewrite_cluster("cluster-1", articles, "neutral", "ca", config)
+        result = rewrite_story("story-1", articles, "neutral", "ca", config)
         assert result is False
-        mock_db.insert_cluster_rewrite.assert_called_once_with(
-            cluster_id="cluster-1",
+        mock_db.insert_story_rewrite.assert_called_once_with(
+            story_id="story-1",
             style="neutral",
             language="ca",
             title=None,
@@ -94,10 +94,10 @@ def test_rewrite_cluster_empty_articles_stores_failed() -> None:
         )
 
 
-def test_rewrite_cluster_success_stores_rewrite() -> None:
-    """rewrite_cluster stores title, summary and full_text on success."""
+def test_rewrite_story_success_stores_rewrite() -> None:
+    """rewrite_story stores title, summary and full_text on success."""
     with (
-        patch("app.services.rewrite_service.db_clusters") as mock_db,
+        patch("app.services.rewrite_service.db_stories") as mock_db,
         patch("app.services.rewrite_service.get_provider") as mock_get,
     ):
         mock_provider = MagicMock()
@@ -123,10 +123,10 @@ Simplified article here."""
             "rewriting": {"styles": [{"id": "neutral", "prompt": "rewrite_cluster_neutral"}]},
         }
 
-        result = rewrite_cluster("cluster-1", articles, "neutral", "ca", config)
+        result = rewrite_story("story-1", articles, "neutral", "ca", config)
         assert result is True
-        mock_db.insert_cluster_rewrite.assert_called_once_with(
-            cluster_id="cluster-1",
+        mock_db.insert_story_rewrite.assert_called_once_with(
+            story_id="story-1",
             style="neutral",
             language="ca",
             title="Power outage in Barcelona.",
@@ -139,10 +139,10 @@ Simplified article here."""
         assert call_kwargs["max_tokens"] == 2000  # default when not in config
 
 
-def test_rewrite_cluster_uses_config_max_tokens() -> None:
-    """rewrite_cluster uses rewrite_max_tokens from config."""
+def test_rewrite_story_uses_config_max_tokens() -> None:
+    """rewrite_story uses rewrite_max_tokens from config."""
     with (
-        patch("app.services.rewrite_service.db_clusters") as mock_db,
+        patch("app.services.rewrite_service.db_stories") as mock_db,
         patch("app.services.rewrite_service.get_provider") as mock_get,
     ):
         mock_provider = MagicMock()
@@ -162,18 +162,18 @@ Full text."""
             "rewriting": {"styles": [{"id": "neutral", "prompt": "rewrite_cluster_neutral"}]},
         }
 
-        rewrite_cluster("cluster-1", articles, "neutral", "ca", config)
+        rewrite_story("story-1", articles, "neutral", "ca", config)
 
         mock_provider.complete.assert_called_once()
         assert mock_provider.complete.call_args[1]["max_tokens"] == 1500
 
 
-def test_rewrite_cluster_provider_error_stores_failed() -> None:
-    """rewrite_cluster stores rewrite_failed=True when provider raises."""
+def test_rewrite_story_provider_error_stores_failed() -> None:
+    """rewrite_story stores rewrite_failed=True when provider raises."""
     from app.llm.provider import LLMProviderError
 
     with (
-        patch("app.services.rewrite_service.db_clusters") as mock_db,
+        patch("app.services.rewrite_service.db_stories") as mock_db,
         patch("app.services.rewrite_service.get_provider") as mock_get,
     ):
         mock_provider = MagicMock()
@@ -183,10 +183,10 @@ def test_rewrite_cluster_provider_error_stores_failed() -> None:
         articles = [{"id": "art1", "raw_text": "Some text", "full_text": None}]
         config = {"rewriting": {"styles": [{"id": "neutral", "prompt": "rewrite_cluster_neutral"}]}}
 
-        result = rewrite_cluster("cluster-1", articles, "neutral", "ca", config)
+        result = rewrite_story("story-1", articles, "neutral", "ca", config)
         assert result is False
-        mock_db.insert_cluster_rewrite.assert_called_once_with(
-            cluster_id="cluster-1",
+        mock_db.insert_story_rewrite.assert_called_once_with(
+            story_id="story-1",
             style="neutral",
             language="ca",
             title=None,
@@ -198,9 +198,9 @@ def test_rewrite_cluster_provider_error_stores_failed() -> None:
 
 
 def test_run_rewrite_batch_empty_variants() -> None:
-    """run_rewrite_batch returns zero counts when no clusters need rewrite."""
-    with patch("app.services.rewrite_service.db_clusters") as mock_clusters:
-        mock_clusters.get_clusters_needing_rewrite_for_variant.return_value = []
+    """run_rewrite_batch returns zero counts when no stories need rewrite."""
+    with patch("app.services.rewrite_service.db_stories") as mock_stories:
+        mock_stories.get_stories_needing_rewrite.return_value = []
         config = {
             "schedule": {"rewrite_batch_size": 10},
             "processing": {"cluster_window_hours": 24},
@@ -212,27 +212,27 @@ def test_run_rewrite_batch_empty_variants() -> None:
         report = run_rewrite_batch(config)
         assert report == RewriteReport(
             variants_processed=4,
-            clusters_attempted=0,
-            clusters_succeeded=0,
-            clusters_failed=0,
+            stories_attempted=0,
+            stories_succeeded=0,
+            stories_failed=0,
         )
 
 
 def test_run_rewrite_batch_counts() -> None:
     """run_rewrite_batch returns correct counts for mixed success/failure."""
     with (
-        patch("app.services.rewrite_service.db_clusters") as mock_clusters,
-        patch("app.services.rewrite_service.rewrite_cluster") as mock_rewrite,
+        patch("app.services.rewrite_service.db_stories") as mock_stories,
+        patch("app.services.rewrite_service.rewrite_story") as mock_rewrite,
         patch("app.services.rewrite_service.get_provider") as mock_get,
     ):
         mock_get.return_value = MagicMock()
-        mock_clusters.get_clusters_needing_rewrite_for_variant.side_effect = [
-            [{"cluster_id": "c1"}, {"cluster_id": "c2"}],
+        mock_stories.get_stories_needing_rewrite.side_effect = [
+            [{"story_id": "c1"}, {"story_id": "c2"}],
             [],
             [],
             [],
         ]
-        mock_clusters.get_articles_in_cluster.side_effect = [
+        mock_stories.get_articles_in_story.side_effect = [
             [{"id": "a1", "raw_text": "t1", "full_text": None}],
             [{"id": "a2", "raw_text": "t2", "full_text": None}],
         ]
@@ -249,26 +249,26 @@ def test_run_rewrite_batch_counts() -> None:
         report = run_rewrite_batch(config)
 
         assert report.variants_processed == 4
-        assert report.clusters_attempted == 2
-        assert report.clusters_succeeded == 1
-        assert report.clusters_failed == 1
+        assert report.stories_attempted == 2
+        assert report.stories_succeeded == 1
+        assert report.stories_failed == 1
 
 
 def test_run_rewrite_batch_sequential_when_workers_one() -> None:
     """run_rewrite_batch uses sequential path when rewrite_parallel_workers=1."""
     with (
-        patch("app.services.rewrite_service.db_clusters") as mock_clusters,
+        patch("app.services.rewrite_service.db_stories") as mock_stories,
         patch("app.services.rewrite_service.get_provider") as mock_get,
-        patch("app.services.rewrite_service.rewrite_cluster") as mock_rewrite,
+        patch("app.services.rewrite_service.rewrite_story") as mock_rewrite,
     ):
         mock_get.return_value = MagicMock()
-        mock_clusters.get_clusters_needing_rewrite_for_variant.side_effect = [
-            [{"cluster_id": "c1"}],
+        mock_stories.get_stories_needing_rewrite.side_effect = [
+            [{"story_id": "c1"}],
             [],
             [],
             [],
         ]
-        mock_clusters.get_articles_in_cluster.return_value = [
+        mock_stories.get_articles_in_story.return_value = [
             {"id": "a1", "raw_text": "t1", "full_text": None},
         ]
         mock_rewrite.return_value = True
@@ -283,6 +283,6 @@ def test_run_rewrite_batch_sequential_when_workers_one() -> None:
         }
         report = run_rewrite_batch(config)
 
-        assert report.clusters_attempted == 1
-        assert report.clusters_succeeded == 1
+        assert report.stories_attempted == 1
+        assert report.stories_succeeded == 1
         mock_rewrite.assert_called_once()

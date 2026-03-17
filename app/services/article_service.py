@@ -1,13 +1,13 @@
-"""Article feed and expansion logic. Feed shows clusters, not individual articles."""
+"""Article feed and expansion logic. Feed shows stories, not individual articles."""
 
 from collections import Counter
 from datetime import UTC, datetime, timedelta
 from typing import Any
 
 from app.config import load_config, load_sources
-from app.db import clusters as db_clusters
+from app.db import stories as db_stories
 from app.services import profile_service
-from app.services.scoring_service import score_cluster
+from app.services.scoring_service import score_story
 
 _IMAGE_SOURCE_SCORES: dict[str, float] = {
     "media_content": 3.0,
@@ -20,11 +20,11 @@ _IMAGE_SOURCE_SCORES: dict[str, float] = {
 _IMAGE_SOURCE_FALLBACK = 0.5
 
 
-def select_cluster_image(
+def select_story_image(
     articles: list[dict[str, Any]],
     sources_map: dict[str, dict[str, Any]],
 ) -> tuple[str | None, str | None]:
-    """Select best image URL from cluster articles.
+    """Select best image URL from story articles.
 
     Returns (image_url, image_source_name). image_source_name is the publisher name
     for legal attribution; None when no image or source unknown.
@@ -73,14 +73,18 @@ def select_cluster_image(
     return (url, source_name)
 
 
-def _derive_cluster_category(articles: list[dict[str, Any]]) -> str | None:
-    """Most common category among cluster articles, or None if none have categories."""
-    cats = _derive_cluster_categories(articles)
+# Backwards compatibility alias
+select_cluster_image = select_story_image
+
+
+def _derive_story_category(articles: list[dict[str, Any]]) -> str | None:
+    """Most common category among story articles, or None if none have categories."""
+    cats = _derive_story_categories(articles)
     return cats[0] if cats else None
 
 
-def _derive_cluster_categories(articles: list[dict[str, Any]]) -> list[str]:
-    """All categories in cluster, ordered by frequency (most common first)."""
+def _derive_story_categories(articles: list[dict[str, Any]]) -> list[str]:
+    """All categories in story, ordered by frequency (most common first)."""
     if not articles:
         return []
     counts: Counter[str] = Counter()
@@ -95,32 +99,32 @@ def _derive_cluster_categories(articles: list[dict[str, Any]]) -> list[str]:
 
 
 def _get_rewrite_with_fallback(
-    cluster_ids: list[str],
+    story_ids: list[str],
     style: str,
     language: str,
     config: dict[str, Any],
 ) -> dict[str, dict[str, Any]]:
-    """Get rewrites for cluster_ids. Fall back to default variant if primary missing."""
-    rewrites = db_clusters.get_cluster_rewrites(cluster_ids, style, language)
+    """Get rewrites for story_ids. Fall back to default variant if primary missing."""
+    rewrites = db_stories.get_story_rewrites(story_ids, style, language)
     rewriting = config.get("rewriting", {})
     default_style = rewriting.get("default_style", "neutral")
     default_language = rewriting.get("default_language", "ca")
 
-    missing = [cid for cid in cluster_ids if cid not in rewrites or not rewrites[cid].get("full_text")]
+    missing = [sid for sid in story_ids if sid not in rewrites or not rewrites[sid].get("full_text")]
     if missing and (default_style != style or default_language != language):
-        fallback = db_clusters.get_cluster_rewrites(missing, default_style, default_language)
-        for cid, rw in fallback.items():
+        fallback = db_stories.get_story_rewrites(missing, default_style, default_language)
+        for sid, rw in fallback.items():
             if rw.get("full_text"):
-                rewrites[cid] = rw
+                rewrites[sid] = rw
     return rewrites
 
 
-def _cluster_matches_topic(
+def _story_matches_topic(
     articles: list[dict[str, Any]],
     topic_id: str,
     sources: dict[str, dict[str, Any]],
 ) -> bool:
-    """True if any article in the cluster matches the given topic (via categories or source)."""
+    """True if any article in the story matches the given topic (via categories or source)."""
     for art in articles:
         cats = art.get("categories")
         if isinstance(cats, list) and cats and topic_id in {c for c in cats if c}:
@@ -137,13 +141,14 @@ def get_feed(
     user_id: int,
     topic_filter: str | None = None,
 ) -> tuple[list[dict[str, Any]], bool]:
-    """Return today's clusters for the user, filtered by sources/topics.
+    """Return today's stories for the user, filtered by sources/topics.
 
-    If topic_filter is set, only clusters matching that topic are returned.
+    If topic_filter is set, only stories matching that topic are returned.
     Returns (feed, rewrites_pending). rewrites_pending is True when there are
-    clusters matching the user's profile but no rewrites yet (e.g. after setup).
-    Each feed item has: id (cluster_id), title, summary, full_text, sources (list
-    of {source_name, url, title}), relevance_score. Uses cluster_rewrites.
+    stories matching the user's profile but no rewrites yet (e.g. after setup).
+    Each feed item has: id (story_id), title, summary, full_text, sources (list
+    of {source_name, url, title}), relevance_score. Uses story_rewrites.
+    Only stories with at least 2 distinct sources are shown (canonical stories).
     """
     profile = profile_service.get_profile_with_selections(user_id)
     if not profile:
@@ -158,65 +163,69 @@ def get_feed(
     processing = config.get("processing", {})
     window_hours = processing.get("cluster_window_hours", 24)
     limit = processing.get("articles_per_day", 10)
+    min_sources = config.get("relevance", {}).get("min_sources", 2)
 
     since: datetime | None = (
         datetime.now(UTC) - timedelta(hours=window_hours)
         if window_hours
         else None
     )
-    cluster_rows = db_clusters.get_clusters_with_articles_in_window(since)
-    # Filter clusters: keep only if >=1 article matches user's sources and topics
-    visible_clusters: list[dict[str, Any]] = []
-    for row in cluster_rows:
-        cluster_id = row["cluster_id"]
-        articles = db_clusters.get_articles_in_cluster(cluster_id)
+    story_rows = db_stories.get_stories_with_articles_in_window(since)
+    # Filter stories: keep only if >=1 article matches user's sources and topics
+    # AND story has at least min_sources distinct sources (canonical stories)
+    visible_stories: list[dict[str, Any]] = []
+    for row in story_rows:
+        story_id = row["story_id"]
+        articles = db_stories.get_articles_in_story(story_id)
+        distinct_sources = len({a["source_id"] for a in articles})
+        if distinct_sources < min_sources:
+            continue
         for art in articles:
             sid = art["source_id"]
             src = sources.get(sid, {})
             src_topics = set(src.get("topics", []))
             if topic_ids & src_topics:
-                visible_clusters.append(
-                    {"cluster_id": cluster_id, "articles": articles}
+                visible_stories.append(
+                    {"story_id": story_id, "articles": articles}
                 )
                 break
 
-    # Score each cluster
+    # Score each story
     user_source_ids = set(sources.keys())
-    for c in visible_clusters:
-        c["relevance_score"] = score_cluster(
-            c, user_source_ids, topic_ids, sources, config
+    for s in visible_stories:
+        s["relevance_score"] = score_story(
+            s, user_source_ids, topic_ids, sources, config
         )
 
     # Partition by source count: multi-source first, singletons as backfill
-    min_sources = config.get("relevance", {}).get("min_sources", 2)
     primary: list[dict[str, Any]] = []
     fallback: list[dict[str, Any]] = []
-    for c in visible_clusters:
-        distinct = len({a["source_id"] for a in c["articles"]})
+    for s in visible_stories:
+        distinct = len({a["source_id"] for a in s["articles"]})
         if distinct >= min_sources:
-            primary.append(c)
+            primary.append(s)
         else:
-            fallback.append(c)
+            fallback.append(s)
 
-    primary.sort(key=lambda c: c["relevance_score"], reverse=True)
-    fallback.sort(key=lambda c: c["relevance_score"], reverse=True)
+    primary.sort(key=lambda s: s["relevance_score"], reverse=True)
+    fallback.sort(key=lambda s: s["relevance_score"], reverse=True)
     combined = primary + fallback
-    visible_clusters = combined[:limit] if limit else combined
+    visible_stories = combined[:limit] if limit else combined
 
-    cluster_ids = [c["cluster_id"] for c in visible_clusters]
-    rewrites_map = _get_rewrite_with_fallback(cluster_ids, style, language, config)
+    story_ids = [s["story_id"] for s in visible_stories]
+    rewrites_map = _get_rewrite_with_fallback(story_ids, style, language, config)
 
     result: list[dict[str, Any]] = []
-    for cluster_data in visible_clusters:
-        cluster_id = cluster_data["cluster_id"]
-        articles = cluster_data["articles"]
+    for story_data in visible_stories:
+        story_id = story_data["story_id"]
+        articles = story_data["articles"]
 
-        if topic_filter and not _cluster_matches_topic(articles, topic_filter, sources):
+        if topic_filter and not _story_matches_topic(articles, topic_filter, sources):
             continue
 
-        rw = rewrites_map.get(cluster_id)
+        rw = rewrites_map.get(story_id)
 
-        # Only show clusters that have an LLM rewrite; never show raw source content
+        # Only show stories that have an LLM rewrite; never show raw source content
         if not rw or not rw.get("title") or not rw.get("full_text"):
             continue
 
@@ -231,8 +240,8 @@ def get_feed(
                 }
             )
 
-        image_url, image_source_name = select_cluster_image(articles, sources)
-        categories = _derive_cluster_categories(articles)
+        image_url, image_source_name = select_story_image(articles, sources)
+        categories = _derive_story_categories(articles)
         published_at = max(
             (a["published_at"] for a in articles if a.get("published_at")),
             default=None,
@@ -240,36 +249,36 @@ def get_feed(
 
         result.append(
             {
-                "id": cluster_id,
+                "id": story_id,
                 "title": rw["title"],
                 "summary": rw.get("summary") or "",
                 "full_text": rw["full_text"],
                 "sources": sources_list,
-                "relevance_score": cluster_data.get("relevance_score"),
+                "relevance_score": story_data.get("relevance_score"),
                 "image_url": image_url,
                 "image_source_name": image_source_name,
                 "categories": categories,
                 "published_at": published_at,
             }
         )
-    rewrites_pending = len(visible_clusters) > 0 and len(result) == 0
+    rewrites_pending = len(visible_stories) > 0 and len(result) == 0
     return (result, rewrites_pending)
 
 
-def get_expanded_cluster(
-    cluster_id: str,
+def get_expanded_story(
+    story_id: str,
     style: str,
     language: str,
     config: dict[str, Any],
 ) -> dict[str, Any] | None:
-    """Return cluster with full rewritten text and sources for expansion. None if not found."""
-    if not db_clusters.cluster_exists(cluster_id):
+    """Return story with full rewritten text and sources for expansion. None if not found."""
+    if not db_stories.story_exists(story_id):
         return None
-    articles = db_clusters.get_articles_in_cluster(cluster_id)
+    articles = db_stories.get_articles_in_story(story_id)
     if not articles:
         return None
-    rewrites_map = _get_rewrite_with_fallback([cluster_id], style, language, config)
-    rw = rewrites_map.get(cluster_id)
+    rewrites_map = _get_rewrite_with_fallback([story_id], style, language, config)
+    rw = rewrites_map.get(story_id)
     sources_list = []
     sources_map = {s["id"]: s for s in load_sources()}
     for art in articles:
@@ -282,8 +291,8 @@ def get_expanded_cluster(
             }
         )
 
-    image_url, image_source_name = select_cluster_image(articles, sources_map)
-    categories = _derive_cluster_categories(articles)
+    image_url, image_source_name = select_story_image(articles, sources_map)
+    categories = _derive_story_categories(articles)
 
     # Never show raw source content; use rewrite or "being prepared" placeholder
     if rw and rw.get("full_text"):
@@ -296,7 +305,7 @@ def get_expanded_cluster(
         full_text = "This article is being prepared. Please try again shortly."
 
     return {
-        "id": cluster_id,
+        "id": story_id,
         "title": title,
         "summary": summary,
         "full_text": full_text,
@@ -305,5 +314,3 @@ def get_expanded_cluster(
         "image_source_name": image_source_name,
         "categories": categories,
     }
-
-

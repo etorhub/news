@@ -10,7 +10,7 @@ from typing import Any
 from app.config import load_config
 
 logger = logging.getLogger(__name__)
-from app.db import clusters as db_clusters
+from app.db import stories as db_stories
 from app.llm.prompts import load_prompt
 from app.llm.provider import LLMProvider, get_provider
 
@@ -20,9 +20,9 @@ class RewriteReport:
     """Summary of a rewrite batch run."""
 
     variants_processed: int
-    clusters_attempted: int
-    clusters_succeeded: int
-    clusters_failed: int
+    stories_attempted: int
+    stories_succeeded: int
+    stories_failed: int
 
 
 def _strip_markdown_bold(text: str) -> str:
@@ -35,7 +35,7 @@ def _strip_markdown_bold(text: str) -> str:
     return s.strip()
 
 
-def _parse_cluster_llm_response(text: str) -> tuple[str, str, str]:
+def _parse_story_llm_response(text: str) -> tuple[str, str, str]:
     """Parse LLM output into (title, summary, full_text). Raises ValueError on bad format."""
     if not re.search(r"TITLE\s*:", text, re.I):
         raise ValueError("Response missing TITLE:, SUMMARY:, or FULL: sections")
@@ -69,6 +69,10 @@ def _parse_cluster_llm_response(text: str) -> tuple[str, str, str]:
     )
 
 
+# Backwards compatibility alias
+_parse_cluster_llm_response = _parse_story_llm_response
+
+
 def _build_articles_text(articles: list[dict[str, Any]]) -> str:
     """Build concatenated text of all articles for the prompt."""
     blocks = []
@@ -97,8 +101,8 @@ def _get_rewriting_variants(config: dict[str, Any]) -> list[tuple[str, str]]:
     ]
 
 
-def rewrite_cluster(
-    cluster_id: str,
+def rewrite_story(
+    story_id: str,
     articles: list[dict[str, Any]],
     style: str,
     language: str,
@@ -106,18 +110,18 @@ def rewrite_cluster(
     *,
     provider: LLMProvider | None = None,
 ) -> bool:
-    """Rewrite a cluster for (style, language) and store. Returns True on success."""
+    """Rewrite a story for (style, language) and store. Returns True on success."""
     logger.debug(
-        "rewrite_cluster: cluster_id=%s style=%s language=%s articles=%d",
-        cluster_id,
+        "rewrite_story: story_id=%s style=%s language=%s articles=%d",
+        story_id,
         style,
         language,
         len(articles),
     )
     articles_text = _build_articles_text(articles)
     if not articles_text:
-        db_clusters.insert_cluster_rewrite(
-            cluster_id=cluster_id,
+        db_stories.insert_story_rewrite(
+            story_id=story_id,
             style=style,
             language=language,
             title=None,
@@ -146,15 +150,15 @@ def rewrite_cluster(
         provider = get_provider(config)
     try:
         logger.debug(
-            "rewrite_cluster: calling LLM cluster_id=%s style=%s language=%s",
-            cluster_id,
+            "rewrite_story: calling LLM story_id=%s style=%s language=%s",
+            story_id,
             style,
             language,
         )
         response = provider.complete(prompt, max_tokens=max_tokens)
-        title, summary, full_text = _parse_cluster_llm_response(response)
-        db_clusters.insert_cluster_rewrite(
-            cluster_id=cluster_id,
+        title, summary, full_text = _parse_story_llm_response(response)
+        db_stories.insert_story_rewrite(
+            story_id=story_id,
             style=style,
             language=language,
             title=title,
@@ -162,12 +166,13 @@ def rewrite_cluster(
             full_text=full_text,
             rewrite_failed=False,
         )
-        logger.debug("rewrite_cluster: done cluster_id=%s ok=True", cluster_id)
+        db_stories.set_story_needs_rewrite(story_id, False)
+        logger.debug("rewrite_story: done story_id=%s ok=True", story_id)
         return True
     except Exception as e:
         err_msg = str(e)[:500]
-        db_clusters.insert_cluster_rewrite(
-            cluster_id=cluster_id,
+        db_stories.insert_story_rewrite(
+            story_id=story_id,
             style=style,
             language=language,
             title=None,
@@ -177,8 +182,8 @@ def rewrite_cluster(
             error_message=err_msg,
         )
         logger.debug(
-            "rewrite_cluster: done cluster_id=%s ok=False error=%s",
-            cluster_id,
+            "rewrite_story: done story_id=%s ok=False error=%s",
+            story_id,
             err_msg,
         )
         return False
@@ -190,19 +195,18 @@ def _gather_rewrite_work(
     since: datetime | None,
     batch_size: int,
 ) -> list[tuple[str, list[dict[str, Any]]]]:
-    """Return list of (cluster_id, articles) needing rewrite for this (style, language)."""
-    clusters = db_clusters.get_clusters_needing_rewrite_for_variant(
+    """Return list of (story_id, articles) needing rewrite for this (style, language)."""
+    stories = db_stories.get_stories_needing_rewrite(
         style=style,
         language=language,
         since=since,
-        limit=batch_size,
     )
     work: list[tuple[str, list[dict[str, Any]]]] = []
-    for row in clusters:
-        cluster_id = row["cluster_id"]
-        articles = db_clusters.get_articles_in_cluster(cluster_id)
+    for row in stories[:batch_size]:
+        story_id = row["story_id"]
+        articles = db_stories.get_articles_in_story(story_id)
         if articles:
-            work.append((cluster_id, articles))
+            work.append((story_id, articles))
     return work
 
 
@@ -223,25 +227,25 @@ def _execute_rewrites(
         with ThreadPoolExecutor(max_workers=parallel_workers) as executor:
             futures = {
                 executor.submit(
-                    rewrite_cluster,
-                    cluster_id,
+                    rewrite_story,
+                    story_id,
                     articles,
                     style,
                     language,
                     config,
                     provider=provider,
-                ): cluster_id
-                for cluster_id, articles in work
+                ): story_id
+                for story_id, articles in work
             }
             for future in as_completed(futures):
-                cluster_id = futures[future]
+                story_id = futures[future]
                 attempted += 1
                 ok = future.result()
                 if ok:
                     succeeded += 1
                 else:
                     failed += 1
-                short_id = cluster_id[:12]
+                short_id = story_id[:12]
                 status = "ok" if ok else "fail"
                 logger.info(
                     "    [%d/%d] %s... %s",
@@ -251,9 +255,9 @@ def _execute_rewrites(
                     status,
                 )
     else:
-        for i, (cluster_id, articles) in enumerate(work, 1):
-            ok = rewrite_cluster(
-                cluster_id=cluster_id,
+        for i, (story_id, articles) in enumerate(work, 1):
+            ok = rewrite_story(
+                story_id=story_id,
                 articles=articles,
                 style=style,
                 language=language,
@@ -265,7 +269,7 @@ def _execute_rewrites(
                 succeeded += 1
             else:
                 failed += 1
-            short_id = cluster_id[:12]
+            short_id = story_id[:12]
             status = "ok" if ok else "fail"
             logger.info(
                 "    [%d/%d] %s... %s",
@@ -278,7 +282,7 @@ def _execute_rewrites(
 
 
 def run_rewrite_batch(config: dict[str, Any]) -> RewriteReport:
-    """Process clusters for all configured (style, language) variants."""
+    """Process stories for all configured (style, language) variants."""
     logger.info("━━ Rewrite job starting")
     processing = config.get("processing", {})
     window_hours = processing.get("cluster_window_hours", 24)
@@ -300,19 +304,19 @@ def run_rewrite_batch(config: dict[str, Any]) -> RewriteReport:
         parallel_workers,
     )
 
-    clusters_attempted = 0
-    clusters_succeeded = 0
-    clusters_failed = 0
+    stories_attempted = 0
+    stories_succeeded = 0
+    stories_failed = 0
     provider: LLMProvider | None = None
 
     for style, language in variants:
         work = _gather_rewrite_work(style, language, since, batch_size)
         if not work:
-            logger.info("  [%s/%s] No clusters needing rewrite", style, language)
+            logger.info("  [%s/%s] No stories needing rewrite", style, language)
             continue
 
         logger.info(
-            "  [%s/%s] Rewriting %d cluster(s)...",
+            "  [%s/%s] Rewriting %d story(ies)...",
             style,
             language,
             len(work),
@@ -325,9 +329,9 @@ def run_rewrite_batch(config: dict[str, Any]) -> RewriteReport:
         a, s, f = _execute_rewrites(
             work, style, language, config, provider, parallel_workers
         )
-        clusters_attempted += a
-        clusters_succeeded += s
-        clusters_failed += f
+        stories_attempted += a
+        stories_succeeded += s
+        stories_failed += f
         logger.info(
             "  [%s/%s] Done: %d attempted, %d ok, %d failed",
             style,
@@ -339,15 +343,19 @@ def run_rewrite_batch(config: dict[str, Any]) -> RewriteReport:
 
     logger.info(
         "━━ Rewrite complete: %d attempted, %d ok, %d failed",
-        clusters_attempted,
-        clusters_succeeded,
-        clusters_failed,
+        stories_attempted,
+        stories_succeeded,
+        stories_failed,
     )
     return RewriteReport(
         variants_processed=len(variants),
-        clusters_attempted=clusters_attempted,
-        clusters_succeeded=clusters_succeeded,
-        clusters_failed=clusters_failed,
+        stories_attempted=stories_attempted,
+        stories_succeeded=stories_succeeded,
+        stories_failed=stories_failed,
     )
+
+
+# Backwards compatibility alias
+rewrite_cluster = rewrite_story
 
 

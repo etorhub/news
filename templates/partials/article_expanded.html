@@ -49,7 +49,7 @@
   </div>
   <div class="article-actions">
     <button type="button" class="btn btn-primary"
-      hx-get="{{ url_for('reader.collapse_cluster', cluster_id=article.id) }}"
+      hx-get="{{ url_for('reader.collapse_story', story_id=article.id) }}"
       hx-target="#article-{{ article.id }}"
       hx-swap="innerHTML"
       onclick="ttsStop()">{{ _('Show less') }}</button>

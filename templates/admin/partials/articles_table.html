@@ -6,7 +6,7 @@
       <th style="text-align: left; padding: 0.5rem; border: 1px solid var(--border);">Source</th>
       <th style="text-align: left; padding: 0.5rem; border: 1px solid var(--border);">Extraction</th>
       <th style="text-align: left; padding: 0.5rem; border: 1px solid var(--border);">Fetched</th>
-      <th style="text-align: left; padding: 0.5rem; border: 1px solid var(--border);">Cluster</th>
+      <th style="text-align: left; padding: 0.5rem; border: 1px solid var(--border);">Story</th>
     </tr>
   </thead>
   <tbody>
@@ -22,7 +22,7 @@
         {% if a.fetched_at %}{{ a.fetched_at.strftime('%Y-%m-%d %H:%M') if a.fetched_at else '—' }}{% else %}—{% endif %}
       </td>
       <td style="padding: 0.5rem; border: 1px solid var(--border);">
-        {% if a.cluster_id %}<code>{{ a.cluster_id[:8] }}…</code>{% else %}—{% endif %}
+        {% if a.story_id %}<code>{{ a.story_id[:8] }}…</code>{% else %}—{% endif %}
       </td>
     </tr>
     {% else %}

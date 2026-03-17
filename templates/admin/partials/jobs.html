@@ -35,10 +35,10 @@
         fetched={{ j.result.get('feeds_fetched', 0) }} inserted={{ j.result.get('articles_inserted', 0) }}
         {% elif j.job_name == 'enrich_articles' %}
         extracted={{ j.result.get('articles_extracted', 0) }} failed={{ j.result.get('articles_failed', 0) }}
-        {% elif j.job_name == 'cluster_articles' %}
-        embedded={{ j.result.get('articles_embedded', 0) }} clusters={{ j.result.get('clusters_created', 0) }}
+        {% elif j.job_name == 'cluster_articles' or j.job_name == 'assign_stories' %}
+        embedded={{ j.result.get('articles_embedded', 0) }} stories={{ j.result.get('stories_created', j.result.get('clusters_created', 0)) }}
         {% elif j.job_name == 'rewrite_articles' %}
-        ok={{ j.result.get('clusters_succeeded', 0) }} failed={{ j.result.get('clusters_failed', 0) }}
+        ok={{ j.result.get('stories_succeeded', j.result.get('clusters_succeeded', 0)) }} failed={{ j.result.get('stories_failed', j.result.get('clusters_failed', 0)) }}
         {% else %}
         —
         {% endif %}

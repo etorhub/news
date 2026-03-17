@@ -3,7 +3,7 @@ llm:
   model: qwen2.5:7b
   host: http://ollama:11434
 
-# Cluster-level rewriting: one rewrite per (cluster, style, language).
+# Story-level rewriting: one rewrite per (story, style, language).
 # Styles and languages are extensible via config.
 rewriting:
   styles:
@@ -35,7 +35,7 @@ schedule:
   enrichment_cron: "5 * * * *"   # Hourly at :05 (after fetch at :00)
   cluster_cron: "15 * * * *"    # Hourly at :15 (after enrichment)
   rewrite_cron: "0 6 * * *"   # Daily at 6am
-  # Higher batch when showing all clusters; more rewrites per run
+  # Higher batch when showing all stories; more rewrites per run
   rewrite_batch_size: 50
   # Parallel workers for rewrite. Ollama serializes internally; 1 avoids overloading.
   rewrite_parallel_workers: 1
@@ -52,14 +52,16 @@ extraction:
   timeout: 30
 
 processing:
-  # 0 = no limit; show every cluster with a rewrite
+  # 0 = no limit; show every story with a rewrite
   articles_per_day: 0
   summary_sentences: 3
   # Max tokens for rewrite output. Lower = faster local inference (default 2000).
   rewrite_max_tokens: 2000
-  # 0 = all clusters regardless of freshness
+  # 0 = all stories regardless of freshness
   cluster_window_hours: 0
   cluster_similarity_threshold: 0.82
+  story_similarity_threshold: 0.82
+  story_min_sources: 2
   embed_batch_size: 50
 
 relevance:

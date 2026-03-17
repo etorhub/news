@@ -1,4 +1,4 @@
-"""Relevance scoring for news clusters. Computed per cluster per user at feed-build time."""
+"""Relevance scoring for news stories. Computed per story per user at feed-build time."""
 
 from datetime import UTC, datetime
 from typing import Any
@@ -80,19 +80,19 @@ def _content_quality_score(articles: list[dict[str, Any]]) -> float:
     return extracted / len(articles)
 
 
-def score_cluster(
-    cluster_data: dict[str, Any],
+def score_story(
+    story_data: dict[str, Any],
     user_source_ids: set[str],
     user_topic_ids: set[str],
     sources_catalog: dict[str, dict[str, Any]],
     config: dict[str, Any],
 ) -> float:
-    """Compute composite relevance score (0.0–1.0) for a cluster.
+    """Compute composite relevance score (0.0–1.0) for a story.
 
     Uses weighted combination of recency, coverage, topic affinity,
     source affinity, and content quality.
     """
-    articles = cluster_data.get("articles", [])
+    articles = story_data.get("articles", [])
     if not articles:
         return 0.0
 
@@ -120,3 +120,7 @@ def score_cluster(
         + w_source * source_affinity
         + w_quality * content_quality
     )
+
+
+# Backwards compatibility alias
+score_cluster = score_story

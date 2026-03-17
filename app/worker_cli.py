@@ -123,9 +123,9 @@ def cluster_articles_cmd() -> None:
     config = load_config()
     report = run_cluster_and_embed(config)
     click.echo(
-        f"Cluster: embedded={report.articles_embedded} "
+        f"Story assignment: embedded={report.articles_embedded} "
         f"clustered={report.articles_clustered} "
-        f"clusters_created={report.clusters_created}"
+        f"stories_created={report.stories_created}"
     )
 
 
@@ -141,8 +141,8 @@ def rewrite_articles_cmd() -> None:
         click.echo(f"Rewrite job failed: {e}", err=True)
         raise SystemExit(1)
     click.echo(
-        f"Rewrite complete: {report.clusters_attempted} attempted, "
-        f"{report.clusters_succeeded} ok, {report.clusters_failed} failed"
+        f"Rewrite complete: {report.stories_attempted} attempted, "
+        f"{report.stories_succeeded} ok, {report.stories_failed} failed"
     )
 
 
@@ -178,7 +178,7 @@ def run_pipeline_cmd(sources_path: str | None) -> None:
     click.echo("Running cluster...")
     r3 = run_cluster_and_embed(config)
     click.echo(
-        f"  embedded={r3.articles_embedded} clustered={r3.articles_clustered} clusters={r3.clusters_created}"
+        f"  embedded={r3.articles_embedded} clustered={r3.articles_clustered} stories={r3.stories_created}"
     )
 
     click.echo("Running rewrite...")
@@ -188,7 +188,7 @@ def run_pipeline_cmd(sources_path: str | None) -> None:
         click.echo(f"Rewrite failed: {e}", err=True)
         raise SystemExit(1)
     click.echo(
-        f"  variants={r4.variants_processed} clusters_attempted={r4.clusters_attempted} ok={r4.clusters_succeeded} failed={r4.clusters_failed}"
+        f"  variants={r4.variants_processed} stories_attempted={r4.stories_attempted} ok={r4.stories_succeeded} failed={r4.stories_failed}"
     )
 
     click.echo("Pipeline complete.")

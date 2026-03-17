@@ -42,6 +42,9 @@ DEFAULTS: dict[str, Any] = {
         "rewrite_max_tokens": 2000,
         "cluster_window_hours": 24,
         "cluster_similarity_threshold": 0.82,
+        "story_similarity_threshold": 0.82,
+        "story_min_sources": 2,
+        "story_value_delta": 0.05,
         "embed_batch_size": 50,
     },
     "server": {

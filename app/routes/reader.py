@@ -73,9 +73,20 @@ def feed_partial() -> Any:
     )
 
 
-
 @reader_bp.route("/clusters/<cluster_id>/expand")
-def expand_cluster(cluster_id: str) -> Any:
+def redirect_expand_cluster(cluster_id: str) -> Any:
+    """Redirect old cluster URL to new story URL."""
+    return redirect(url_for("reader.expand_story", story_id=cluster_id), code=301)
+
+
+@reader_bp.route("/clusters/<cluster_id>/collapse")
+def redirect_collapse_cluster(cluster_id: str) -> Any:
+    """Redirect old cluster URL to new story URL."""
+    return redirect(url_for("reader.collapse_story", story_id=cluster_id), code=301)
+
+
+@reader_bp.route("/stories/<story_id>/expand")
+def expand_story(story_id: str) -> Any:
     """Return article_expanded partial for HTMX swap."""
     user_id = session.get("user_id")
     if not user_id:
@@ -87,9 +98,9 @@ def expand_cluster(cluster_id: str) -> Any:
 
     config = load_config()
     style, language = profile_service.get_reading_variant(profile, config)
-    cluster = article_service.get_expanded_cluster(cluster_id, style, language, config)
+    story = article_service.get_expanded_story(story_id, style, language, config)
     archive = request.args.get("archive") == "1"
-    if not cluster:
+    if not story:
         return render_template(
             "partials/article_expanded.html",
             article=None,
@@ -98,13 +109,13 @@ def expand_cluster(cluster_id: str) -> Any:
         )
     return render_template(
         "partials/article_expanded.html",
-        article=cluster,
+        article=story,
         archive=archive,
     )
 
 
-@reader_bp.route("/clusters/<cluster_id>/collapse")
-def collapse_cluster(cluster_id: str) -> Any:
+@reader_bp.route("/stories/<story_id>/collapse")
+def collapse_story(story_id: str) -> Any:
     """Return article_card partial for HTMX swap (collapse expanded view)."""
     user_id = session.get("user_id")
     if not user_id:
@@ -116,9 +127,9 @@ def collapse_cluster(cluster_id: str) -> Any:
 
     config = load_config()
     style, language = profile_service.get_reading_variant(profile, config)
-    cluster = article_service.get_expanded_cluster(cluster_id, style, language, config)
+    story = article_service.get_expanded_story(story_id, style, language, config)
     archive = request.args.get("archive") == "1"
-    if not cluster:
+    if not story:
         return render_template(
             "partials/article_expanded.html",
             article=None,
@@ -127,13 +138,13 @@ def collapse_cluster(cluster_id: str) -> Any:
         )
     return render_template(
         "partials/article_card.html",
-        article=cluster,
+        article=story,
         archive=archive,
     )
 
 
-@reader_bp.route("/article/<cluster_id>")
-def article_page(cluster_id: str) -> Any:
+@reader_bp.route("/article/<story_id>")
+def article_page(story_id: str) -> Any:
     """Full-page article view."""
     user_id = session.get("user_id")
     if not user_id:
@@ -145,11 +156,9 @@ def article_page(cluster_id: str) -> Any:
 
     config = load_config()
     style, language = profile_service.get_reading_variant(profile, config)
-    cluster = article_service.get_expanded_cluster(cluster_id, style, language, config)
-    if not cluster:
+    story = article_service.get_expanded_story(story_id, style, language, config)
+    if not story:
         return render_template(
             "article.html", article=None, error=gettext("Article not found.")
         )
-    return render_template("article.html", article=cluster)
-
-
+    return render_template("article.html", article=story)
