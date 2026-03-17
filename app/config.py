@@ -24,10 +24,10 @@ DEFAULTS: dict[str, Any] = {
         "timeout": 30,
     },
     "schedule": {
-        "fetch_interval_minutes": 60,
-        "enrichment_cron": "10 * * * *",
-        "cluster_cron": "5 * * * *",
-        "rewrite_cron": "0 6 * * *",
+        "fetch_interval_minutes": 5,
+        "enrichment_cron": "*/5 * * * *",
+        "cluster_cron": "*/5 * * * *",
+        "rewrite_cron": "*/5 * * * *",
         "rewrite_batch_size": 10,
         "rewrite_parallel_workers": 1,
         "fetcher": {
