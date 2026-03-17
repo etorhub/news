@@ -77,3 +77,14 @@ relevance:
 server:
   port: 5000
   debug: false
+
+# Topic labels and icons for section navigation. Keys must match topic ids in sources.
+topics:
+  general: { label: General, emoji: "📰" }
+  politics: { label: Politics, emoji: "🏛️" }
+  society: { label: Society, emoji: "👥" }
+  culture: { label: Culture, emoji: "🎭" }
+  international: { label: International, emoji: "🌍" }
+  economy: { label: Economy, emoji: "📈" }
+  science: { label: Science, emoji: "🔬" }
+  sports: { label: Sports, emoji: "⚽" }

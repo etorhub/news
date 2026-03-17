@@ -39,6 +39,7 @@ DEFAULTS: dict[str, Any] = {
     "processing": {
         "articles_per_day": 10,
         "summary_sentences": 3,
+        "rewrite_max_tokens": 2000,
         "cluster_window_hours": 24,
         "cluster_similarity_threshold": 0.82,
         "embed_batch_size": 50,
@@ -75,6 +76,20 @@ def load_config(config_path: str | Path | None = None) -> dict[str, Any]:
     if not isinstance(data, dict):
         return DEFAULTS.copy()
     return _deep_merge(DEFAULTS.copy(), data)
+
+
+def get_topic_info(topic_id: str, config: dict[str, Any] | None = None) -> dict[str, str]:
+    """Return {label, emoji} for a topic. Falls back to topic_id if not in config."""
+    if config is None:
+        config = load_config()
+    topics_cfg = config.get("topics", {}) or {}
+    info = topics_cfg.get(topic_id, {})
+    if isinstance(info, dict):
+        return {
+            "label": info.get("label", topic_id.replace("_", " ").title()),
+            "emoji": info.get("emoji", "📄"),
+        }
+    return {"label": str(topic_id), "emoji": "📄"}
 
 
 def load_sources(sources_path: str | Path | None = None) -> list[dict[str, Any]]:

@@ -24,7 +24,7 @@ A five-stage pipeline runs on a background schedule (APScheduler): fetch feeds �
 | 4. Cluster | `app/clustering/` | Cosine similarity + Union-Find groups related articles into clusters |
 | 5. Rewrite | `app/services/rewrite_service.py` | LLM merges cluster articles into one accessible article per profile |
 
-The worker runs on a schedule (fetch every 60 min; enrich at :05; cluster at :15; rewrite daily at 06:00). On-demand rewrites (after setup or settings save) are queued in `rewrite_requests` and processed by the same rewrite stage.
+The worker runs on a schedule (fetch every 60 min; enrich at :05; cluster at :15; rewrite daily at 06:00). When content is ready, any user whose preferred (style, language) matches an existing cluster rewrite sees it immediately.
 
 ---
 
@@ -39,8 +39,8 @@ User opens app
     → No: redirect to GET /login (or /register for new users)
     → After login, Flask checks: does this user have a profile?
     → No: redirect to GET /setup
-    → Caregiver fills in: location, language, sources, topics, negative news filter, rewrite tone
-    → POST /setup → validate, store in PostgreSQL → trigger initial rewrite job → redirect to /
+    → User fills in: location, language, topics, preferred style (neutral/simple), negative news filter
+    → POST /setup → validate, store in PostgreSQL → redirect to /
 ```
 
 ### Normal open (content already scheduled)
@@ -48,10 +48,27 @@ User opens app
 ```
 User opens app
     → GET /
-    → Flask queries PostgreSQL: get today's articles + cached rewrites for this user's profile_hash
+    → Flask queries PostgreSQL: get clusters + cached rewrites for user's (style, language) variant
     → Returns full article list immediately — no LLM calls made
     → User sees today's digest with 3-line summaries
 ```
+
+### Feed sections (topic filtering)
+
+The main feed shows a section navigation bar built from the user's selected topics (from setup/settings). Each section has a label and emoji (configured in `config/app.yaml` under `topics`).
+
+```
+User opens app
+    → GET /
+    → Section nav: "All" | Politics | Society | Culture | … (one per user topic)
+    → Clicking a section: GET /?topic=politics
+    → Feed filtered to clusters matching that topic (article categories or source topics)
+    → Category chips on article cards are hidden when viewing a section (redundant)
+```
+
+- **All** — shows every cluster matching the user's sources and topics.
+- **Section (e.g. Politics)** — shows only clusters where at least one article matches the topic (via RSS categories or the article's source topic list).
+- Topic labels and emojis are defined in `config/app.yaml` → `topics`. Keys must match topic IDs in `config/sources.yaml`.
 
 ### New user before first scheduled rewrite
 
@@ -96,7 +113,7 @@ The LLM abstraction layer. Nothing outside this directory calls Ollama directly.
 
 - `provider.py` — `LLMProvider` abstract base class and `OllamaProvider` implementation
 - `embeddings.py` — `EmbeddingProvider` for article clustering; Ollama (nomic-embed-text)
-- `prompts/` — prompt template files (`.txt`); `rewrite_cluster.txt` merges multiple articles into one accessible article
+- `prompts/` — prompt template files (`.txt`); `rewrite_cluster_neutral.txt` and `rewrite_cluster_simple.txt` merge multiple articles into one accessible article per reading style
 
 ### `app/clustering/`
 
@@ -123,9 +140,9 @@ News source discovery: feed detection, validation, quality scoring.
 
 Business logic. Routes call services; services do the work.
 
-- `article_service.py` — get today's articles for a user, get digest, expand article
-- `profile_service.py` — create/update user profile, compute profile_hash
-- `rewrite_service.py` — rewrite articles for a profile, manage cache
+- `article_service.py` — get today's clusters for a user, score and filter by topic, select best image; optional `topic_filter` restricts feed to a single section
+- `profile_service.py` — create/update user profile, resolve (style, language) reading variant
+- `rewrite_service.py` — rewrite clusters for all configured (style, language) variants, manage cache
 - `auth_service.py` — user registration, login, session management
 
 ### `app/db/`
@@ -135,7 +152,7 @@ All PostgreSQL access. No other module writes to the database directly.
 - `articles.py` — read/write for articles (including embeddings, extraction status)
 - `clusters.py` — clusters, cluster_articles, cluster_rewrites
 - `sources.py` — news_sources, source_feeds, source_discovery_log
-- `rewrite_requests.py` — on-demand rewrite queue (setup/settings save)
+- `rewrite_requests.py` — on-demand rewrite queue infrastructure (table + DB layer exist; not yet wired to routes or scheduler)
 - `users.py` — read/write for users and profiles
 - `admin.py` — admin dashboard queries (job runs, overview stats, feed health, incidents)
 - `connection.py` — connection pool management
@@ -144,7 +161,7 @@ All PostgreSQL access. No other module writes to the database directly.
 
 Flask blueprints. Routes are thin wrappers: parse request, call service, return template.
 
-- `reader.py` — main reader interface (`/`, `/clusters/<id>/expand`)
+- `reader.py` — main reader interface (`/`, `/?topic=<id>`, `/feed`, `/clusters/<id>/expand`, `/article/<cluster_id>`)
 - `auth.py` — login, register, logout
 - `setup.py` — initial configuration wizard (`GET /setup`, `POST /setup`)
 - `settings.py` — configuration interface; allows editing profile fields after initial setup
@@ -157,21 +174,25 @@ Jinja2 templates. Pages extend `base.html`. HTMX responses use partials. Templat
 ```
 templates/
 ├── base.html               # Shell: nav, font settings; contains inline <script> for Web Speech API TTS only
-├── index.html              # Main reader view (today's digest)
+├── index.html              # Main reader view (today's digest); section nav (All + topic sections), feed content
+├── article.html            # Full-page single article view
 ├── login.html              # Login page
 ├── register.html           # Registration page
 ├── setup.html              # Initial configuration wizard
 ├── settings.html           # Settings page
 ├── admin/
 │   ├── dashboard.html      # Admin dashboard (pipelines, jobs, users, incidents)
+│   ├── articles.html       # Admin articles view
 │   └── partials/
-│       └── jobs.html      # Job runs table (HTMX partial, auto-refresh)
+│       ├── articles_table.html  # Articles table fragment
+│       ├── cluster_detail.html  # Cluster detail fragment
+│       ├── clusters_list.html   # Clusters list fragment
+│       └── jobs.html            # Job runs table (HTMX partial, auto-refresh)
 └── partials/
-    ├── article_card.html   # Summary card (one cluster in list)
-    ├── article_expanded.html  # Full simplified article
-    ├── feed_content.html   # Feed list, loading state, or empty state
-    ├── setup_sources.html  # Source selection section for setup
-    └── setup_topics.html   # Topic selection section for setup
+    ├── article_card.html      # Summary card (one cluster in list)
+    ├── article_expanded.html  # Full simplified article (expanded inline)
+    ├── feed_content.html      # Feed list, loading state, or empty state
+    └── setup_topics.html      # Topic selection checkboxes (included in setup.html and settings.html)
 ```
 
 ---
@@ -188,6 +209,24 @@ llm:
   model: qwen2.5:7b
   host: http://ollama:11434
 
+rewriting:
+  styles:
+    - id: neutral
+      label: Neutral
+      prompt: rewrite_cluster_neutral
+    - id: simple
+      label: Simple
+      prompt: rewrite_cluster_simple
+  languages:
+    - id: ca
+      label: Catalan
+    - id: es
+      label: Spanish
+    - id: en
+      label: English
+  default_style: neutral
+  default_language: ca
+
 embeddings:
   provider: ollama
   model: nomic-embed-text
@@ -198,7 +237,7 @@ schedule:
   enrichment_cron: "5 * * * *"
   cluster_cron: "15 * * * *"
   rewrite_cron: "0 6 * * *"
-  rewrite_batch_size: 10
+  rewrite_batch_size: 50
   rewrite_parallel_workers: 1
   fetcher:
     circuit_breaker_threshold: 5
@@ -213,10 +252,10 @@ extraction:
   timeout: 30
 
 processing:
-  articles_per_day: 10
+  articles_per_day: 0
   summary_sentences: 3
   rewrite_max_tokens: 2000
-  cluster_window_hours: 24
+  cluster_window_hours: 0
   cluster_similarity_threshold: 0.82
   embed_batch_size: 50
 
@@ -229,14 +268,27 @@ relevance:
     content_quality: 0.10
   recency_half_life_hours: 8
   coverage_cap: 4
-  min_sources: 2
+  min_sources: 1
 
 server:
   port: 5000
   debug: false
+
+# Topic labels and emojis for feed section navigation. Keys must match topic ids in sources.
+topics:
+  general: { label: General, emoji: "📰" }
+  politics: { label: Politics, emoji: "🏛️" }
+  society: { label: Society, emoji: "👥" }
+  culture: { label: Culture, emoji: "🎭" }
+  international: { label: International, emoji: "🌍" }
+  economy: { label: Economy, emoji: "📈" }
+  science: { label: Science, emoji: "🔬" }
+  sports: { label: Sports, emoji: "⚽" }
 ```
 
 > **Note:** `SECRET_KEY` is loaded directly from the environment (`.env`) by the Flask app factory — not via `app.yaml`. YAML is for non-secret config only.
+
+**Topics config:** The `topics` block maps topic IDs (from `sources.yaml`) to display labels and emojis used in the feed section navigation. Add entries for any topic ID used by sources; `app.config.get_topic_info()` falls back to a generic label/emoji for unknown IDs.
 
 ### `config/sources.yaml`
 
@@ -277,11 +329,16 @@ sources:
 
 ## LLM Processing Detail
 
-### Cluster rewrite prompt (reference)
+### Cluster rewrite prompts
 
-The system uses `rewrite_cluster.txt` to merge multiple articles about the same event into one well-written article for a general audience. Variables: `{language}`, `{rewrite_tone}`, `{filter_negative}`, `{summary_sentences}`, `{articles_text}`.
+The system ships two prompt templates in `app/llm/prompts/`:
 
-Output format (exact headers required):
+- `rewrite_cluster_neutral.txt` — journalistic tone: formal, well-written, preserves complexity.
+- `rewrite_cluster_simple.txt` — simplified tone: short sentences, plain vocabulary, no jargon.
+
+Both prompts merge multiple articles about the same event into one unified article. Template variables: `{language}`, `{summary_sentences}`, `{articles_text}`.
+
+Output format (exact headers required by the parser):
 
 ```
 TITLE:
@@ -291,43 +348,39 @@ SUMMARY:
 {summary_sentences} plain sentences.
 
 FULL:
-Full article (style follows rewrite_tone).
+Full article.
 ```
 
-When `filter_negative` is enabled, the prompt instructs the LLM to omit or soften distressing content. The negative filter is applied at rewrite time via the LLM prompt — not by keyword list or pre-filtering. It is a soft filter; the LLM exercises judgement.
+### (style, language) variant system
 
-### `rewrite_tone` valid values
+Rewrites are **cluster-level, not per-user**. The system generates one cached rewrite per `(cluster_id, style, language)` combination. All users who share the same preferred style and language share the same cached rewrite — the LLM is never called twice for the same combination.
 
-The `rewrite_tone` field is a short freeform instruction string included verbatim in the LLM prompt. Recommended values (enforce via the setup wizard dropdown):
+Styles and languages are defined in `config/app.yaml` under `rewriting.styles` and `rewriting.languages`. The two active styles map to prompt files:
 
-| Value (stored in DB) | Label shown to user |
-|---|---|
-| `Journalistic style. Formal and well-written. Do not simplify; preserve original complexity and nuance. Avoid spoilers in headlines or summaries.` | Neutral (default) |
-| `Short sentences. Simple vocabulary. No jargon.` | Simple |
-| `Very short sentences. One idea per sentence. Elementary vocabulary.` | Very simple |
-| `Short sentences. Calm, reassuring tone. Avoid alarming phrasing.` | Calm |
-| `Short sentences. Formal but clear. Avoid colloquialisms.` | Formal |
+| Style ID | Prompt file | Label |
+|---|---|---|
+| `neutral` | `rewrite_cluster_neutral.txt` | Neutral |
+| `simple` | `rewrite_cluster_simple.txt` | Simple |
 
-Store and pass the full instruction string, not a code name. The LLM prompt uses it directly. The default is `Journalistic style. Formal and well-written. Do not simplify; preserve original complexity and nuance. Avoid spoilers in headlines or summaries.`
+The user's `preferred_style` (set in setup/settings) and `language` together select the correct cached rewrite when they open the feed.
 
 ### Rewrite scheduling
 
-**Active user definition:** A user is considered active for the daily rewrite job if they have completed the setup wizard (i.e., `user_profiles` row exists for that `user_id`) AND their account `is_active = TRUE`. No recency requirement — every user with a complete profile gets fresh rewrites daily. This means LLM cost scales with the number of registered, setup-complete accounts, not just recent logins.
+The daily rewrite job (APScheduler, default 06:00):
 
-The daily rewrite job (APScheduler):
-
-1. Collects all distinct rewrite profiles (profile hashes from users with complete setup)
-2. For each profile hash, finds clusters needing rewrite (within the cluster window)
+1. Reads all configured `(style, language)` variants from config
+2. For each variant, finds clusters without a cached rewrite (within the cluster window)
 3. For each cluster, merges articles via LLM and stores in `cluster_rewrites`
-4. On-demand rewrites (after setup/settings save) are queued in `rewrite_requests`; the worker polls and processes them
 
-Two users with the same profile hash share cached rewrites — the LLM is never called twice for the same cluster + profile combination.
+The `rewrite_requests` table and `app/db/rewrite_requests.py` exist as infrastructure for future on-demand rewrites (triggered when a user saves setup/settings). This is not yet wired to routes or the scheduler; all rewrites are currently driven by the daily batch job.
+
+**`filter_negative` note:** The `filter_negative` preference is stored per user in `user_profiles` and displayed in the setup/settings UI. It is not currently passed to the LLM prompt — the cluster-level rewrite prompts do not include a filter-negative instruction. This is a planned feature; the stored preference will be available when it is implemented.
 
 ### Daily digest delivery
 
-The daily digest is an **in-app experience only**. There is no email or push notification in the MVP. When a user opens the app after the rewrite job has run, they see a badge or banner: "N new articles since your last visit." This is rendered server-side from the `cluster_rewrites` table — no service worker, no push API.
+The daily digest is an **in-app experience only**. There is no email or push notification. When a user opens the app after the rewrite job has run, their feed shows all clusters that have a cached rewrite matching their `(style, language)` variant — no waiting, no loading spinner.
 
-The badge is visible to all users of the account. Any person who has access to the account can check it from any device without special notification setup.
+The `user_read_clusters` table exists as infrastructure for future per-user read-state tracking (e.g. "N new articles since your last visit"). The DB table is defined in migration 010 but has no application code layer yet; read state is not currently tracked.
 
 ### Language and source mismatch
 

@@ -1,7 +1,15 @@
 {% extends "base.html" %}
-{% block title %}Today's feed — Accessible News{% endblock %}
+{% block title %}{{ _("Today's feed") }}{% for s in sections %}{% if s.id == topic_filter %} · {{ _(s.label) }}{% endif %}{% endfor %} — {{ _('Accessible News') }}{% endblock %}
 {% block content %}
-<h1>Today's feed{% if feed %} · {{ feed|length }} article{% if feed|length != 1 %}s{% endif %}{% endif %}</h1>
+<h1>{{ _("Today's feed") }}{% if topic_filter %}{% for s in sections %}{% if s.id == topic_filter %} · {{ s.emoji }} {{ _(s.label) }}{% endif %}{% endfor %}{% endif %}{% if feed %} · {{ ngettext('%(num)d article', '%(num)d articles', feed|length)|format(num=feed|length) }}{% endif %}</h1>
+{% if sections %}
+<nav class="section-nav" aria-label="{{ _('News sections') }}">
+  <a href="{{ url_for('reader.index') }}" class="section-link{% if not topic_filter %} section-active{% endif %}">📰 {{ _('All') }}</a>
+  {% for s in sections %}
+  <a href="{{ url_for('reader.index', topic=s.id) }}" class="section-link{% if topic_filter == s.id %} section-active{% endif %}">{{ s.emoji }} {{ _(s.label) }}</a>
+  {% endfor %}
+</nav>
+{% endif %}
 <div id="feed-container">
   {% include "partials/feed_content.html" %}
 </div>

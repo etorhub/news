@@ -20,6 +20,7 @@ This project places an LLM between raw news and the reader, merging sources on t
 
 - Fetches news from RSS feeds and open publishers on a schedule
 - Merges multiple sources on the same event and rewrites the result via LLM: correct spelling and grammar, no mixed languages, configurable tone
+- Groups news by topic sections (politics, society, culture, etc.) — click a section to filter the feed
 - Presents content in a clean, accessible interface with large fonts, high contrast, and large touch targets
 - Supports multiple users with independent profiles and preferences
 - Provides text-to-speech when the browser supports it
@@ -126,6 +127,7 @@ See [docs/TECH_STACK.md](docs/TECH_STACK.md) for full details.
 | [docs/TECH_STACK.md](docs/TECH_STACK.md)                                   | Tech stack, project structure, dependencies, Docker setup                                                                             |
 | [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)                               | System architecture, database schema, component map, request lifecycle                                                                |
 | [docs/ADMIN_DASHBOARD.md](docs/ADMIN_DASHBOARD.md)                         | Admin dashboard: pipeline monitoring, job history, user activity, incidents                                                           |
+| [docs/I18N.md](docs/I18N.md)                                               | Internationalization: locale selection, translation catalogs, updating strings                                                       |
 | [docs/MVP_PLAN.md](docs/MVP_PLAN.md)                                       | Phased MVP plan with tasks and success criteria                                                                                       |
 | [docs/news_source_discovery_agent.md](docs/news_source_discovery_agent.md) | News source discovery pipeline specification                                                                                          |
 

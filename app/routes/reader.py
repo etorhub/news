@@ -3,16 +3,26 @@
 from typing import Any
 
 from flask import Blueprint, redirect, render_template, request, session, url_for
+from flask_babel import gettext
 
-from app.config import load_config
+from app.config import get_topic_info, load_config
 from app.services import article_service, profile_service
 
 reader_bp = Blueprint("reader", __name__)
 
 
+def _sections_for_user(profile: dict[str, Any], config: dict[str, Any]) -> list[dict[str, Any]]:
+    """Build section list from user's topic_ids with labels and emojis."""
+    topic_ids = profile.get("topic_ids", [])
+    return [
+        {"id": tid, **get_topic_info(tid, config)}
+        for tid in sorted(topic_ids)
+    ]
+
+
 @reader_bp.route("/")
 def index() -> Any:
-    """Main feed view. Redirect to /setup if no profile."""
+    """Main feed view. Redirect to /setup if no profile. Optional ?topic=X filters by section."""
     user_id = session.get("user_id")
     if not user_id:
         return redirect(url_for("auth.login"))
@@ -21,13 +31,27 @@ def index() -> Any:
     if not profile:
         return redirect(url_for("setup.setup_page"))
 
-    feed, rewrites_pending = article_service.get_feed(user_id)
-    return render_template("index.html", feed=feed, rewrites_pending=rewrites_pending, profile=profile)
+    topic_filter = request.args.get("topic") or None
+    if topic_filter and topic_filter not in set(profile.get("topic_ids", [])):
+        topic_filter = None
+
+    config = load_config()
+    feed, rewrites_pending = article_service.get_feed(user_id, topic_filter=topic_filter)
+    sections = _sections_for_user(profile, config)
+
+    return render_template(
+        "index.html",
+        feed=feed,
+        rewrites_pending=rewrites_pending,
+        profile=profile,
+        sections=sections,
+        topic_filter=topic_filter,
+    )
 
 
 @reader_bp.route("/feed")
 def feed_partial() -> Any:
-    """HTMX partial: feed content. Polled when rewrites are pending."""
+    """HTMX partial: feed content. Polled when rewrites are pending. Accepts ?topic=X."""
     user_id = session.get("user_id")
     if not user_id:
         return redirect(url_for("auth.login"))
@@ -36,11 +60,16 @@ def feed_partial() -> Any:
     if not profile:
         return redirect(url_for("setup.setup_page"))
 
-    feed, rewrites_pending = article_service.get_feed(user_id)
+    topic_filter = request.args.get("topic") or None
+    if topic_filter and topic_filter not in set(profile.get("topic_ids", [])):
+        topic_filter = None
+
+    feed, rewrites_pending = article_service.get_feed(user_id, topic_filter=topic_filter)
     return render_template(
         "partials/feed_content.html",
         feed=feed,
         rewrites_pending=rewrites_pending,
+        topic_filter=topic_filter,
     )
 
 
@@ -64,7 +93,7 @@ def expand_cluster(cluster_id: str) -> Any:
         return render_template(
             "partials/article_expanded.html",
             article=None,
-            error="Article not found.",
+            error=gettext("Article not found."),
             archive=archive,
         )
     return render_template(
@@ -93,7 +122,7 @@ def collapse_cluster(cluster_id: str) -> Any:
         return render_template(
             "partials/article_expanded.html",
             article=None,
-            error="Article not found.",
+            error=gettext("Article not found."),
             archive=archive,
         )
     return render_template(
@@ -118,7 +147,9 @@ def article_page(cluster_id: str) -> Any:
     style, language = profile_service.get_reading_variant(profile, config)
     cluster = article_service.get_expanded_cluster(cluster_id, style, language, config)
     if not cluster:
-        return render_template("article.html", article=None, error="Article not found.")
+        return render_template(
+            "article.html", article=None, error=gettext("Article not found.")
+        )
     return render_template("article.html", article=cluster)
 
 

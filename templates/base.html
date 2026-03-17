@@ -1,9 +1,9 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="{{ locale or 'en' }}">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>{% block title %}Accessible News{% endblock %}</title>
+  <title>{% block title %}{{ _('Accessible News') }}{% endblock %}</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Courier+Prime:wght@400;700&family=Lora:ital,wght@0,400;0,600;1,400;1,600&display=swap" rel="stylesheet">
@@ -275,6 +275,41 @@
       color: var(--muted);
       letter-spacing: 0.03em;
     }
+    /* Section navigation */
+    .section-nav {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.5rem;
+      margin-bottom: 1.5rem;
+      padding-bottom: 1rem;
+      border-bottom: 1px solid var(--border);
+    }
+    .section-link {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.35rem;
+      min-height: var(--touch-min);
+      padding: 0.5rem 0.9rem;
+      font-family: var(--font-ui);
+      font-size: 0.9rem;
+      text-decoration: none;
+      color: var(--muted);
+      border: 1.5px solid transparent;
+      border-radius: var(--radius);
+      background: var(--surface);
+      transition: color 0.15s, border-color 0.15s, background 0.15s;
+    }
+    .section-link:hover {
+      color: var(--fg);
+      background: var(--bg);
+      border-color: var(--border);
+    }
+    .section-link.section-active {
+      color: var(--fg);
+      font-weight: 700;
+      border-color: var(--accent);
+      background: var(--bg);
+    }
     /* TTS player */
     .tts-player {
       display: flex;
@@ -360,24 +395,28 @@
   </style>
   {% block head %}{% endblock %}
 </head>
-<body class="{% if profile and profile.high_contrast %}high-contrast {% endif %}{% if request and request.cookies.get('tts_available') %}tts-available{% endif %}">
+<body class="{% if profile and profile.high_contrast %}high-contrast {% endif %}{% if request and request.cookies.get('tts_available') %}tts-available{% endif %}"
+  data-tts-listen="{{ _('Listen') }}"
+  data-tts-stop="{{ _('Stop') }}"
+  data-tts-volume="{{ _('Volume') }}"
+  data-tts-read-aloud="{{ _('Read article aloud') }}">
   <nav>
     {% if session.get('user_id') %}
       <div>
-        <a href="{{ url_for('reader.index') }}"{% if request.endpoint == 'reader.index' %} class="nav-active"{% endif %}>Feed</a>
-        <a href="{{ url_for('settings.settings_page') }}"{% if request.endpoint == 'settings.settings_page' %} class="nav-active"{% endif %}>Settings</a>
-        {% if is_admin %}<a href="{{ url_for('admin.dashboard') }}"{% if request.endpoint == 'admin.dashboard' %} class="nav-active"{% endif %}>Admin</a>{% endif %}
+        <a href="{{ url_for('reader.index') }}"{% if request.endpoint == 'reader.index' %} class="nav-active"{% endif %}>{{ _('Feed') }}</a>
+        <a href="{{ url_for('settings.settings_page') }}"{% if request.endpoint == 'settings.settings_page' %} class="nav-active"{% endif %}>{{ _('Settings') }}</a>
+        {% if is_admin %}<a href="{{ url_for('admin.dashboard') }}"{% if request.endpoint == 'admin.dashboard' %} class="nav-active"{% endif %}>{{ _('Admin') }}</a>{% endif %}
       </div>
       <div class="nav-right">
         {% if current_user_email %}<span>{{ current_user_email }}</span>{% endif %}
         <form method="post" action="{{ url_for('auth.logout') }}" style="display:inline;">
-          <button type="submit">Log out</button>
+          <button type="submit">{{ _('Log out') }}</button>
         </form>
       </div>
     {% else %}
       <div>
-        <a href="{{ url_for('auth.login') }}">Log in</a>
-        <a href="{{ url_for('auth.register') }}">Register</a>
+        <a href="{{ url_for('auth.login') }}">{{ _('Log in') }}</a>
+        <a href="{{ url_for('auth.register') }}">{{ _('Register') }}</a>
       </div>
     {% endif %}
   </nav>
@@ -399,6 +438,8 @@
       var bar = document.getElementById('tts-bar-' + id);
       var controls = document.getElementById('tts-controls-' + id);
       var volEl = document.getElementById('tts-vol-' + id);
+      var listenLbl = document.body.dataset.ttsListen || 'Listen';
+      var stopLbl = document.body.dataset.ttsStop || 'Stop';
       var u = new SpeechSynthesisUtterance(text);
       u.volume = volEl ? parseFloat(volEl.value) : 1;
       var len = text.length;
@@ -408,12 +449,12 @@
       };
       u.onend = u.onerror = function() {
         _tts.id = null; _tts.u = null; _tts.text = null;
-        if (btn) { btn.textContent = '🎧 Listen'; btn.setAttribute('aria-pressed', 'false'); }
+        if (btn) { btn.textContent = '\u{1F3A7} ' + listenLbl; btn.setAttribute('aria-pressed', 'false'); }
         if (bar) bar.style.width = '0%';
         if (controls) controls.classList.remove('visible');
       };
       _tts.id = id; _tts.u = u; _tts.text = text;
-      if (btn) { btn.textContent = '⏹ Stop'; btn.setAttribute('aria-pressed', 'true'); }
+      if (btn) { btn.textContent = '\u23F9 ' + stopLbl; btn.setAttribute('aria-pressed', 'true'); }
       if (controls) controls.classList.add('visible');
       window.speechSynthesis.speak(u);
     }
@@ -423,7 +464,8 @@
         var btn = document.getElementById('tts-btn-' + _tts.id);
         var bar = document.getElementById('tts-bar-' + _tts.id);
         var controls = document.getElementById('tts-controls-' + _tts.id);
-        if (btn) { btn.textContent = '🎧 Listen'; btn.setAttribute('aria-pressed', 'false'); }
+        var listenLbl = document.body.dataset.ttsListen || 'Listen';
+        if (btn) { btn.textContent = '\u{1F3A7} ' + listenLbl; btn.setAttribute('aria-pressed', 'false'); }
         if (bar) bar.style.width = '0%';
         if (controls) controls.classList.remove('visible');
       }
