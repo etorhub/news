@@ -121,6 +121,49 @@
     .article-cover.no-image img {
       display: none;
     }
+    /* Desktop layout: constrained width, centered content, well-fitted images */
+    @media (min-width: 768px) {
+      main {
+        max-width: 720px;
+        margin-left: auto;
+        margin-right: auto;
+        padding-left: 2rem;
+        padding-right: 2rem;
+      }
+      #article-list,
+      #archive-list {
+        display: flex;
+        flex-direction: column;
+        gap: 2.5rem;
+      }
+      .article-card {
+        padding: 1.5rem 0;
+        border-bottom: 1px solid var(--border);
+      }
+      .article-card:last-child {
+        border-bottom: none;
+      }
+      .article-cover {
+        max-height: 360px;
+        margin-bottom: 1rem;
+      }
+      .article-cover img {
+        object-fit: cover;
+        object-position: center;
+      }
+      .article-card h2,
+      .article-card p {
+        max-width: 65ch;
+      }
+      nav {
+        max-width: 720px;
+        margin-left: auto;
+        margin-right: auto;
+        margin-bottom: 2rem;
+        padding-left: 2rem;
+        padding-right: 2rem;
+      }
+    }
   </style>
   {% block head %}{% endblock %}
 </head>

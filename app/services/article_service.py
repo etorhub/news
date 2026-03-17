@@ -9,13 +9,15 @@ from app.db import clusters as db_clusters
 from app.services import profile_service
 from app.services.scoring_service import score_cluster
 
-_IMAGE_SOURCE_SCORES: dict[str, int] = {
-    "media_content": 3,
-    "media_thumbnail": 2,
-    "enclosure": 2,
-    "og_image": 1,
-    "content_html": 1,
+_IMAGE_SOURCE_SCORES: dict[str, float] = {
+    "media_content": 3.0,
+    "media_thumbnail": 2.0,
+    "enclosure": 2.0,
+    "og_image": 1.0,
+    "content_html": 1.0,
 }
+# Fallback for newly incorporated images with unknown or missing image_source
+_IMAGE_SOURCE_FALLBACK = 0.5
 
 
 def select_cluster_image(
@@ -26,17 +28,16 @@ def select_cluster_image(
 
     Scoring: image_source priority (media_content=3, media_thumbnail=2, enclosure=2,
     og_image=1, content_html=1), then source quality_score as bonus, then earliest
-    published_at as tiebreaker.
+    published_at as tiebreaker. Images with unknown image_source use fallback score
+    so newly incorporated images are still displayed.
     """
     candidates: list[tuple[str, float, datetime | None]] = []
     for art in articles:
         url = art.get("image_url")
-        if not url:
+        if not url or not isinstance(url, str) or not url.strip():
             continue
         src = art.get("image_source") or ""
-        base_score = _IMAGE_SOURCE_SCORES.get(src, 0)
-        if base_score == 0:
-            continue
+        base_score = _IMAGE_SOURCE_SCORES.get(src, _IMAGE_SOURCE_FALLBACK)
         quality = 0.0
         sid = art.get("source_id")
         if sid and sources_map:

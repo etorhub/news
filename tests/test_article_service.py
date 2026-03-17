@@ -283,3 +283,38 @@ def test_select_cluster_image_returns_none_when_no_images() -> None:
 def test_select_cluster_image_returns_none_for_empty_articles() -> None:
     """Returns None for empty article list."""
     assert select_cluster_image([], {}) is None
+
+
+def test_select_cluster_image_uses_fallback_for_unknown_source() -> None:
+    """Images with unknown image_source use fallback score and are displayed."""
+    articles = [
+        {
+            "id": "a1",
+            "source_id": "s1",
+            "image_url": "https://example.com/newly-incorporated.jpg",
+            "image_source": "unknown_source",
+            "published_at": None,
+        },
+    ]
+    assert select_cluster_image(articles, {}) == "https://example.com/newly-incorporated.jpg"
+
+
+def test_select_cluster_image_prefers_known_source_over_unknown() -> None:
+    """Known image_source (og_image) wins over unknown image_source."""
+    articles = [
+        {
+            "id": "a1",
+            "source_id": "s1",
+            "image_url": "https://example.com/unknown.jpg",
+            "image_source": "other",
+            "published_at": None,
+        },
+        {
+            "id": "a2",
+            "source_id": "s2",
+            "image_url": "https://example.com/og.jpg",
+            "image_source": "og_image",
+            "published_at": None,
+        },
+    ]
+    assert select_cluster_image(articles, {}) == "https://example.com/og.jpg"
