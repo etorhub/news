@@ -8,18 +8,18 @@
 [![HTMX](https://img.shields.io/badge/HTMX-2.x-3d7fcf?logo=htmx&logoColor=white)](https://htmx.org/)
 [![Ollama](https://img.shields.io/badge/LLM-Ollama_local-000000)](https://ollama.ai/)
 
-A news reader built for people who struggle with the way news is currently delivered.
+A news reader that puts quality and clarity first.
 
-Most news interfaces are designed for engagement, not comprehension. For people with motor or cognitive difficulties — Parkinson's disease being the origin case — they are actively hostile: cluttered layouts, small touch targets, dense sentences, and no way to control the pace or depth of information.
+Most news interfaces are designed for engagement, not comprehension. They are cluttered, dense, and built to keep you scrolling rather than to leave you informed. Raw feeds mix sources of varying quality, introduce translation artefacts, and reproduce the noise of the original publication without filtering any of it.
 
-This project places an LLM between raw news and the reader, reshaping each article to fit the reader rather than asking the reader to adapt to the article.
+This project places an LLM between raw news and the reader, merging sources on the same event into a single well-written article and presenting it in a clean, distraction-free interface.
 
 ---
 
 ## What It Does
 
 - Fetches news from RSS feeds and open publishers on a schedule
-- Rewrites each article via LLM for clarity: short sentences, simple vocabulary, configurable tone
+- Merges multiple sources on the same event and rewrites the result via LLM: correct spelling and grammar, no mixed languages, configurable tone
 - Presents content in a clean, accessible interface with large fonts, high contrast, and large touch targets
 - Supports multiple users with independent profiles and preferences
 - Provides text-to-speech when the browser supports it
@@ -27,9 +27,9 @@ This project places an LLM between raw news and the reader, reshaping each artic
 
 ## Who It's For
 
-The primary user is someone with Parkinson's disease or a comparable motor/cognitive condition. A caregiver creates the account and configures preferences; the end user opens the app and reads.
+Anyone who wants to read the news without the noise. Users configure their own feed; a family member or caregiver can optionally set up an account on behalf of someone else.
 
-Neither the end user nor the caregiver ever touches the codebase. They access the web app only.
+Neither the end user nor anyone acting on their behalf ever touches the codebase. They access the web app only.
 
 ---
 
@@ -137,7 +137,7 @@ See [docs/TECH_STACK.md](docs/TECH_STACK.md) for full details.
 
 ## Accessibility
 
-Accessibility is a constraint, not a feature. Every UI decision is evaluated against the primary user's motor and cognitive profile first:
+Accessibility is a constraint, not a feature. Good defaults benefit all users:
 
 - Minimum 48x48px touch targets on all interactive elements
 - Base font size 22px, line height 1.6

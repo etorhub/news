@@ -1,6 +1,6 @@
 # Admin Dashboard
 
-The admin dashboard provides operators with visibility into ingestion pipelines, job history, user activity, and system health. It is intended for the person who deploys and maintains the instance — not for end users or caregivers.
+The admin dashboard provides operators with visibility into ingestion pipelines, job history, user activity, and system health. It is intended for the person who deploys and maintains the instance — not for end users.
 
 ---
 

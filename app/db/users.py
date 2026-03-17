@@ -83,7 +83,7 @@ def create_profile(user_id: int, data: dict[str, Any]) -> None:
                     data.get("filter_negative", False),
                     data.get(
                         "rewrite_tone",
-                        "Short sentences. Simple vocabulary. No jargon.",
+                        "Journalistic style. Formal and well-written. Do not simplify; preserve original complexity and nuance. Avoid spoilers in headlines or summaries.",
                     ),
                     data.get("high_contrast", False),
                 ),

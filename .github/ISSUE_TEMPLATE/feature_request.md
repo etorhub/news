@@ -8,7 +8,7 @@ assignees: ''
 
 ## Problem
 
-What problem does this solve? How does it relate to the project's target users (people with motor or cognitive difficulties and their caregivers)?
+What problem does this solve? How does it relate to the project's goals: quality, clarity, and a clean reading experience for a general audience?
 
 ## Proposed Solution
 

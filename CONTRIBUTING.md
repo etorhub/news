@@ -1,6 +1,6 @@
-# Contributing to Accessible News Aggregator
+# Contributing to News Aggregator
 
-Thank you for your interest in contributing. This project serves people with motor or cognitive difficulties who struggle with standard news interfaces. Every contribution that improves accessibility, clarity, or reliability helps.
+Thank you for your interest in contributing. This project serves a general audience who want to read the news without the noise. Every contribution that improves content quality, accessibility, or reliability helps.
 
 ## Getting Started
 
@@ -74,7 +74,7 @@ Accessibility is a constraint, not a feature. Every UI change must:
 - Use semantic HTML
 - Not break text-to-speech (Web Speech API)
 
-When in doubt, favor clarity and usability for the primary user (motor/cognitive difficulties) over visual polish.
+When in doubt, favor clarity and usability over visual polish.
 
 ## Reporting Bugs
 
@@ -87,7 +87,7 @@ Use the [bug report template](.github/ISSUE_TEMPLATE/bug_report.md). Include:
 
 ## Suggesting Features
 
-Use the [feature request template](.github/ISSUE_TEMPLATE/feature_request.md). Explain the use case and how it aligns with the project’s target users (people with motor/cognitive difficulties and their caregivers).
+Use the [feature request template](.github/ISSUE_TEMPLATE/feature_request.md). Explain the use case and how it aligns with the project’s goals: quality, clarity, and a clean reading experience for a general audience.
 
 ## Security
 

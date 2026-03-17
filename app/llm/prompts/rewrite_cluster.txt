@@ -1,7 +1,8 @@
-Merge and rewrite these news articles about the same event for accessibility.
+Merge and rewrite these news articles about the same event for a general audience.
 
 ## Instructions
-- Output exclusively in {language}. The title, summary (short version), and full text must all be written in {language}. Do not mix languages.
+- Output exclusively in {language}. The title, summary (short version), and full text must all be written in {language}. Do not use words, phrases, or expressions from any other language.
+- Write with correct spelling and grammar. No typos or spelling errors are acceptable.
 - No markdown formatting. Use plain text only. Do not wrap the title, summary, or full text in ** or any other markdown.
 - Tone and style: {rewrite_tone}
 - Preserve factual accuracy. Never add information not present in the sources.

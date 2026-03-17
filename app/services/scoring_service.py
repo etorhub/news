@@ -35,11 +35,20 @@ def _topic_affinity_score(
     user_topic_ids: set[str],
     sources_catalog: dict[str, dict[str, Any]],
 ) -> float:
-    """Fraction of articles whose source topics overlap with user's selected topics."""
+    """Fraction of articles matching user's topics. Uses per-article categories when
+    available, otherwise falls back to source-level topics."""
     if not articles or not user_topic_ids:
         return 0.0
     matching = 0
     for a in articles:
+        # Prefer per-article RSS categories when available
+        article_cats = a.get("categories")
+        if isinstance(article_cats, list) and article_cats:
+            cat_set = {c for c in article_cats if c and isinstance(c, str)}
+            if user_topic_ids & cat_set:
+                matching += 1
+                continue
+        # Fall back to source-level topics
         sid = a.get("source_id")
         if not sid:
             continue

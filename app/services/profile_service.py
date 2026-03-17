@@ -33,7 +33,7 @@ def regeneration_needed(
         return True
     if old_profile.get("language", "ca") != new_form_data.get("language", "ca"):
         return True
-    default_tone = "Short sentences. Simple vocabulary. No jargon."
+    default_tone = "Journalistic style. Formal and well-written. Do not simplify; preserve original complexity and nuance. Avoid spoilers in headlines or summaries."
     if old_profile.get("rewrite_tone", default_tone) != new_form_data.get(
         "rewrite_tone", default_tone
     ):
@@ -49,7 +49,8 @@ def compute_profile_hash(profile: dict[str, Any]) -> str:
     fields = {
         "language": language,
         "rewrite_tone": profile.get(
-            "rewrite_tone", "Short sentences. Simple vocabulary. No jargon."
+            "rewrite_tone",
+            "Journalistic style. Formal and well-written. Do not simplify; preserve original complexity and nuance. Avoid spoilers in headlines or summaries.",
         ),
         "filter_negative": profile.get("filter_negative", False),
     }
@@ -70,7 +71,8 @@ def save_setup(
         "language": form_data.get("language", "ca"),
         "filter_negative": form_data.get("filter_negative", False),
         "rewrite_tone": form_data.get(
-            "rewrite_tone", "Short sentences. Simple vocabulary. No jargon."
+            "rewrite_tone",
+            "Journalistic style. Formal and well-written. Do not simplify; preserve original complexity and nuance. Avoid spoilers in headlines or summaries.",
         ),
         "high_contrast": form_data.get("high_contrast", False),
     }

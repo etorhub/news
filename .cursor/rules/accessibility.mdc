@@ -5,7 +5,7 @@ globs: ['**/*.html', '**/*.css']
 
 # Accessibility Rules
 
-These are hard constraints, not suggestions. The primary user has Parkinson's disease. Every UI decision is evaluated against their motor and cognitive profile first.
+These are hard constraints, not suggestions. Accessible defaults benefit all users. Every UI decision is evaluated against these rules first.
 
 ## Touch targets
 
@@ -70,7 +70,7 @@ Every interactive element — buttons, links, toggles — must have a minimum ta
 
 ## Setup wizard
 
-The initial configuration page must follow the same accessibility rules as the rest of the app: large touch targets, high contrast, large fonts, semantic HTML, no timed interactions. The rewrite tone field (textarea) must have a visible `<label>` and sufficient size for imprecise input. Source and topic checkboxes must be large and clearly labelled.
+The initial configuration page must follow the same accessibility rules as the rest of the app: large touch targets, high contrast, large fonts, semantic HTML, no timed interactions. The rewrite tone field must have a visible `<label>`. Source and topic checkboxes must be large and clearly labelled.
 
 ## Graceful degradation
 

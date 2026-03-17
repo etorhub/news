@@ -11,7 +11,7 @@ Canonical phased plan for the minimum viable product. This document replaces sca
 | 0     | Infrastructure & DX   | Docker multi-service, Python tooling, git hooks, conventional commits |
 | 1     | News source discovery | Populated catalog of validated feeds                                  |
 | 2     | Fetching pipeline     | Articles stored on a schedule with full text when available           |
-| 3     | Processing & storage  | LLM rewrites (summary + full simplified) cached per profile hash      |
+| 3     | Processing & storage  | LLM rewrites (summary + full rewritten) cached per profile hash       |
 | 4     | Platform              | Auth, multi-user profiles, feed UI, daily digest                      |
 
 ---
@@ -133,7 +133,7 @@ Canonical phased plan for the minimum viable product. This document replaces sca
 1. **LLM rewriter**
    - Load user profile (language, rewrite_tone, filter_negative)
    - Build prompt from `app/llm/prompts/` template
-   - Output: 3-line summary + full simplified article
+   - Output: 3-line summary + full rewritten article
    - Store in `rewrites` keyed by `(article_id, profile_hash)`
 
 2. **Scheduled rewriting**
@@ -162,7 +162,7 @@ Canonical phased plan for the minimum viable product. This document replaces sca
 
 **Goal:** Web app with multi-user accounts, configuration, and accessible feed UI.
 
-End users and caregivers always access the platform, never the codebase. Flow: **register → configuration page → see content**.
+End users always access the platform, never the codebase. Flow: **register → configuration page → see content**.
 
 ### Tasks
 
@@ -179,7 +179,7 @@ End users and caregivers always access the platform, never the codebase. Flow: *
 
 3. **Feed view**
    - Main view: today's articles filtered by user's source/topic selections
-   - 3-line summary per article, expandable to full simplified text on tap
+   - 3-line summary per article, expandable to full rewritten text on tap
    - One-article-at-a-time mode (no infinite scroll)
    - Large touch targets, high contrast, large font
 
@@ -198,7 +198,7 @@ End users and caregivers always access the platform, never the codebase. Flow: *
 - Large font, high contrast mode
 - Large touch targets throughout
 - Text-to-speech per article (browser Web Speech API; hidden when not supported)
-- Configurable detail level: headline → summary → full simplified article
+- Configurable detail level: headline → summary → full rewritten article
 
 ---
 

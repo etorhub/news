@@ -3,38 +3,33 @@ description: Full project context — problem statement, audience, deployment, f
 alwaysApply: true
 ---
 
-# Project Context — Accessible News Aggregator
+# Project Context — News Aggregator
 
-Context document for an AI-powered news aggregator built for people who struggle with the way news is currently delivered.
+Context document for an AI-powered news aggregator that puts quality and clarity first.
 
 ---
 
 ## Problem Statement
 
-Most news interfaces are built for engagement, not comprehension. For people with motor or cognitive difficulties — Parkinson's disease being the origin case — they are actively hostile: cluttered layouts, small touch targets, dense sentences with nested clauses, and no way to control the pace or depth of information.
+Most news interfaces are built for engagement, not comprehension. They are cluttered, dense, and optimised to keep users scrolling rather than to leave them informed. Raw feeds mix sources of varying quality, introduce translation artefacts, and reproduce the noise of the original publication without filtering any of it.
 
-The content itself is often fine. The format is the barrier. This project places an LLM between raw news and the reader, reshaping each article to fit the reader rather than asking the reader to adapt to the article.
+The content itself is often fine. The presentation is the problem. This project places an LLM between raw news and the reader, merging multiple sources on the same event into a single well-written article and presenting it in a clean, distraction-free interface.
 
 ---
 
-## Who We Are Building For (Now)
+## Who We Are Building For
 
-The initial target is a person with Parkinson's disease, or a comparable motor or cognitive condition, who:
+The target is a general audience: anyone who wants to read the news without the noise. Users configure their own feed. A family member or caregiver can optionally set up an account on behalf of someone else.
 
-- Cannot reliably navigate standard news websites (small buttons, unpredictable layouts, accidental clicks)
-- Finds long, subordinate-heavy sentences difficult to process
-- Benefits from large fonts, high contrast, and minimal visual noise
-- May rely on text-to-speech rather than sustained reading
-
-**Neither the end user nor the caregiver ever accesses the codebase.** Both access the platform (web app) only. Their only requirement is to create a user account. The caregiver typically completes the initial configuration; the end user reads the content. This shapes every decision about onboarding, profile management, and configuration.
+**Neither the end user nor anyone acting on their behalf ever accesses the codebase.** Both access the platform (web app) only. Their only requirement is to create a user account. This shapes every decision about onboarding, profile management, and configuration.
 
 ---
 
 ## Deployment Model
 
-The project is open source (AGPL). Whether self-hosted or hosted, **end users and caregivers always access the platform, never the codebase**. They create a user account, complete the configuration page, and see content. No technical setup required on their side.
+The project is open source (AGPL). Whether self-hosted or hosted, **end users always access the platform, never the codebase**. They create a user account, complete the configuration page, and see content. No technical setup required on their side.
 
-A family member with basic technical ability can self-host for a relative. A hosted, managed version will also be offered for families who want the benefits without running infrastructure. Both versions share the same codebase.
+A family member with basic technical ability can self-host for a relative. A hosted, managed version will also be offered for users who want the benefits without running infrastructure. Both versions share the same codebase.
 
 ---
 
@@ -44,17 +39,24 @@ A family member with basic technical ability can self-host for a relative. A hos
 
 Refer to `docs/MVP_PLAN.md` for the canonical phased plan: discovery, fetching, processing, platform (auth, profile config, feed, daily digest).
 
+### Content quality (non-negotiable)
+
+- LLM rewrites produce correct spelling and grammar with no typos
+- Output is written exclusively in the user's chosen language — no mixed-language artefacts
+- Journalistic tone by default; configurable per user
+- Factual accuracy is preserved: the LLM never adds information not present in the source articles
+
 ### Accessibility (non-negotiable, not optional)
 
 - Large font, high contrast mode
-- Large touch targets throughout — every interactive element must be usable with imprecise motor control
+- Large touch targets throughout — every interactive element must be reachable with imprecise input
 - Text-to-speech per article (browser Web Speech API, graceful degradation — if the browser does not support it, the TTS button is hidden rather than broken)
 - One-article-at-a-time mode, no infinite scroll
-- Configurable detail level: headline → summary → full simplified article
+- Configurable detail level: headline → summary → full rewritten article
 
-### Caregiver-facing
+### User-facing
 
-- Profile configuration (location, sources, topics, language, negative news filter, rewrite tone) — the caregiver logs into the same account from any device and adjusts settings
+- Profile configuration (location, sources, topics, language, negative news filter, rewrite tone)
 - Soft daily notification: "You have N new articles"
 - Account management designed to be set up once and left alone
 
@@ -117,7 +119,7 @@ These are hard rules, not preferences:
 
 ## Content Sourcing
 
-RSS + open publishers are the primary source. Full article text is required for meaningful simplification — RSS-level text is the fallback for paywalled outlets, not the target. Open Catalan and Spanish publishers (RTVE, CCMA/3Cat, Vilaweb, El Crític, NacióDigital) are the initial priority and provide full content without legal risk.
+RSS + open publishers are the primary source. Full article text is required for meaningful rewriting — RSS-level text is the fallback for paywalled outlets, not the target. Open Catalan and Spanish publishers (RTVE, CCMA/3Cat, Vilaweb, El Crític, NacióDigital) are the initial priority and provide full content without legal risk.
 
 Full article text is stored in the database when available from open publishers. For paywalled sources, only the RSS description/lede is stored.
 
@@ -137,10 +139,10 @@ For automated news source discovery (finding feeds by location, validation, qual
 
 ## Design Principles
 
-- **Accessibility is a constraint, not a feature.** Every UI decision is evaluated against the primary user's motor and cognitive profile first.
-- **Caregiver setup, user operation.** The caregiver creates the account and configures via the web UI; daily use requires none.
+- **Accessibility is a constraint, not a feature.** Good defaults benefit all users: large touch targets, clear typography, and high contrast are the baseline, not a special mode.
+- **User setup, user operation.** Every user configures their own feed via the web UI. A family member or caregiver may do this on another person's behalf; the product supports but does not assume that flow.
 - **Config-driven throughout.** App config (source catalog, LLM prompts, server settings) lives in YAML. User preferences live in PostgreSQL, set via the setup wizard and settings page.
-- **Self-hosted must be genuinely usable.** Whoever deploys (e.g. a family member) should be able to run and maintain it without ongoing help. End users and caregivers using the platform never touch deployment.
+- **Self-hosted must be genuinely usable.** Whoever deploys (e.g. a family member) should be able to run and maintain it without ongoing help. End users accessing the platform never touch deployment.
 
 ---
 
@@ -150,4 +152,3 @@ For automated news source discovery (finding feeds by location, validation, qual
 - Training or fine-tuning a custom model
 - Native mobile app (web-first, responsive)
 - Social or sharing features
-- Additional user personas beyond the primary target

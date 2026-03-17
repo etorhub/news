@@ -129,6 +129,9 @@ def fetch_all_due_feeds(config: dict[str, Any] | None = None) -> FetchReport:
                 "raw_text": raw.get("raw_text") or "",
                 "full_text": raw.get("full_text") or None,
                 "guid": raw.get("guid"),
+                "image_url": raw.get("image_url"),
+                "image_source": raw.get("image_source"),
+                "categories": raw.get("categories", []),
             }
             if articles_db.insert_article(article):
                 inserted += 1

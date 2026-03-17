@@ -65,13 +65,13 @@ prompt = template.format(articles_text=articles_text, language=..., rewrite_tone
 
 The canonical cluster rewrite prompt (`rewrite_cluster.txt`) accepts these variables:
 
-- `rewrite_tone` — free text describing how to rewrite (e.g. "Short sentences. Simple vocabulary. No jargon.")
+- `rewrite_tone` — free text describing how to rewrite (default: "Journalistic style. Formal and well-written. Do not simplify; preserve original complexity and nuance. Avoid spoilers in headlines or summaries.")
 - `language` — BCP 47 language tag (e.g. `ca`, `es`, `en`)
 - `summary_sentences` — integer, number of summary lines
 - `articles_text` — concatenated text of all articles in the cluster (merged from multiple sources)
 - `filter_negative` — when enabled, instruct the LLM to omit or soften distressing content
 
-Output format: TITLE:, SUMMARY:, FULL: sections. Always instruct the model to preserve factual accuracy and never add information not present in the source.
+Output format: TITLE:, SUMMARY:, FULL: sections. Always instruct the model to preserve factual accuracy and never add information not present in the source. The prompt also requires correct spelling and grammar and prohibits mixing languages in the output.
 
 ## No LLM calls during request handling
 

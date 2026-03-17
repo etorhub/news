@@ -3,7 +3,7 @@
 from datetime import UTC, datetime, timedelta
 from unittest.mock import patch
 
-from app.services.article_service import get_feed
+from app.services.article_service import get_feed, select_cluster_image
 
 
 def test_get_feed_multi_source_ranks_above_singleton() -> None:
@@ -223,3 +223,63 @@ def test_get_feed_excludes_read_clusters() -> None:
         feed, _ = get_feed(user_id=1)
 
         assert len(feed) == 0
+
+
+def test_select_cluster_image_prefers_media_content_over_og_image() -> None:
+    """media_content image is preferred over og_image."""
+    now = datetime.now(UTC)
+    articles = [
+        {
+            "id": "a1",
+            "source_id": "s1",
+            "image_url": "https://s1.com/og.jpg",
+            "image_source": "og_image",
+            "published_at": now,
+        },
+        {
+            "id": "a2",
+            "source_id": "s2",
+            "image_url": "https://s2.com/media.jpg",
+            "image_source": "media_content",
+            "published_at": now,
+        },
+    ]
+    sources = {"s1": {}, "s2": {}}
+    assert select_cluster_image(articles, sources) == "https://s2.com/media.jpg"
+
+
+def test_select_cluster_image_uses_earliest_published_as_tiebreaker() -> None:
+    """When image_source scores are equal, earliest published_at wins."""
+    earlier = datetime(2024, 1, 1, 10, 0, 0, tzinfo=UTC)
+    later = datetime(2024, 1, 1, 12, 0, 0, tzinfo=UTC)
+    articles = [
+        {
+            "id": "a1",
+            "source_id": "s1",
+            "image_url": "https://s1.com/later.jpg",
+            "image_source": "og_image",
+            "published_at": later,
+        },
+        {
+            "id": "a2",
+            "source_id": "s2",
+            "image_url": "https://s2.com/earlier.jpg",
+            "image_source": "og_image",
+            "published_at": earlier,
+        },
+    ]
+    sources = {"s1": {}, "s2": {}}
+    assert select_cluster_image(articles, sources) == "https://s2.com/earlier.jpg"
+
+
+def test_select_cluster_image_returns_none_when_no_images() -> None:
+    """Returns None when no articles have images."""
+    articles = [
+        {"id": "a1", "source_id": "s1", "image_url": None, "published_at": None},
+    ]
+    assert select_cluster_image(articles, {}) is None
+
+
+def test_select_cluster_image_returns_none_for_empty_articles() -> None:
+    """Returns None for empty article list."""
+    assert select_cluster_image([], {}) is None

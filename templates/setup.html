@@ -22,7 +22,7 @@
       <label for="rewrite_tone">Reading style</label><br>
       <select id="rewrite_tone" name="rewrite_tone">
         {% for value, label in rewrite_tone_options %}
-        <option value="{{ value }}" {% if value == 'Short sentences. Simple vocabulary. No jargon.' %}selected{% endif %}>{{ label }}</option>
+        <option value="{{ value }}" {% if value == 'Journalistic style. Formal and well-written. Do not simplify; preserve original complexity and nuance. Avoid spoilers in headlines or summaries.' %}selected{% endif %}>{{ label }}</option>
         {% endfor %}
       </select>
     </p>

@@ -11,7 +11,11 @@ from app.services import profile_service
 setup_bp = Blueprint("setup", __name__, url_prefix="/setup")
 
 REWRITE_TONE_OPTIONS = [
-    ("Short sentences. Simple vocabulary. No jargon.", "Simple (default)"),
+    (
+        "Journalistic style. Formal and well-written. Do not simplify; preserve original complexity and nuance. Avoid spoilers in headlines or summaries.",
+        "Neutral (default)",
+    ),
+    ("Short sentences. Simple vocabulary. No jargon.", "Simple"),
     (
         "Very short sentences. One idea per sentence. Elementary vocabulary.",
         "Very simple",
@@ -21,10 +25,6 @@ REWRITE_TONE_OPTIONS = [
         "Calm",
     ),
     ("Short sentences. Formal but clear. Avoid colloquialisms.", "Formal"),
-    (
-        "Journalistic style. Formal and well-written. Do not simplify; preserve original complexity and nuance. Avoid spoilers in headlines or summaries.",
-        "Neutral",
-    ),
 ]
 
 
@@ -63,7 +63,7 @@ def setup_page() -> Any:
     filter_negative = request.form.get("filter_negative") == "on"
     rewrite_tone = request.form.get(
         "rewrite_tone",
-        "Short sentences. Simple vocabulary. No jargon.",
+        "Journalistic style. Formal and well-written. Do not simplify; preserve original complexity and nuance. Avoid spoilers in headlines or summaries.",
     ).strip()
     high_contrast = request.form.get("high_contrast") == "on"
 

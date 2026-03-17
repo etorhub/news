@@ -279,7 +279,7 @@ sources:
 
 ### Cluster rewrite prompt (reference)
 
-The system uses `rewrite_cluster.txt` to merge multiple articles about the same event into one accessible article. Variables: `{language}`, `{rewrite_tone}`, `{filter_negative}`, `{summary_sentences}`, `{articles_text}`.
+The system uses `rewrite_cluster.txt` to merge multiple articles about the same event into one well-written article for a general audience. Variables: `{language}`, `{rewrite_tone}`, `{filter_negative}`, `{summary_sentences}`, `{articles_text}`.
 
 Output format (exact headers required):
 
@@ -300,15 +300,15 @@ When `filter_negative` is enabled, the prompt instructs the LLM to omit or softe
 
 The `rewrite_tone` field is a short freeform instruction string included verbatim in the LLM prompt. Recommended values (enforce via the setup wizard dropdown):
 
-| Value (stored in DB) | Label shown to caregiver |
+| Value (stored in DB) | Label shown to user |
 |---|---|
-| `Short sentences. Simple vocabulary. No jargon.` | Simple (default) |
+| `Journalistic style. Formal and well-written. Do not simplify; preserve original complexity and nuance. Avoid spoilers in headlines or summaries.` | Neutral (default) |
+| `Short sentences. Simple vocabulary. No jargon.` | Simple |
 | `Very short sentences. One idea per sentence. Elementary vocabulary.` | Very simple |
 | `Short sentences. Calm, reassuring tone. Avoid alarming phrasing.` | Calm |
 | `Short sentences. Formal but clear. Avoid colloquialisms.` | Formal |
-| `Journalistic style. Formal and well-written. Do not simplify; preserve original complexity and nuance. Avoid spoilers in headlines or summaries.` | Neutral |
 
-Store and pass the full instruction string, not a code name. The LLM prompt uses it directly. The default is `Short sentences. Simple vocabulary. No jargon.`
+Store and pass the full instruction string, not a code name. The LLM prompt uses it directly. The default is `Journalistic style. Formal and well-written. Do not simplify; preserve original complexity and nuance. Avoid spoilers in headlines or summaries.`
 
 ### Rewrite scheduling
 
@@ -327,7 +327,7 @@ Two users with the same profile hash share cached rewrites — the LLM is never 
 
 The daily digest is an **in-app experience only**. There is no email or push notification in the MVP. When a user opens the app after the rewrite job has run, they see a badge or banner: "N new articles since your last visit." This is rendered server-side from the `cluster_rewrites` table — no service worker, no push API.
 
-The badge is shown to both the end user and the caregiver (same account). The caregiver can therefore check it from any device without special notification setup.
+The badge is visible to all users of the account. Any person who has access to the account can check it from any device without special notification setup.
 
 ### Language and source mismatch
 

@@ -121,7 +121,7 @@ def rewrite_cluster(
         language=language,
         rewrite_tone=profile.get(
             "rewrite_tone",
-            "Short sentences. Simple vocabulary. No jargon.",
+            "Journalistic style. Formal and well-written. Do not simplify; preserve original complexity and nuance. Avoid spoilers in headlines or summaries.",
         ),
         filter_negative=str(profile.get("filter_negative", False)).lower(),
         summary_sentences=summary_sentences,

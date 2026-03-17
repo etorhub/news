@@ -43,45 +43,65 @@ def test_domain_from_url() -> None:
 @patch("app.extraction.trafilatura.trafilatura.fetch_url")
 @patch("app.extraction.trafilatura.trafilatura.extract")
 def test_extract_article_success(mock_extract, mock_fetch) -> None:
-    """extract_article returns text when extraction succeeds."""
+    """extract_article returns (text, og_image_url) when extraction succeeds."""
     mock_fetch.return_value = "<html><body><article>Hello world</article></body></html>"
     mock_extract.return_value = "Hello world"
 
-    result = extract_article("https://example.com/article")
-    assert result == "Hello world"
+    text, og_image = extract_article("https://example.com/article")
+    assert text == "Hello world"
+    assert og_image is None
     mock_fetch.assert_called_once()
     mock_extract.assert_called_once()
 
 
 @patch("app.extraction.trafilatura.trafilatura.fetch_url")
 def test_extract_article_fetch_fails(mock_fetch) -> None:
-    """extract_article returns None when fetch fails."""
+    """extract_article returns (None, None) when fetch fails."""
     mock_fetch.return_value = None
 
-    result = extract_article("https://example.com/article")
-    assert result is None
+    text, og_image = extract_article("https://example.com/article")
+    assert text is None
+    assert og_image is None
 
 
 @patch("app.extraction.trafilatura.trafilatura.fetch_url")
 @patch("app.extraction.trafilatura.trafilatura.extract")
 def test_extract_article_extract_returns_empty(mock_extract, mock_fetch) -> None:
-    """extract_article returns None when extract returns empty."""
+    """extract_article returns (None, og_image) when extract returns empty."""
     mock_fetch.return_value = "<html></html>"
     mock_extract.return_value = None
 
-    result = extract_article("https://example.com/article")
-    assert result is None
+    text, og_image = extract_article("https://example.com/article")
+    assert text is None
+    assert og_image is None
 
 
 @patch("app.extraction.trafilatura.trafilatura.fetch_url")
 @patch("app.extraction.trafilatura.trafilatura.extract")
 def test_extract_article_extract_returns_whitespace(mock_extract, mock_fetch) -> None:
-    """extract_article returns None when extract returns only whitespace."""
+    """extract_article returns (None, None) when extract returns only whitespace."""
     mock_fetch.return_value = "<html></html>"
     mock_extract.return_value = "   \n  "
 
-    result = extract_article("https://example.com/article")
-    assert result is None
+    text, og_image = extract_article("https://example.com/article")
+    assert text is None
+    assert og_image is None
+
+
+@patch("app.extraction.trafilatura.trafilatura.fetch_url")
+@patch("app.extraction.trafilatura.trafilatura.extract")
+def test_extract_article_extracts_og_image(mock_extract, mock_fetch) -> None:
+    """extract_article extracts og:image from HTML when present."""
+    html_with_og = (
+        '<html><head><meta property="og:image" content="https://example.com/og.jpg" />'
+        "</head><body></body></html>"
+    )
+    mock_fetch.return_value = html_with_og
+    mock_extract.return_value = "Article text"
+
+    text, og_image = extract_article("https://example.com/article")
+    assert text == "Article text"
+    assert og_image == "https://example.com/og.jpg"
 
 
 def test_enrich_articles_disabled_returns_empty_report() -> None:

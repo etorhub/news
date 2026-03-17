@@ -77,18 +77,35 @@ def enrich_articles(config: dict) -> EnrichmentReport:
                 continue
 
             # Extract with trafilatura
-            extracted = extract_article(url, timeout=timeout)
+            extracted, og_image_url = extract_article(url, timeout=timeout)
+
+            # Use og:image as fallback only if article has no image from RSS
+            image_url: str | None = None
+            image_source: str | None = None
+            if not art.get("image_url") and og_image_url:
+                image_url = og_image_url
+                image_source = "og_image"
 
             if extracted and len(extracted) >= min_content_length:
                 db_articles.update_article_extraction(
-                    article_id, extracted, "extracted", "trafilatura"
+                    article_id,
+                    extracted,
+                    "extracted",
+                    "trafilatura",
+                    image_url=image_url,
+                    image_source=image_source,
                 )
                 report.articles_extracted += 1
             else:
                 # Keep raw_text as fallback, mark failed
                 fallback = full_text or raw_text
                 db_articles.update_article_extraction(
-                    article_id, fallback or None, "failed", "trafilatura"
+                    article_id,
+                    fallback or None,
+                    "failed",
+                    "trafilatura",
+                    image_url=image_url,
+                    image_source=image_source,
                 )
                 report.articles_failed += 1
                 logger.debug(

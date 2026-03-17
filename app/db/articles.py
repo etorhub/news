@@ -1,6 +1,7 @@
 """CRUD operations for the articles table."""
 
 import hashlib
+import json
 from datetime import datetime
 from typing import Any
 
@@ -30,9 +31,17 @@ def insert_article(article: dict[str, Any]) -> bool:
     """Insert an article. Returns True if inserted, False if duplicate.
 
     Article dict must have: title, url, source_id. Optional: published_at,
-    raw_text, full_text, guid. Id is generated from source_id:url.
+    raw_text, full_text, guid, image_url, image_source, categories. Id is
+    generated from source_id:url.
     """
     article_id = _article_id(article["source_id"], article["url"])
+    categories = article.get("categories")
+    if categories is None:
+        categories = []
+    if not isinstance(categories, list):
+        categories = []
+    categories_json = json.dumps(categories)
+
     conn = get_connection()
     try:
         with conn.cursor() as cur:
@@ -40,11 +49,12 @@ def insert_article(article: dict[str, Any]) -> bool:
                 """
                 INSERT INTO articles (
                     id, title, url, source_id, published_at,
-                    raw_text, full_text, guid
+                    raw_text, full_text, guid, image_url, image_source, categories
                 )
                 VALUES (
                     %(id)s, %(title)s, %(url)s, %(source_id)s, %(published_at)s,
-                    %(raw_text)s, %(full_text)s, %(guid)s
+                    %(raw_text)s, %(full_text)s, %(guid)s, %(image_url)s,
+                    %(image_source)s, %(categories)s::jsonb
                 )
                 ON CONFLICT (source_id, url) DO NOTHING
                 """,
@@ -57,6 +67,9 @@ def insert_article(article: dict[str, Any]) -> bool:
                     "raw_text": article.get("raw_text"),
                     "full_text": article.get("full_text"),
                     "guid": article.get("guid"),
+                    "image_url": article.get("image_url"),
+                    "image_source": article.get("image_source"),
+                    "categories": categories_json,
                 },
             )
             inserted = bool(cur.rowcount > 0)
@@ -82,8 +95,6 @@ def article_exists(source_id: str, url: str) -> bool:
 
 def update_article_embedding(article_id: str, embedding: list[float]) -> None:
     """Store embedding for an article. Embedding is stored as JSONB."""
-    import json
-
     conn = get_connection()
     try:
         with conn.cursor() as cur:
@@ -210,7 +221,7 @@ def get_articles_needing_extraction(limit: int) -> list[dict[str, Any]]:
         with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
             cur.execute(
                 """
-                SELECT id, url, source_id, full_text, raw_text
+                SELECT id, url, source_id, full_text, raw_text, image_url
                 FROM articles
                 WHERE extraction_status = 'pending'
                 ORDER BY fetched_at DESC NULLS LAST
@@ -228,20 +239,39 @@ def update_article_extraction(
     full_text: str | None,
     status: str,
     method: str,
+    image_url: str | None = None,
+    image_source: str | None = None,
 ) -> None:
-    """Update article with extraction result."""
+    """Update article with extraction result.
+
+    If image_url and image_source are provided and the article has no image yet,
+    they are stored as fallback (e.g. from og:image).
+    """
     conn = get_connection()
     try:
         with conn.cursor() as cur:
-            cur.execute(
-                """
-                UPDATE articles
-                SET full_text = %s, extraction_status = %s, extraction_method = %s,
-                    extracted_at = now()
-                WHERE id = %s
-                """,
-                (full_text, status, method, article_id),
-            )
+            if image_url is not None and image_source is not None:
+                cur.execute(
+                    """
+                    UPDATE articles
+                    SET full_text = %s, extraction_status = %s, extraction_method = %s,
+                        extracted_at = now(),
+                        image_url = COALESCE(image_url, %s),
+                        image_source = COALESCE(image_source, %s)
+                    WHERE id = %s
+                    """,
+                    (full_text, status, method, image_url, image_source, article_id),
+                )
+            else:
+                cur.execute(
+                    """
+                    UPDATE articles
+                    SET full_text = %s, extraction_status = %s, extraction_method = %s,
+                        extracted_at = now()
+                    WHERE id = %s
+                    """,
+                    (full_text, status, method, article_id),
+                )
         conn.commit()
     finally:
         return_connection(conn)

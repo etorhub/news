@@ -2,6 +2,12 @@
 <p style="color: #c00;">{{ error }}</p>
 {% elif article %}
 <article>
+  {% if article.image_url %}
+  <div class="article-cover">
+    <img src="{{ article.image_url }}" alt="" loading="lazy"
+         onerror="this.parentElement.classList.add('no-image')">
+  </div>
+  {% endif %}
   <h2 style="font-size: var(--font-article);">{{ article.title }}</h2>
   <p><small>
     {% if article.sources %}
