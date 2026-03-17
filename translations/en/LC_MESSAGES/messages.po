@@ -7,7 +7,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: PROJECT VERSION\n"
 "Report-Msgid-Bugs-To: EMAIL@ADDRESS\n"
-"POT-Creation-Date: 2026-03-17 12:24+0100\n"
+"POT-Creation-Date: 2026-03-17 17:05+0100\n"
 "PO-Revision-Date: 2026-03-17 12:11+0100\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language: en\n"
@@ -74,34 +74,6 @@ msgstr ""
 msgid "All"
 msgstr ""
 
-#: app/i18n_strings.py:28
-msgid "Pol"
-msgstr ""
-
-#: app/i18n_strings.py:29
-msgid "Soc"
-msgstr ""
-
-#: app/i18n_strings.py:30
-msgid "Cul"
-msgstr ""
-
-#: app/i18n_strings.py:31
-msgid "Int"
-msgstr ""
-
-#: app/i18n_strings.py:32
-msgid "Eco"
-msgstr ""
-
-#: app/i18n_strings.py:33
-msgid "Sci"
-msgstr ""
-
-#: app/i18n_strings.py:34
-msgid "Spo"
-msgstr ""
-
 #: app/routes/auth.py:23 app/routes/auth.py:44
 msgid "Email and password are required."
 msgstr ""
@@ -118,7 +90,7 @@ msgstr ""
 msgid "Email already registered."
 msgstr ""
 
-#: app/routes/reader.py:96 app/routes/reader.py:125 app/routes/reader.py:151
+#: app/routes/reader.py:107 app/routes/reader.py:136 app/routes/reader.py:162
 msgid "Article not found."
 msgstr ""
 
@@ -132,7 +104,7 @@ msgstr ""
 msgid "Article not found"
 msgstr ""
 
-#: templates/article.html:8 templates/article.html:56
+#: templates/article.html:8 templates/article.html:49
 msgid "Back"
 msgstr ""
 
@@ -141,48 +113,64 @@ msgstr ""
 msgid "Image source:"
 msgstr ""
 
-#: templates/article.html:36 templates/base.html:402
-#: templates/partials/article_expanded.html:30
+#: templates/article.html:24 templates/partials/article_card.html:17
+#: templates/partials/article_expanded.html:18
+#, python-format
+msgid "%(num)d source aggregated"
+msgid_plural "%(num)d sources aggregated"
+msgstr[0] ""
+msgstr[1] ""
+
+#: templates/article.html:24 templates/partials/article_card.html:17
+#: templates/partials/article_expanded.html:18
+#, fuzzy, python-format
+msgid "%(num)d source"
+msgid_plural "%(num)d sources"
+msgstr[0] ""
+msgstr[1] ""
+
+#: templates/article.html:29 templates/base.html:437
+#: templates/partials/article_expanded.html:23
 msgid "Read article aloud"
 msgstr ""
 
-#: templates/article.html:37 templates/base.html:399
-#: templates/partials/article_expanded.html:31
+#: templates/article.html:30 templates/base.html:434
+#: templates/partials/article_expanded.html:24
 msgid "Listen"
 msgstr ""
 
-#: templates/article.html:42 templates/article.html:45 templates/base.html:401
-#: templates/partials/article_expanded.html:36
-#: templates/partials/article_expanded.html:39
+#: templates/article.html:35 templates/article.html:38 templates/base.html:436
+#: templates/partials/article_expanded.html:29
+#: templates/partials/article_expanded.html:32
 msgid "Volume"
 msgstr ""
 
-#: templates/base.html:400
+#: templates/base.html:435
 msgid "Stop"
 msgstr ""
 
-#: templates/base.html:406
+#: templates/base.html:441
 msgid "Feed"
 msgstr ""
 
-#: templates/base.html:407 templates/settings.html:2 templates/settings.html:4
+#: templates/base.html:442 templates/settings.html:2 templates/settings.html:4
 msgid "Settings"
 msgstr ""
 
-#: templates/base.html:408
+#: templates/base.html:443
 msgid "Admin"
 msgstr ""
 
-#: templates/base.html:413
+#: templates/base.html:448
 msgid "Log out"
 msgstr ""
 
-#: templates/base.html:418 templates/login.html:2 templates/login.html:4
+#: templates/base.html:453 templates/login.html:2 templates/login.html:4
 #: templates/login.html:18 templates/register.html:21
 msgid "Log in"
 msgstr ""
 
-#: templates/base.html:419 templates/login.html:21 templates/register.html:2
+#: templates/base.html:454 templates/login.html:21 templates/register.html:2
 #: templates/register.html:4 templates/register.html:18
 msgid "Register"
 msgstr ""
@@ -236,7 +224,7 @@ msgid ""
 "minutes. Your new articles will appear once ready."
 msgstr ""
 
-#: templates/settings.html:13 templates/settings.html:59
+#: templates/settings.html:13 templates/settings.html:55
 msgid "Confirm and save"
 msgstr ""
 
@@ -264,19 +252,19 @@ msgstr ""
 msgid "Reading style"
 msgstr ""
 
-#: templates/settings.html:50 templates/setup.html:35
+#: templates/settings.html:46 templates/setup.html:31
 msgid "High contrast mode"
 msgstr ""
 
-#: templates/settings.html:54 templates/setup.html:39
+#: templates/settings.html:50 templates/setup.html:35
 msgid "Topics"
 msgstr ""
 
-#: templates/settings.html:55
+#: templates/settings.html:51
 msgid "Select the topics you're interested in."
 msgstr ""
 
-#: templates/settings.html:59
+#: templates/settings.html:55
 msgid "Save"
 msgstr ""
 
@@ -292,23 +280,15 @@ msgstr ""
 msgid "Configure your preferences. You can change these anytime in Settings."
 msgstr ""
 
-#: templates/setup.html:40
+#: templates/setup.html:36
 msgid "Select the topics you're interested in (all selected by default)."
 msgstr ""
 
-#: templates/setup.html:44
+#: templates/setup.html:40
 msgid "Save and continue"
 msgstr ""
 
-#: templates/partials/article_card.html:15
-#: templates/partials/article_expanded.html:18
-#, python-format
-msgid "%(num)d source aggregated"
-msgid_plural "%(num)d sources aggregated"
-msgstr[0] ""
-msgstr[1] ""
-
-#: templates/partials/article_expanded.html:55
+#: templates/partials/article_expanded.html:48
 msgid "Show less"
 msgstr ""
 
@@ -352,5 +332,26 @@ msgstr ""
 #~ msgstr ""
 
 #~ msgid "Back to feed"
+#~ msgstr ""
+
+#~ msgid "Pol"
+#~ msgstr ""
+
+#~ msgid "Soc"
+#~ msgstr ""
+
+#~ msgid "Cul"
+#~ msgstr ""
+
+#~ msgid "Int"
+#~ msgstr ""
+
+#~ msgid "Eco"
+#~ msgstr ""
+
+#~ msgid "Sci"
+#~ msgstr ""
+
+#~ msgid "Spo"
 #~ msgstr ""
 

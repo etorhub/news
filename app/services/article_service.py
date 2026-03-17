@@ -1,6 +1,5 @@
 """Article feed and expansion logic. Feed shows stories, not individual articles."""
 
-from collections import Counter
 from datetime import UTC, datetime, timedelta
 from typing import Any
 
@@ -75,27 +74,6 @@ def select_story_image(
 
 # Backwards compatibility alias
 select_cluster_image = select_story_image
-
-
-def _derive_story_category(articles: list[dict[str, Any]]) -> str | None:
-    """Most common category among story articles, or None if none have categories."""
-    cats = _derive_story_categories(articles)
-    return cats[0] if cats else None
-
-
-def _derive_story_categories(articles: list[dict[str, Any]]) -> list[str]:
-    """All categories in story, ordered by frequency (most common first)."""
-    if not articles:
-        return []
-    counts: Counter[str] = Counter()
-    for art in articles:
-        cats = art.get("categories")
-        if not isinstance(cats, list):
-            continue
-        for c in cats:
-            if c and isinstance(c, str):
-                counts[c] += 1
-    return [c for c, _ in counts.most_common()]
 
 
 def _get_rewrite_with_fallback(
@@ -229,23 +207,12 @@ def get_feed(
         if not rw or not rw.get("title") or not rw.get("full_text"):
             continue
 
-        sources_list = []
-        for art in articles:
-            src = sources.get(art["source_id"], {})
-            sources_list.append(
-                {
-                    "source_name": src.get("name", art["source_id"]),
-                    "url": art["url"],
-                    "title": art.get("title", ""),
-                }
-            )
-
         image_url, image_source_name = select_story_image(articles, sources)
-        categories = _derive_story_categories(articles)
         published_at = max(
             (a["published_at"] for a in articles if a.get("published_at")),
             default=None,
         )
+        sources_count = len(articles)
 
         result.append(
             {
@@ -253,12 +220,11 @@ def get_feed(
                 "title": rw["title"],
                 "summary": rw.get("summary") or "",
                 "full_text": rw["full_text"],
-                "sources": sources_list,
                 "relevance_score": story_data.get("relevance_score"),
                 "image_url": image_url,
                 "image_source_name": image_source_name,
-                "categories": categories,
                 "published_at": published_at,
+                "sources_count": sources_count,
             }
         )
     rewrites_pending = len(visible_stories) > 0 and len(result) == 0
@@ -271,7 +237,7 @@ def get_expanded_story(
     language: str,
     config: dict[str, Any],
 ) -> dict[str, Any] | None:
-    """Return story with full rewritten text and sources for expansion. None if not found."""
+    """Return story with full rewritten text for expansion. None if not found."""
     if not db_stories.story_exists(story_id):
         return None
     articles = db_stories.get_articles_in_story(story_id)
@@ -279,20 +245,14 @@ def get_expanded_story(
         return None
     rewrites_map = _get_rewrite_with_fallback([story_id], style, language, config)
     rw = rewrites_map.get(story_id)
-    sources_list = []
     sources_map = {s["id"]: s for s in load_sources()}
-    for art in articles:
-        src = sources_map.get(art["source_id"], {})
-        sources_list.append(
-            {
-                "source_name": src.get("name", art["source_id"]),
-                "url": art["url"],
-                "title": art.get("title", ""),
-            }
-        )
 
     image_url, image_source_name = select_story_image(articles, sources_map)
-    categories = _derive_story_categories(articles)
+    published_at = max(
+        (a["published_at"] for a in articles if a.get("published_at")),
+        default=None,
+    )
+    sources_count = len(articles)
 
     # Never show raw source content; use rewrite or "being prepared" placeholder
     if rw and rw.get("full_text"):
@@ -309,8 +269,8 @@ def get_expanded_story(
         "title": title,
         "summary": summary,
         "full_text": full_text,
-        "sources": sources_list,
         "image_url": image_url,
         "image_source_name": image_source_name,
-        "categories": categories,
+        "published_at": published_at,
+        "sources_count": sources_count,
     }

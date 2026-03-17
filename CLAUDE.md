@@ -91,6 +91,7 @@ These are hard rules, not preferences:
 
 ## Coding Rules
 
+- **Internationalization (i18n):** All user-facing strings must be translatable. Use `_()` and `ngettext()` in templates; `gettext()` in Python. Never hardcode UI text. After adding strings, run `pybabel extract`, `pybabel update`, edit `.po` files, then `pybabel compile`. See `docs/I18N.md` and `.cursor/rules/i18n.mdc`.
 - Use Python type hints throughout
 - Flask routes use blueprints — never register routes directly on the app object
 - Template partials (for HTMX responses) live in `templates/partials/` and follow the naming convention `{resource}_{action}.html` (e.g. `article_expanded.html`)
@@ -104,6 +105,7 @@ These are hard rules, not preferences:
 
 ## What Claude Gets Wrong on This Stack
 
+- **Hardcoding user-facing strings.** Every UI string must be wrapped in `_()` or `ngettext()` (templates) or `gettext()` (Python). Run the i18n extraction/update/compile workflow after changes.
 - **Returning JSON from Flask routes.** Every route must return `render_template(...)` or `render_template_string(...)`. If you find yourself writing `jsonify`, stop.
 - **Adding JavaScript frameworks or files.** HTMX attributes on HTML elements handle all interactivity. There is no `static/js/` directory and no external JS libraries. The only permitted JavaScript is a small inline `<script>` in `base.html` for the Web Speech API (TTS). Do not add JS for anything else.
 - **Calling Ollama directly.** Always use `from app.llm.provider import get_provider` and call through the interface.
@@ -145,7 +147,7 @@ For automated news source discovery (finding feeds by location, validation, qual
 
 ## Cursor IDE Rules
 
-`.cursor/rules/` contains Cursor IDE rule files that mirror this document. `project-context.mdc` is the full equivalent of CLAUDE.md for Cursor users. Additional rules cover architecture, accessibility, LLM usage, and news source discovery. These rules are authoritative for Cursor users and must stay in sync with CLAUDE.md — if one is updated, update the other.
+`.cursor/rules/` contains Cursor IDE rule files that mirror this document. `project-context.mdc` is the full equivalent of CLAUDE.md for Cursor users. Additional rules cover architecture, accessibility, i18n, LLM usage, and news source discovery. These rules are authoritative for Cursor users and must stay in sync with CLAUDE.md — if one is updated, update the other.
 
 ---
 

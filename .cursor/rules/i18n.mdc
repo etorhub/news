@@ -1,0 +1,47 @@
+---
+description: Internationalization (i18n) rules. All user-facing strings must be translatable. Apply when adding or changing UI text.
+globs: ['**/*.html', '**/*.py', 'app/**/*.py', 'templates/**/*.html']
+---
+
+# Internationalization (i18n)
+
+The platform supports **Catalan** (`ca`), **Spanish** (`es`), and **English** (`en`). Every user-facing string must be wrapped for translation. See `docs/I18N.md` for the full workflow.
+
+## Rules
+
+1. **Never hardcode user-facing text.** Wrap all UI strings in `_()` or `ngettext()`.
+2. **Templates:** Use `{{ _('string') }}` for static text, `{{ ngettext('singular', 'plural', count)|format(...) }}` for plurals with counts.
+3. **Python (routes, services):** Use `from flask_babel import gettext` and `gettext("string")` for user-facing messages (errors, flash, etc.).
+4. **Config labels** (languages, styles, topics) are translated at runtime via `_(lang.label)`; add literals to `app/i18n_strings.py` so pybabel extracts them.
+5. **After adding or changing translatable strings**, run:
+   ```bash
+   pybabel extract -F babel.cfg -o messages.pot .
+   pybabel update -i messages.pot -d translations
+   # Edit translations/ca/LC_MESSAGES/messages.po and translations/es/LC_MESSAGES/messages.po
+   pybabel compile -d translations
+   ```
+
+## Examples
+
+**Template — simple string:**
+```html
+{{ _('Log in') }}
+{{ _("Today's feed") }}
+```
+
+**Template — plural with count:**
+```html
+{{ ngettext('%(num)d article', '%(num)d articles', count)|format(num=count) }}
+{{ ngettext('%(num)d source', '%(num)d sources', n)|format(num=n) }}
+```
+
+**Python:**
+```python
+from flask_babel import gettext
+return render_template("login.html", error=gettext("Invalid email or password."))
+```
+
+## Out of scope
+
+- Admin dashboard (operator-facing) — English only for now
+- Log messages, debug output
