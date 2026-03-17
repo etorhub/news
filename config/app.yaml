@@ -43,6 +43,8 @@ schedule:
   # Articles older than this are not fetched (0 = no limit)
   max_article_age_hours: 24
   rewrite_cron: "0 6 * * *"   # Daily at 6am
+  # Source feed availability check (HTTP HEAD/GET) — visible in ops dashboard
+  availability_check_interval_minutes: 10
   # Higher batch when showing all stories; more rewrites per run
   rewrite_batch_size: 50
   # Parallel workers for rewrite. Ollama serializes internally; 1 avoids overloading.

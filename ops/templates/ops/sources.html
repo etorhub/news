@@ -1,0 +1,65 @@
+{% extends "ops/base.html" %}
+{% block title %}Sources — Ops{% endblock %}
+{% block content %}
+<h1>News sources</h1>
+
+<div class="table-responsive">
+  <table class="table table-sm">
+    <thead>
+      <tr>
+        <th>Source</th>
+        <th>Domain</th>
+        <th>Country</th>
+        <th>Feed URL</th>
+        <th>Poll (min)</th>
+        <th>Active</th>
+        <th>Available</th>
+        <th>Failures</th>
+        <th>Last fetched</th>
+        <th>Last check</th>
+        <th></th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for f in feed_health %}
+      <tr class="{% if not f.feed_active or f.consecutive_failures %}table-warning{% endif %}{% if f.is_available is false %} table-danger{% endif %}">
+        <td>{{ f.source_name or f.source_id }}</td>
+        <td><small>{{ f.domain or '—' }}</small></td>
+        <td>{{ f.country_code or '—' }}</td>
+        <td><small class="text-truncate d-inline-block" style="max-width: 180px;">{{ f.feed_url }}</small></td>
+        <td>{{ f.poll_interval_minutes or 60 }}</td>
+        <td>{{ 'Yes' if f.feed_active else 'No' }}</td>
+        <td>
+          {% if f.is_available is false %}<span class="badge bg-danger">unavailable</span>
+          {% elif f.is_available %}<span class="badge bg-success">available</span>
+          {% else %}<span class="badge bg-secondary">—</span>{% endif %}
+        </td>
+        <td>{{ f.consecutive_failures or 0 }}</td>
+        <td>{{ f.last_fetched_at.strftime('%Y-%m-%d %H:%M') if f.last_fetched_at else '—' }}</td>
+        <td>{{ f.last_availability_check_at.strftime('%Y-%m-%d %H:%M') if f.last_availability_check_at else '—' }}</td>
+        <td>
+          <button class="btn btn-sm btn-outline-secondary" type="button"
+            hx-get="{{ url_for('sources.availability_partial', feed_id=f.id) }}"
+            hx-target="#availability-{{ f.id }}"
+            hx-swap="innerHTML"
+            hx-trigger="click"
+            data-bs-toggle="collapse"
+            data-bs-target="#availability-{{ f.id }}">
+            History
+          </button>
+        </td>
+      </tr>
+      <tr>
+        <td colspan="11" class="p-0 border-0">
+          <div class="collapse" id="availability-{{ f.id }}">
+            <div class="p-2 bg-light small text-muted">Click History to load</div>
+          </div>
+        </td>
+      </tr>
+      {% else %}
+      <tr><td colspan="11">No feeds</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endblock %}

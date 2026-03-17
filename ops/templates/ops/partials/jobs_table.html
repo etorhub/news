@@ -1,0 +1,46 @@
+<div class="table-responsive">
+  <table class="table table-sm">
+    <thead>
+      <tr>
+        <th>ID</th>
+        <th>Job</th>
+        <th>Started</th>
+        <th>Finished</th>
+        <th>Duration</th>
+        <th>Trigger</th>
+        <th>Status</th>
+        <th>Result</th>
+        <th>Error</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for j in job_runs %}
+      <tr>
+        <td>{{ j.id }}</td>
+        <td><code>{{ j.job_name }}</code></td>
+        <td>{{ j.started_at.strftime('%Y-%m-%d %H:%M:%S') if j.started_at else '—' }}</td>
+        <td>{{ j.finished_at.strftime('%Y-%m-%d %H:%M:%S') if j.finished_at else '—' }}</td>
+        <td>{% if j.duration_ms %}{{ (j.duration_ms / 1000)|round(1) }}s{% else %}—{% endif %}</td>
+        <td><span class="badge bg-secondary">{{ j.trigger or 'scheduled' }}</span></td>
+        <td>
+          {% if j.status == 'success' %}<span class="badge bg-success">success</span>
+          {% elif j.status == 'error' %}<span class="badge bg-danger">error</span>
+          {% else %}<span class="badge bg-warning">running</span>{% endif %}
+        </td>
+        <td>
+          {% if j.result %}
+          <button class="btn btn-sm btn-outline-secondary" type="button" data-bs-toggle="collapse" data-bs-target="#result-{{ j.id }}">Show</button>
+          <div class="collapse" id="result-{{ j.id }}">
+            <pre class="small mb-0 mt-1">{{ j.result | tojson }}</pre>
+          </div>
+          {% else %}—{% endif %}
+        </td>
+        <td><small>{{ j.error_message[:100] if j.error_message else '—' }}{% if j.error_message and j.error_message|length > 100 %}…{% endif %}</small></td>
+      </tr>
+      {% else %}
+      <tr><td colspan="9">No job runs</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+<p class="text-muted small">Total: {{ total }}. Page {{ page }}.</p>

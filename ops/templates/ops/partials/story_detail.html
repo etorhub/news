@@ -1,0 +1,25 @@
+<div class="p-2">
+  <p class="small fw-bold mb-1">Articles in story {{ story_id[:8] }}…</p>
+  <table class="table table-sm table-bordered mb-0">
+    <thead>
+      <tr>
+        <th>Position</th>
+        <th>Title</th>
+        <th>Source</th>
+        <th>URL</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for a in articles %}
+      <tr>
+        <td>{{ a.position }}</td>
+        <td><small>{{ a.title[:50] if a.title else '—' }}{% if a.title and a.title|length > 50 %}…{% endif %}</small></td>
+        <td>{{ a.source_name or a.source_id }}</td>
+        <td><a href="{{ a.url }}" target="_blank" rel="noopener">link</a></td>
+      </tr>
+      {% else %}
+      <tr><td colspan="4">No articles</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>

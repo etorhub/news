@@ -62,7 +62,7 @@ Refer to `docs/MVP_PLAN.md` for the canonical phased plan: discovery, fetching, 
 
 ### Operator-facing
 
-- Admin dashboard at `/admin` — pipeline monitoring, job history, feed health, user activity, incidents. Access via `flask make-admin <email>`. See `docs/ADMIN_DASHBOARD.md`.
+- Ops dashboard at `http://localhost:5001` — separate Flask service for pipeline monitoring, job history, feed health, source availability, articles, stories, user activity, incidents. No auth by default. See `docs/ADMIN_DASHBOARD.md`.
 
 ---
 
@@ -76,7 +76,7 @@ See `docs/TECH_STACK.md` for full details, project structure, dependencies, Dock
 - **Embeddings:** Ollama (nomic-embed-text) for article clustering
 - **Frontend:** Plain HTML + CSS + HTMX
 - **Scheduling:** APScheduler runs a five-stage pipeline in the worker: fetch feeds → enrich (extract full text) → embed → cluster → rewrite. The rewrite stage uses a cascade: generate neutral EN from sources, simplify to simple EN, translate both to other languages. Content is ready when the user opens the app.
-- **Packaging:** Docker + docker-compose (db, web, worker, ollama). Web uses slim image; worker uses ollama client; ollama runs models in dedicated container.
+- **Packaging:** Docker + docker-compose (db, web, worker, ollama, ops). Web uses slim image; worker uses ollama client; ollama runs models in dedicated container; ops dashboard on port 5001.
 
 ---
 

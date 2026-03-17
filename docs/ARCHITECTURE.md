@@ -104,6 +104,7 @@ For automated source discovery (location-based discovery, feed detection, qualit
 - `fetcher.py` — fetches RSS feeds via HTTP, returns `FetchResult` with content and conditional headers
 - `parser.py` — parses feed XML via `feedparser`, returns `RawArticle` objects
 - `orchestrator.py` — fetches all due feeds, parses, deduplicates, inserts articles; circuit breaker for failing feeds
+- `availability.py` — `check_all_feeds_availability()`: HTTP HEAD/GET to each active feed; stores results in `source_availability_checks`; scheduled every 10 minutes
 
 A `RawArticle` has: `id`, `title`, `url`, `source`, `published_at`, `raw_text` (RSS description/lede), `full_text` (populated when the source provides full article content).
 
@@ -154,7 +155,8 @@ All PostgreSQL access. No other module writes to the database directly.
 - `sources.py` — news_sources, source_feeds, source_discovery_log
 - `rewrite_requests.py` — on-demand rewrite queue infrastructure (table + DB layer exist; not yet wired to routes or scheduler)
 - `users.py` — read/write for users and profiles
-- `admin.py` — admin dashboard queries (job runs, overview stats, feed health, incidents)
+- `admin.py` — ops dashboard queries (job runs, overview stats, feed health, incidents, stories with rewrite status, user usage)
+- `availability.py` — source feed availability check results (insert, history)
 - `connection.py` — connection pool management
 
 ### `app/routes/`
@@ -165,14 +167,21 @@ Flask blueprints. Routes are thin wrappers: parse request, call service, return 
 - `auth.py` — login, register, logout
 - `setup.py` — initial configuration wizard (`GET /setup`, `POST /setup`)
 - `settings.py` — configuration interface; allows editing profile fields after initial setup
-- `admin.py` — admin dashboard (`GET /admin`, `GET /admin/partials/jobs`); requires `is_admin`
 
-### `app/templates/`
+### `ops/`
 
-Jinja2 templates. Pages extend `base.html`. HTMX responses use partials. Templates live at project root `templates/`, not under `app/`.
+Separate Flask application for operators. Runs on port 5001. Connects to the same PostgreSQL database. No authentication by default.
+
+- `ops/__init__.py` — Flask app factory
+- `ops/views/` — dashboard, jobs, sources, articles, stories, users
+- `ops/templates/ops/` — Bootstrap 5 + HTMX templates
+
+### `app/templates/` and `ops/templates/`
+
+Jinja2 templates. Main app templates live at project root `templates/`; ops templates live in `ops/templates/ops/`. Pages extend their respective base templates. HTMX responses use partials.
 
 ```
-templates/
+templates/                  # Main news platform
 ├── base.html               # Shell: nav, font settings; contains inline <script> for Web Speech API TTS only
 ├── index.html              # Main reader view (today's digest); section nav (All + topic sections), feed content
 ├── article.html            # Full-page single article view
@@ -180,14 +189,6 @@ templates/
 ├── register.html           # Registration page
 ├── setup.html              # Initial configuration wizard
 ├── settings.html           # Settings page
-├── admin/
-│   ├── dashboard.html      # Admin dashboard (pipelines, jobs, users, incidents)
-│   ├── articles.html       # Admin articles view
-│   └── partials/
-│       ├── articles_table.html  # Articles table fragment
-│       ├── cluster_detail.html  # Cluster detail fragment
-│       ├── clusters_list.html   # Clusters list fragment
-│       └── jobs.html            # Job runs table (HTMX partial, auto-refresh)
 └── partials/
     ├── article_card.html      # Summary card (one cluster in list)
     ├── article_expanded.html  # Full simplified article (expanded inline)
@@ -237,6 +238,7 @@ schedule:
   enrichment_cron: "5 * * * *"
   cluster_cron: "15 * * * *"
   rewrite_cron: "0 6 * * *"
+  availability_check_interval_minutes: 10
   rewrite_batch_size: 50
   rewrite_parallel_workers: 1
   fetcher:
@@ -393,9 +395,9 @@ Caregivers should be aware of this during setup: the setup wizard should display
 
 ## Operational Rules
 
-### Admin dashboard
+### Ops dashboard
 
-Operators can monitor the system at `/admin`. Access requires `is_admin = true` on the user account. Grant via `flask make-admin <email>`. The dashboard shows job run history, feed health, article pipeline stats, clustering coverage, user activity, and auto-detected incidents. See [docs/ADMIN_DASHBOARD.md](ADMIN_DASHBOARD.md).
+Operators monitor the system via the **ops dashboard** at `http://localhost:5001`. It is a separate Flask service (no auth by default; restrict at network level). The dashboard shows job run history (with trigger: scheduled/manual), feed health, source availability, article pipeline stats, stories with rewrite matrix, user activity, and auto-detected incidents. See [docs/ADMIN_DASHBOARD.md](ADMIN_DASHBOARD.md).
 
 ### APScheduler and Gunicorn workers
 

@@ -95,7 +95,7 @@ Table of platform users with usage:
 
 A scheduled job runs every 10 minutes to check feed reachability (HTTP HEAD/GET). Results are stored in `source_availability_checks` and reflected in the Sources page.
 
-Config: `schedule.availability_check_interval_minutes` (default 10).
+Config: `config/app.yaml` → `schedule.availability_check_interval_minutes` (default 10).
 
 ---
 

@@ -57,17 +57,25 @@ Wait for services to be healthy (web at `http://localhost:5000`, worker running)
 
 The script fetches feeds, extracts full text, clusters articles, and rewrites them. When it finishes, the app has real content.
 
+### Ops dashboard
+
+Operators can monitor the pipeline at the **ops dashboard**: `http://localhost:5001`. It shows job runs, feed health, source availability, articles, stories, and user activity. No authentication by default (restrict access at the network level).
+
+```bash
+docker compose up -d ops
+```
+
 ### Admin account
 
-A default admin is ready to use: **admin@admin.com** / **admin**. Log in to access the app and the admin dashboard at `/admin`.
+A default admin is ready to use: **admin@admin.com** / **admin**. Log in to access the app.
 
-To grant admin to another user:
+To grant admin privileges to another user (for future use):
 
 ```bash
 docker compose exec web flask make-admin your@email.com
 ```
 
-See [docs/ADMIN_DASHBOARD.md](docs/ADMIN_DASHBOARD.md) for full documentation.
+See [docs/ADMIN_DASHBOARD.md](docs/ADMIN_DASHBOARD.md) for ops dashboard documentation.
 
 ### Manual pipeline control
 
@@ -126,7 +134,7 @@ See [docs/TECH_STACK.md](docs/TECH_STACK.md) for full details.
 | [.cursor/rules/](.cursor/rules/)                                           | Cursor IDE rules — same context via `project-context.mdc` (always apply) plus architecture, accessibility, LLM, news-source-discovery |
 | [docs/TECH_STACK.md](docs/TECH_STACK.md)                                   | Tech stack, project structure, dependencies, Docker setup                                                                             |
 | [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)                               | System architecture, database schema, component map, request lifecycle                                                                |
-| [docs/ADMIN_DASHBOARD.md](docs/ADMIN_DASHBOARD.md)                         | Admin dashboard: pipeline monitoring, job history, user activity, incidents                                                           |
+| [docs/ADMIN_DASHBOARD.md](docs/ADMIN_DASHBOARD.md)                         | Ops dashboard: pipeline monitoring, job history, source availability, user activity, incidents                                         |
 | [docs/I18N.md](docs/I18N.md)                                               | Internationalization: locale selection, translation catalogs, updating strings                                                       |
 | [docs/MVP_PLAN.md](docs/MVP_PLAN.md)                                       | Phased MVP plan with tasks and success criteria                                                                                       |
 | [docs/news_source_discovery_agent.md](docs/news_source_discovery_agent.md) | News source discovery pipeline specification                                                                                          |

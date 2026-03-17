@@ -1,0 +1,26 @@
+<div class="p-2">
+  <table class="table table-sm table-bordered mb-0">
+    <thead>
+      <tr>
+        <th>Checked at</th>
+        <th>Status</th>
+        <th>HTTP</th>
+        <th>Time (ms)</th>
+        <th>Error</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for h in history %}
+      <tr>
+        <td>{{ h.checked_at.strftime('%Y-%m-%d %H:%M:%S') if h.checked_at else '—' }}</td>
+        <td>{% if h.is_available %}<span class="badge bg-success">available</span>{% else %}<span class="badge bg-danger">unavailable</span>{% endif %}</td>
+        <td>{{ h.http_status or '—' }}</td>
+        <td>{{ h.response_time_ms or '—' }}</td>
+        <td><small>{{ h.error_message[:80] if h.error_message else '—' }}{% if h.error_message and h.error_message|length > 80 %}…{% endif %}</small></td>
+      </tr>
+      {% else %}
+      <tr><td colspan="5">No checks yet</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>

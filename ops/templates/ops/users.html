@@ -1,0 +1,40 @@
+{% extends "ops/base.html" %}
+{% block title %}Users — Ops{% endblock %}
+{% block content %}
+<h1>Platform users</h1>
+
+<div class="table-responsive">
+  <table class="table table-sm">
+    <thead>
+      <tr>
+        <th>Email</th>
+        <th>Joined</th>
+        <th>Last login</th>
+        <th>Active</th>
+        <th>Language</th>
+        <th>Style</th>
+        <th>Location</th>
+        <th>Read stories</th>
+        <th>Topics</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for u in users %}
+      <tr>
+        <td>{{ u.email }}</td>
+        <td>{{ u.created_at.strftime('%Y-%m-%d') if u.created_at else '—' }}</td>
+        <td>{{ u.last_login_at.strftime('%Y-%m-%d %H:%M') if u.last_login_at else '—' }}</td>
+        <td>{{ 'Yes' if u.is_active else 'No' }}</td>
+        <td>{{ u.language or '—' }}</td>
+        <td>{{ u.preferred_style or '—' }}</td>
+        <td>{{ u.location or '—' }}</td>
+        <td>{{ u.read_stories_count or 0 }}</td>
+        <td><small>{{ (u.enabled_topics or [])|join(', ') or '—' }}</small></td>
+      </tr>
+      {% else %}
+      <tr><td colspan="9">No users</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endblock %}

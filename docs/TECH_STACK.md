@@ -54,20 +54,23 @@ Technology choices for the Accessible News Aggregator, with rationale.
 │   ├── cli.py               # Flask CLI commands (seed-sources, make-admin, show-rewrite-failures)
 │   ├── scheduler.py         # APScheduler entry point (worker container only)
 │   ├── worker_cli.py        # Pipeline CLI (fetch-feeds, enrich-articles, cluster-articles, etc.)
-│   ├── routes/              # Flask blueprints — reader, auth, setup, settings, admin
+│   ├── routes/              # Flask blueprints — reader, auth, setup, settings
 │   ├── services/            # Business logic — routes call services
 │   ├── llm/
 │   │   ├── provider.py      # Abstract LLM interface + OllamaProvider
 │   │   ├── embeddings.py    # Embedding provider (Ollama nomic-embed-text)
 │   │   └── prompts/        # rewrite_cluster_neutral, simplify_article, translate_article
-│   ├── feed/                # RSS fetching (fetcher, parser, orchestrator)
+│   ├── feed/                # RSS fetching (fetcher, parser, orchestrator, availability)
 │   ├── extraction/          # Full-text extraction (extractor, trafilatura)
 │   ├── clustering/          # Article clustering by embedding similarity
 │   ├── discovery/           # Feed detection, validation, quality scoring
-│   └── db/                  # PostgreSQL access layer (includes admin queries)
-├── templates/               # Jinja2 templates (at project root)
-│   ├── partials/            # HTMX fragment templates
-│   └── admin/
+│   └── db/                  # PostgreSQL access layer (includes admin/ops queries)
+├── ops/                     # Ops dashboard — separate Flask app (port 5001)
+│   ├── __init__.py          # Ops app factory
+│   ├── views/               # Dashboard, jobs, sources, articles, stories, users
+│   └── templates/ops/      # Bootstrap 5 + HTMX templates
+├── templates/               # Jinja2 templates for main app (at project root)
+│   └── partials/            # HTMX fragment templates
 ├── alembic/                 # Database migration scripts (Alembic)
 │   ├── env.py
 │   └── versions/            # Versioned migration files
@@ -104,7 +107,7 @@ flask run
 # Run with Docker (recommended)
 docker-compose up
 
-# Grant admin access to a user (for /admin dashboard)
+# Grant admin privileges (for future use; ops dashboard has no auth)
 flask make-admin user@example.com
 
 # Pipeline commands (run in worker container)
@@ -137,19 +140,24 @@ pybabel compile -d translations
 mypy .
 ```
 
-### Admin dashboard
+### Ops dashboard
 
-Operators can access `/admin` to monitor ingestion pipelines, job history, feed health, user activity, and incidents. Admin access is granted via `flask make-admin <email>`. See [docs/ADMIN_DASHBOARD.md](ADMIN_DASHBOARD.md) for details.
+Operators can access the **ops dashboard** at `http://localhost:5001` to monitor ingestion pipelines, job history, feed health, source availability, articles, stories, and user activity. It is a separate Flask service with no authentication (intended for private network access). See [docs/ADMIN_DASHBOARD.md](ADMIN_DASHBOARD.md) for details.
+
+```bash
+docker compose up -d ops
+```
 
 ---
 
 ## Docker Composition
 
-Four services: PostgreSQL, Ollama (LLM/embeddings), the Flask web app (slim image), and the worker (feed processing + ollama client).
+Five services: PostgreSQL, Ollama (LLM/embeddings), the Flask web app (slim image), the worker (feed processing + ollama client), and the ops dashboard.
 
 - **ollama** — Runs Ollama server. Models (qwen2.5:7b, nomic-embed-text) are pulled on first start via `ollama-init`. GPU is the default; use `docker-compose.cpu.yml` for CPU-only systems.
 - **web** — Gunicorn serves the Flask app. Uses `requirements-web.txt` (no ollama, no feed processing). Runs `alembic upgrade head` on startup, then Gunicorn.
-- **worker** — Runs APScheduler (`python -m app.scheduler`) for scheduled pipeline jobs (fetch, enrich, cluster, rewrite). Uses `requirements.txt` (includes ollama Python client). Connects to ollama service for LLM and embeddings. Processing CLI commands run here: `docker compose exec worker python -m app.worker_cli fetch-feeds`, etc.
+- **worker** — Runs APScheduler (`python -m app.scheduler`) for scheduled pipeline jobs (fetch, enrich, cluster, rewrite, check_source_availability). Uses `requirements.txt` (includes ollama Python client). Connects to ollama service for LLM and embeddings. Processing CLI commands run here: `docker compose exec worker python -m app.worker_cli fetch-feeds`, etc.
+- **ops** — Separate Flask app for operators. Serves the ops dashboard at port 5001. Uses the same database; no auth by default.
 
 ```yaml
 # docker-compose.yml (simplified)
@@ -182,6 +190,15 @@ services:
     environment:
       OLLAMA_HOST: http://ollama:11434
     command: python -m app.scheduler
+    # ...
+
+  ops:
+    build:
+      context: .
+      target: web
+    ports:
+      - "5001:5001"
+    command: gunicorn -b 0.0.0.0:5001 ops:application
     # ...
 ```
 
@@ -254,6 +271,7 @@ Background jobs in the worker:
 2. **Enrichment jobs** — extract full article text from URLs (Trafilatura) for articles with `extraction_status = 'pending'`.
 3. **Cluster jobs** — embed articles (Ollama nomic-embed-text), cluster by cosine similarity, create cluster records.
 4. **Rewrite jobs** — run at a configurable daily time (default: 06:00). Uses a cascading pipeline: generate neutral English from sources, simplify to simple English, then translate both to other languages. Per-task models (`rewrite_model`, `simplify_model`, `translate_model`) can be tuned in config. Rewrites are stored in `story_rewrites` and shared across all users with the same `(style, language)` variant.
+5. **Availability check** — runs every 10 minutes (configurable). HTTP HEAD/GET to each active feed; stores results in `source_availability_checks`. Visible in the ops dashboard.
 
 When a user opens the app, content is already ready. No waiting.
 
