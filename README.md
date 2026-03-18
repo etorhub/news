@@ -43,8 +43,8 @@ Neither the end user nor anyone acting on their behalf ever touches the codebase
 ### Setup
 
 ```bash
-git clone https://github.com/accessible-news/aggregator.git
-cd aggregator
+git clone https://github.com/etorhub/news.git
+cd news
 
 docker-compose up
 ```
